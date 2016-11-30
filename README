@@ -1,0 +1,13 @@
+This is gonna be like my EinsteinFieldEquationSolution, but using OpenCL
+and lots of metaprogramming, which means Lua markup
+which means I'm skipping the C++.
+
+The bottleneck will be the linear solver, unless I rewrite them in OpenCL as well, which I might do.
+
+How it works:
+
+1) provide initial stress-energy conditions, in terms of primitives (not T_ab, because that depends on g_ab)
+
+2) provide initial metric primitivies
+
+3) solve the quadratic function G_ab = 8 pi T_ab, where G_ab is derived from the metric prims, and T_ab is derived from the stress-energy (and metric) prims
