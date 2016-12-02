@@ -214,9 +214,8 @@ sym4 calc_EinsteinLL(
 }
 
 sym4 calc_8piTLL(
-	gPrim_t gPrim,
-	sym4 gLL,
-	TPrim_t TPrim
+	global const sym4* gLL,
+	global const TPrim_t* TPrim
 ) {
 	
 	/*
@@ -227,20 +226,20 @@ sym4 calc_8piTLL(
 <? 
 for i=0,subDim-1 do 
 	for j=i,subDim-1 do ?>
-		+ gLL.s<?=sym(i+1,j+1)?> * TPrim.E.s<?=i?> * TPrim.E.s<?=j?>
+		+ gLL->s<?=sym(i+1,j+1)?> * TPrim->E.s<?=i?> * TPrim->E.s<?=j?>
 <?	end
 end ?>;
 	real BSq = 0
 <? 
 for i=0,subDim-1 do 
 	for j=i,subDim-1 do ?>
-		+ gLL.s<?=sym(i+1,j+1)?> * TPrim.B.s<?=i?> * TPrim.B.s<?=j?>
+		+ gLL->s<?=sym(i+1,j+1)?> * TPrim->B.s<?=i?> * TPrim->B.s<?=j?>
 <?	end
 end ?>;
 
-	real3 S = real3_cross(TPrim.E, TPrim.B);
+	real3 S = real3_cross(TPrim->E, TPrim->B);
 
-	return (sym4){
+	sym4 T_EM_UU = {
 		.s00 = ESq + BSq,
 <? for i=0,subDim-1 do ?>
 		.s0<?=i+1?> = 2. * S.s<?=i?>,
@@ -248,9 +247,33 @@ end ?>;
 		.s<?=i+1?><?=j+1?> = 
 			<? if i == j then ?> ESq + BSq <? else ?> 0 <? end ?>
 			- 2. * (
-				TPrim.E.s<?=i?> * TPrim.E.s<?=j?>
-				+ TPrim.B.s<?=i?> * TPrim.B.s<?=j?>
+				TPrim->E.s<?=i?> * TPrim->E.s<?=j?>
+				+ TPrim->B.s<?=i?> * TPrim->B.s<?=j?>
 			),
 	<? end ?>
 <? end ?>};
+
+	mat4 T_EM_LU = {
+<? for a=0,dim-1 do
+	for b=0,dim-1 do ?>
+		.s<?=a?><?=b?> = 0.
+		<? for c=0,dim-1 do ?>
+			+ gLL->s<?=sym(a,c)?> * T_EM_UU.s<?=sym(c,b)?>
+		<? end ?>,
+<?	end
+end ?>
+	};
+
+	sym4 T_EM_LL = {
+<? for a=0,dim-1 do
+	for b=a,dim-1 do ?>
+		.s<?=a?><?=b?> = 0.
+		<? for c=0,dim-1 do ?>
+			+ T_EM_LU.s<?=a?><?=c?> * gLL->s<?=sym(c,b)?>
+		<? end ?>,
+<?	end
+end ?>
+	};
+
+	return T_EM_LL;
 }

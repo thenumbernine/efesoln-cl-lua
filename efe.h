@@ -25,6 +25,18 @@ typedef union {
 } sym4;
 
 typedef union {
+	real s[4*4];
+	struct { real4 s0, s1, s2, s3; };
+	struct {
+<? for a=0,3 do
+	for b=0,3 do ?>
+		real s<?=a?><?=b?>;
+<?	end
+end ?>
+	};
+} mat4;
+
+typedef union {
 	sym4 s[4];
 	struct { sym4 s0, s1, s2, s3; };
 } tensor_4sym4;

@@ -404,7 +404,7 @@ local calc_EFE_constraint = MetaKernel{
 	argsIn = {gPrims, TPrims, gLLs, gUUs, GammaULLs},
 	code = template([[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	sym4 _8piTLL = calc_8piTLL(gPrims[index], gLLs[index], TPrims[index]);
+	sym4 _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);
 	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
 ]], {
 	
