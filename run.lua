@@ -91,14 +91,14 @@ local body = {
 body.volume = 4/3 * math.pi * body.radius^3	-- m^3
 body.density = body.mass / body.volume	-- 1/m^2
 
-body.init = template([[
+body.init = [[
 		
 	//spherical body:
 	
 	TPrim->rho = r < <?=body.radius?> ? <?=body.density?> : 0;
 	//TODO init this with the hydrostatic term of the schwarzschild equation of structure 
 
-]], {body=body})
+]]
 
 -- initial conditions:
 -- [=[ flat 
@@ -106,7 +106,7 @@ local initCond = {code = ''}
 --]=]
 -- [=[ stellar schwarzschild 
 local initCond = {
-	code = 	template([[
+	code = [[
 	real radius = <?=body.radius?>;
 	real mass = <?=body.mass?>;
 
@@ -127,10 +127,7 @@ local initCond = {
 		<? end ?>
 	<? end ?>
 
-]], {
-	subDim = subDim,
-	body = body,
-}),
+]],
 }
 --]=]
 
@@ -143,162 +140,27 @@ local xmax = vec3d(bodyRadii*body.radius,bodyRadii*body.radius,bodyRadii*body.ra
 
 print'generating code...'
 
-local typeCode = table{
-	template([[
-typedef <?=real?> real;
-]], {real=real}),
-	[[
-typedef union {
-	real s[3];
-	struct { real s0, s1, s2; };
-	struct { real x, y, z; };
-} real3;
-
-typedef union {
-	real s[6];
-	struct { real s00, s01, s02, s11, s12, s22; };	//useful for templated code
-	struct { real xx, xy, xz, yy, yz, zz; };
-} sym3;
-
-typedef union {
-	real s[10];
-	struct { real s00, s01, s02, s03, s11, s12, s13, s22, s23, s33; };	//useful for templated code
-	struct { real tt, tx, ty, tz, xx, xy, xz, yy, yz, zz; };
-} sym4;
-
-typedef union {
-	sym4 s[3];
-	struct { sym4 s0, s1, s2; };
-} tensor_3sym4;
-
-
-typedef union {
-	sym4 s[4];
-	struct { sym4 s0, s1, s2, s3; };
-} tensor_4sym4;
-
-typedef struct {
-	real alpha;
-	real3 betaU;
-	sym3 gammaLL;
-} gPrim_t;
-
-typedef struct {
-	//source terms:
-	real rho;	//matter density
-	real P;		//pressure ... due to matter.  TODO what about magnetic pressure?
-	real eInt;	//specific internal energy
-
-	real3 v;	//3-vel (upper, spatial)
-
-//this needs to be lienar solved for ... but it's an easy problem (at least when geometry is flat)
-//	real chargeDensity;
-//	TensorUsub currentDensity;	//TODO how does this relate to matter density?
-
-//in the mean time ...
-	real3 E, B;	//upper, spatial
-
-} TPrim_t;
-]]
-}:concat'\n'
+local typeCode = template(file['efe.h'], {
+	real = real,
+})
 
 -- luajit the types so I can see the sizeof (I hope OpenCL agrees with padding)
 
-ffi.cdef(typeCode)
+-- boilerplate
+ffi.cdef(template([[
+typedef <?=real?> <?=real?>2[2];
+typedef <?=real?> <?=real?>4[4];
+]], {real=real}))
+
+ffi.cdef(table{
+	typeCode,
+}:concat'\n')
 
 -- header includes macros as well as ffi-cdef code
 
-local header = table{
+local headerCode = table{
 	typeCode,
-	[[
-
-#define _real3(a,b,c) (real3){.s={a,b,c}}
-
-static inline real real3_dot(real3 a, real3 b) {
-	return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-static inline real real3_lenSq(real3 a) {
-	return real3_dot(a,a);
-}
-
-static inline real real3_len(real3 a) {
-	return sqrt(real3_lenSq(a));
-}
-
-static inline real3 real3_scale(real3 a, real s) {
-	return _real3(a.x * s, a.y * s, a.z * s);
-}
-
-static inline real3 real3_add(real3 a, real3 b) {
-	return _real3(a.x + b.x, a.y + b.y, a.z + b.z);
-}
-
-static inline real3 real3_sub(real3 a, real3 b) {
-	return _real3(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-
-static inline real sym3_det(sym3 m) {
-	return m.xx * m.yy * m.zz
-		+ m.xy * m.yz * m.xz
-		+ m.xz * m.xy * m.yz
-		- m.xz * m.yy * m.xz
-		- m.yz * m.yz * m.xx
-		- m.zz * m.xy * m.xy;
-}
-
-static inline sym3 sym3_inv(real d, sym3 m) {
-	return (sym3){
-		.xx = (m.yy * m.zz - m.yz * m.yz) / d,
-		.xy = (m.xz * m.yz - m.xy * m.zz) / d,
-		.xz = (m.xy * m.yz - m.xz * m.yy) / d,
-		.yy = (m.xx * m.zz - m.xz * m.xz) / d,
-		.yz = (m.xz * m.xy - m.xx * m.yz) / d,
-		.zz = (m.xx * m.yy - m.xy * m.xy) / d,
-	};
-}
-
-static inline real3 sym3_real3_mul(sym3 m, real3 v) {
-	return _real3(
-		m.xx * v.x + m.xy * v.y + m.xz * v.z,
-		m.xy * v.y + m.yy * v.y + m.yz * v.z,
-		m.xz * v.z + m.yz * v.y + m.zz * v.z);
-}
-]],
-	template([[
-constant const int dim = <?=dim?>;	
-constant const int subDim = <?=subDim?>;
-constant const int gridDim = <?=gridDim?>;
-
-constant const int4 size = (int4)(<?=clnumber(size.x)?>, <?=clnumber(size.y)?>, <?=clnumber(size.z)?>, 0);
-constant const int4 stepsize = (int4)(1, <?=size.x?>, <?=size.x * size.y?>, <?=size.x * size.y * size.z?>);
-
-#define INIT_KERNEL() \
-	int4 i = (int4)(get_global_id(0), get_global_id(1), get_global_id(2), 0); \
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) return; \
-	int index = i.x + size.x * (i.y + size.y * i.z);
-
-constant real3 xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
-constant real3 xmax = _real3(<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>);
-constant real3 dx = _real3(
-	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,
-	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,
-	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>);
-
-#define getX(i) _real3( \
-	xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),	\
-	xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),	\
-	xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
-
-]], {
-	clnumber = clnumber,
-	gridDim = gridDim,
-	dim = dim,
-	subDim = subDim,
-	size = size,
-	xmin = xmin,
-	xmax = xmax,
-}),
+	file['efe.cl'],
 }:concat'\n'
 
 -- allocate buffers
@@ -313,18 +175,50 @@ function MetaBuffer:init(args)
 	self.type = args.type
 	self.buf = clalloc(volume * ffi.sizeof(self.type))
 end
+function MetaBuffer:toCPU()
+	if not self.cpuMem then
+		self.cpuMem = ffi.new(self.type..'[?]', volume)
+	end
+	cmds:enqueueReadBuffer{buffer=self.buf, block=true, size=ffi.sizeof(self.type) * volume, ptr=self.cpuMem}
+end
 
 local TPrims = MetaBuffer{name='TPrims', type='TPrim_t'}
 local gPrims = MetaBuffer{name='gPrims', type='gPrim_t'} 
 local gLLs = MetaBuffer{name='gLLs', type='sym4'}
 local gUUs = MetaBuffer{name='gUUs', type='sym4'}
 local GammaULLs = MetaBuffer{name='GammaULLs', type='tensor_4sym4'}
+local EFEs = MetaBuffer{name='EFEs', type='sym4'}
 
-
-local function clcall(kernel)
-	cmds:enqueueNDRangeKernel{kernel=kernel, dim=gridDim, globalSize=size:ptr(), localSize=localSize:ptr()}
+local function compileTemplates(code)
+	return template(code, {
+		clnumber = clnumber,
+		sym = sym,
+		gridDim = gridDim,
+		dim = dim,
+		subDim = subDim,
+		size = size,
+		xmin = xmin,
+		xmax = xmax,
+		body = body,
+		c = c,
+		G = G,
+	})
 end
 
+function compileMetaKernels(mks)
+	local code = compileTemplates(
+		table{headerCode}
+			:append(table.map(mks, function(mk) return mk.code end))
+			:concat'\n'
+	)
+
+	local program = require 'cl.program'{context=ctx, devices={device}, code=code}
+
+	for _,mk in ipairs(mks) do
+		mk.program = program
+		mk.kernel = program:kernel(mk.name, mk.argBuffers:unpack())
+	end
+end
 
 local MetaKernel = class()
 
@@ -356,10 +250,21 @@ end
 end
 
 function MetaKernel:__call(...)
+	-- if we get a call request when we have no kernel/program, make sure to get one 
+	if not self.kernel then
+		compileMetaKernels{self}
+	end
+	
 	if select('#', ...) then
 		self.kernel:setArgs(...)
 	end
-	clcall(self.kernel)
+	cmds:enqueueNDRangeKernel{kernel=self.kernel, dim=gridDim, globalSize=size:ptr(), localSize=localSize:ptr()}
+end
+
+function MetaKernel:toCPU()
+	for _,mb in ipairs(self.argsOut) do
+		mb:toCPU()
+	end
 end
 
 local init_gPrim = MetaKernel{
@@ -398,7 +303,7 @@ local init_TPrim = MetaKernel{
 		.B = _real3(0,0,0),
 	};
 
-]] .. body.init,
+]]..body.init,
 }
 
 local calc_gLLs_and_gUUs = MetaKernel{
@@ -444,51 +349,48 @@ local calc_GammaULLs = MetaKernel{
 	code = template([[
 	
 	//here's where the finite difference stuff comes in ...
-	tensor_3sym4 dgLLL3;
 	tensor_4sym4 dgLLL;
+	dgLLL.s0 = sym4_zero;
 	<? for i=0,gridDim-1 do ?>{
-		global const sym4* gLL_prev = gLLs + index - stepsize.s<?=i?>;
-		global const sym4* gLL_next = gLLs + index + stepsize.s<?=i?>;
+		int4 iL = i;
+		iL.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		int indexL = indexForInt4(iL);
+		global const sym4* gLL_prev = gLLs + indexL;
 		
-		<? for a=0,dim-1 do ?>{
-			<? for b=a,dim-1 do?>{
-				real dg_iab = (gLL_next->s<?=a?><?=b?> - gLL_prev->s<?=a?><?=b?>) / (2. * dx.s<?=i?>);
-				dgLLL3.s<?=i?>.s<?=a?><?=b?> = dg_iab;
-				dgLLL.s<?=i+1?>.s<?=a?><?=b?> = dg_iab;
-			}<? end ?>
-		}<? end ?>
-	}<? end ?>
-	<? for a=0,dim-1 do ?>{
-		<? for b=a,dim-1 do?>{
-			dgLLL.s0.s<?=a?><?=b?> = 0;
-		}<? end ?>
+		int4 iR = i;
+		iR.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		int indexR = indexForInt4(iR);
+		global const sym4* gLL_next = gLLs + indexR;
+		
+		dgLLL.s<?=i+1?> = sym4_scale(
+			sym4_sub(*gLL_next, *gLL_prev),
+			1. / (2. * dx.s<?=i?> ));
 	}<? end ?>
 
-	tensor_4sym4 GammaLLL;
-	<? for a=0,dim-1 do ?>{
-		<? for b=0,dim-1 do ?>{
-			<? for c=b,dim-1 do ?>{
-				GammaLLL.s<?=a?>.s<?=b?><?=c?> = .5 * (
+	tensor_4sym4 GammaLLL = (tensor_4sym4){
+	<? for a=0,dim-1 do ?>
+		<? for b=0,dim-1 do ?>
+			<? for c=b,dim-1 do ?>
+				.s<?=a?>.s<?=b?><?=c?> = .5 * (
 					dgLLL.s<?=c?>.s<?=sym(a,b)?>
 					+ dgLLL.s<?=b?>.s<?=sym(a,c)?>
-					- dgLLL.s<?=a?>.s<?=sym(b,c)?>);
-			}<? end ?>
-		}<? end ?>
-	}<? end ?>
+					- dgLLL.s<?=a?>.s<?=sym(b,c)?>),
+			<? end ?>
+		<? end ?>
+	<? end ?>};
 
 	global const sym4* gUU = gUUs + index;
-	tensor_4sym4 GammaULL;
-	<? for a=0,dim-1 do ?>{
-		<? for b=0,dim-1 do ?>{
-			<? for c=b,dim-1 do ?>{
-				real sum = 0;
-				<? for d=0,dim-1 do ?>{
-					sum += gUU->s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>;
-				}<? end ?>
-				GammaULL.s<?=a?>.s<?=b?><?=c?> = sum;
-			}<? end ?>
-		}<? end ?>
-	}<? end ?>
+	global tensor_4sym4* GammaULL = GammaULLs + index;
+	<? for a=0,dim-1 do ?>
+		<? for b=0,dim-1 do ?>
+			<? for c=b,dim-1 do ?>
+				GammaULL->s<?=a?>.s<?=b?><?=c?> = 0.
+				<? for d=0,dim-1 do ?>
+					+ gUU->s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
+				<? end ?>;
+			<? end ?>
+		<? end ?>
+	<? end ?>
 ]], {
 		sym = sym,
 		dim = dim,
@@ -498,7 +400,15 @@ local calc_GammaULLs = MetaKernel{
 
 local calc_EFE_constraint = MetaKernel{
 	name = 'calc_EFE_constraint',
+	argsOut = {EFEs},
+	argsIn = {gPrims, TPrims, gLLs, gUUs, GammaULLs},
+	code = template([[
+	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	sym4 _8piTLL = calc_8piTLL(gPrims[index], gLLs[index], TPrims[index]);
+	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
+]], {
 	
+}),
 }
 
 local metaKernels = table{
@@ -506,21 +416,12 @@ local metaKernels = table{
 	init_TPrim,
 	calc_gLLs_and_gUUs,
 	calc_GammaULLs,
+	calc_EFE_constraint,
 }
 
 -- create code
 
-local code = table{header}
-	:append(metaKernels:map(function(metaKernel) return metaKernel.code end))
-	:concat'\n'
-
-local program = require 'cl.program'{context=ctx, devices={device}, code=code}
-
--- get kernels
-
-for _,metaKernel in ipairs(metaKernels) do
-	metaKernel.kernel = program:kernel(metaKernel.name, metaKernel.argBuffers:unpack())
-end
+compileMetaKernels(metaKernels)
 
 -- run the kernels
 
@@ -530,7 +431,7 @@ init_gPrim()
 init_TPrim()
 calc_gLLs_and_gUUs()
 calc_GammaULLs()
--- TODO solver here
+calc_EFE_constraint()
 
 --[[ 
 	then do some calculations
@@ -550,5 +451,147 @@ calc_GammaULLs()
 		|EFE_ij|
 		|G_ab|
 --]]
+
+print'calculating aux values...'
+	
+local detGammas = MetaBuffer{name='detGammas', type=real} 
+MetaKernel{
+	name = 'calc_detGammas',
+	argsOut = {detGammas},
+	argsIn = {gPrims},
+	code = 'detGammas[index] = sym3_det(gPrims[index].gammaLL);',
+}()
+	
+local numericalGravity = MetaBuffer{name='numericalGravity', type=real}
+MetaKernel{
+	name = 'calc_numericalGravity',
+	argsOut = {numericalGravity},
+	argsIn = {GammaULLs},
+	code = [[
+	real3 x = getX(i);
+	real r = real3_len(x);
+	global const tensor_4sym4* GammaULL = GammaULLs + index;
+	numericalGravity[index] = (0.
+		+ GammaULL->s1.s00 * x.x / r
+		+ GammaULL->s2.s00 * x.y / r
+		+ GammaULL->s3.s00 * x.z / r) * c * c;
+]],
+}()
+
+local analyticalGravity = MetaBuffer{name='analyticalGravity', type=real}
+MetaKernel{
+	name = 'calc_analyticalGravity',
+	argsOut = {analyticalGravity},
+	code = [[
+	real3 x = getX(i);
+	real r = real3_len(x);
+	real matterRadius = min(r, (real)<?=body.radius?>);
+	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+	real m = <?=body.density?> * volumeOfMatterRadius;	// m^3
+	real dm_dr = 0;
+	analyticalGravity[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
+		* c * c;	//+9 at earth surface, without matter derivatives
+]],
+}()
+
+local EinsteinLLs = MetaBuffer{name='EinsteinLLs', type='sym4'}
+MetaKernel{
+	name = 'calc_EinsteinLLs',
+	argsIn = {gLLs, gUUs, GammaULLs},
+	argsOut = {EinsteinLLs},
+	code = [[
+	EinsteinLLs[index] = calc_EinsteinLL(gLLs+index, gUUs+index, GammaULLs+index);
+]],
+}()
+
+local EFE_and_Einstein_norm_t_code = [[
+typedef struct { 
+	real EFE_tt, EFE_ti, EFE_ij, G_ab;
+} EFE_and_Einstein_norm_t;
+]]
+ffi.cdef(EFE_and_Einstein_norm_t_code)
+headerCode = headerCode .. EFE_and_Einstein_norm_t_code
+
+local EFE_and_Einstein_norms = MetaBuffer{
+	name = 'EFE_and_Einstein_norms',
+	type = 'EFE_and_Einstein_norm_t',
+}
+MetaKernel{
+	name = 'calc_EFE_and_Einstein_norms',
+	argsOut = {EFE_and_Einstein_norms},
+	argsIn = {EFEs, EinsteinLLs},
+	code = [[
+	global const sym4* EFE = EFEs + index;	
+	EFE_and_Einstein_norms[index] = (EFE_and_Einstein_norm_t){
+		.EFE_tt = EFE->s00,
+		.EFE_ti = sqrt(0.
+<? for i=0,subDim-1 do ?>
+			+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
+<? end ?>),
+		.EFE_ij = sqrt(0.
+<? 
+for i=0,subDim-1 do
+	for j=0,subDim-1 do ?>
+			+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
+<?	end
+end ?>),
+	};
+]],
+}()
+
+print'copying to cpu...'
+gPrims:toCPU()
+TPrims:toCPU()
+detGammas:toCPU()
+numericalGravity:toCPU()
+analyticalGravity:toCPU()
+EinsteinLLs:toCPU()
+EFE_and_Einstein_norms:toCPU()
+
+local cols = {
+	{ix = function(index,i,j,k) return i end},
+	{iy = function(index,i,j,k) return j end},
+	{iz = function(index,i,j,k) return k end},
+	{rho = function(index) return TPrims.cpuMem[index].rho end},
+	{['det-1'] = function(index) return detGammas.cpuMem[index]-1 end},
+	{['alpha-1'] = function(index) return gPrims.cpuMem[index].alpha-1 end},
+	{gravity = function(index) return numericalGravity.cpuMem[index] end},
+	{analyticalGravity = function(index) return analyticalGravity.cpuMem[index] end},
+	{['EFE_tt(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].EFE_tt end},
+	{['EFE_ti(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].EFE_ti end},
+	{['EFE_ij(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].EFE_ij end},
+	{['G_ab'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].G_ab end},
+}
+
+print'outputting...'
+
+local file = assert(io.open('out.txt', 'w'))
+do
+	file:write'#'
+	local sep = ''
+	for _,col in ipairs(cols) do
+		file:write(sep..next(col))
+		sep = '\t'
+	end
+end
+file:write'\n'
+file:flush()
+
+local index = 0
+for i=0,tonumber(size.x-1) do
+	for j=0,tonumber(size.y-1) do
+		for k=0,tonumber(size.z-1) do
+			local sep = ''
+			for _,col in ipairs(cols) do
+				file:write(sep..('%.16e'):format( select(2,next(col)) (index,i,j,k)))
+				sep = '\t'
+			end
+			index = index + 1
+			file:write'\n'
+			file:flush()
+		end
+	end
+end
+file:close()
 
 print'done!'
