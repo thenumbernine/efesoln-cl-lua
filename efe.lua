@@ -148,8 +148,21 @@ local typeCode = template(file['efe.h'], {
 
 -- boilerplate
 ffi.cdef(template([[
-typedef <?=real?> <?=real?>2[2];
-typedef <?=real?> <?=real?>4[4];
+typedef union {
+	<?=real?> s[2];
+	struct { <?=real?> s0, s1; };
+	struct { <?=real?> x, y; };
+} <?=real?>2;
+
+//for real4 I'm using x,y,z,w to match OpenCL
+//...though for my own use I am storing t,x,y,z
+typedef union {
+	<?=real?> s[4];
+	struct { <?=real?> s0, s1, s2, s3; };
+	struct { <?=real?> x, y, z, w; };	
+} <?=real?>4;
+
+
 ]], {real=real}))
 
 ffi.cdef(table{
@@ -280,7 +293,7 @@ local init_gPrim = MetaKernel{
 	*gPrim = (gPrim_t){
 		.alpha = 1,
 		.betaU = _real3(0,0,0),
-		.gammaLL = (sym3){.xx=1, .yy=1, .zz=1, .xy=0, .xz=0, .yz=0},
+		.gammaLL = sym3_ident,
 	};
 ]] .. initCond.code,
 }
@@ -504,17 +517,11 @@ MetaKernel{
 ]],
 }()
 
-local EFE_and_Einstein_norm_t_code = [[
-typedef struct { 
-	real EFE_tt, EFE_ti, EFE_ij, G_ab;
-} EFE_and_Einstein_norm_t;
-]]
-ffi.cdef(EFE_and_Einstein_norm_t_code)
-headerCode = headerCode .. EFE_and_Einstein_norm_t_code
-
+--I used to use a struct of its own, but LuaJIT kept returning nil when accessing it
+-- so now I'm trying real4 ...
 local EFE_and_Einstein_norms = MetaBuffer{
 	name = 'EFE_and_Einstein_norms',
-	type = 'EFE_and_Einstein_norm_t',
+	type = 'real4',
 }
 MetaKernel{
 	name = 'calc_EFE_and_Einstein_norms',
@@ -522,17 +529,30 @@ MetaKernel{
 	argsIn = {EFEs, EinsteinLLs},
 	code = [[
 	global const sym4* EFE = EFEs + index;	
-	EFE_and_Einstein_norms[index] = (EFE_and_Einstein_norm_t){
-		.EFE_tt = EFE->s00,
-		.EFE_ti = sqrt(0.
+	global const sym4* EinsteinLL = EinsteinLLs + index;
+	EFE_and_Einstein_norms[index] = (real4){
+		//EFE_tt
+		EFE->s00 / (8. * M_PI) * c * c / G / 1000.,
+		
+		//EFE_ti
+		sqrt(0.
 <? for i=0,subDim-1 do ?>
 			+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
-<? end ?>),
-		.EFE_ij = sqrt(0.
-<? 
-for i=0,subDim-1 do
+<? end ?>) * c,
+		
+		//EFE_ij
+		sqrt(0.
+<? for i=0,subDim-1 do
 	for j=0,subDim-1 do ?>
 			+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
+<?	end
+end ?>),
+		
+		//G_ab
+		sqrt(0.
+<? for a=0,dim-1 do
+	for b=0,dim-1 do ?>
+			+ EinsteinLL->s<?=sym(a,b)?> * EinsteinLL->s<?=sym(a,b)?>
 <?	end
 end ?>),
 	};
@@ -548,6 +568,8 @@ analyticalGravity:toCPU()
 EinsteinLLs:toCPU()
 EFE_and_Einstein_norms:toCPU()
 
+print'outputting...'
+
 local cols = {
 	{ix = function(index,i,j,k) return i end},
 	{iy = function(index,i,j,k) return j end},
@@ -557,13 +579,11 @@ local cols = {
 	{['alpha-1'] = function(index) return gPrims.cpuMem[index].alpha-1 end},
 	{gravity = function(index) return numericalGravity.cpuMem[index] end},
 	{analyticalGravity = function(index) return analyticalGravity.cpuMem[index] end},
-	{['EFE_tt(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].EFE_tt end},
-	{['EFE_ti(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].EFE_ti end},
-	{['EFE_ij(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].EFE_ij end},
-	{['G_ab'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].G_ab end},
+	{['EFE_tt(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s0 end},
+	{['EFE_ti(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s1 end},
+	{['EFE_ij(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s2 end},
+	{['G_ab'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s3 end},
 }
-
-print'outputting...'
 
 local file = assert(io.open('out.txt', 'w'))
 do
@@ -583,7 +603,11 @@ for i=0,tonumber(size.x-1) do
 		for k=0,tonumber(size.z-1) do
 			local sep = ''
 			for _,col in ipairs(cols) do
-				file:write(sep..('%.16e'):format( select(2,next(col)) (index,i,j,k)))
+				local name, f = next(col)
+				local x = f(index,i,j,k)
+				--print(index,i,j,k,name,x)
+				assert(x, "failed for col "..next(col))
+				file:write(sep..('%.16e'):format(x))
 				sep = '\t'
 			end
 			index = index + 1

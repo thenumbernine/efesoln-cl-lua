@@ -34,6 +34,14 @@ static inline real3 real3_sub(real3 a, real3 b) {
 	return _real3(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
+constant sym3 sym3_ident = {
+<? for i=0,2 do
+	for j=i,2 do ?>
+		.s<?=i?><?=j?> = <?= i==j and 1 or 0 ?>,
+<?	end
+end ?>
+};
+
 static inline real sym3_det(sym3 m) {
 	return m.xx * m.yy * m.zz
 		+ m.xy * m.yz * m.xz
@@ -62,7 +70,7 @@ static inline real3 sym3_real3_mul(sym3 m, real3 v) {
 	};
 }
 
-constant sym4 sym4_zero = (sym4){
+constant sym4 sym4_zero = {
 <?
 for a=0,3 do
 	for b=a,3 do ?>
