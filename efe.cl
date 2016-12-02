@@ -218,6 +218,8 @@ sym4 calc_8piTLL(
 	global const TPrim_t* TPrim
 ) {
 	
+	//if we're using EM ...
+	
 	/*
 	assume the E and B fields are upper 3-vectors
 	T_ab = F_au F_b^u - 1/4 g_ab F_uv F^uv
@@ -274,6 +276,12 @@ end ?>
 <?	end
 end ?>
 	};
+
+	//if we're using matter ...
+
+		//if we're using velocity ...
+
+		//otherwise uL = gLL->s0
 
 	return T_EM_LL;
 }
