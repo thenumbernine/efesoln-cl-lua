@@ -1,0 +1,165 @@
+<html>
+	<head>
+        <meta charset="UTF-8">
+		<title>Einstein Field Equations</title>
+		<!-- script type="text/javascript" async src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-MML-AM_CHTML"></script -->
+		<script type="text/javascript" async src="file:///home/chris/Projects/christopheremoore.net/MathJax/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+		<script type="text/x-mathjax-config">MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});</script>
+	</head>
+	<body>
+
+$g_{ab} = g_{ab}(\alpha, \beta^i, \gamma_{ij})$<br>
+$[g_{uv}] = u(i)\downarrow \overset{v(j)\rightarrow}{\left[ \matrix{-\alpha^2 + \beta_k \beta^k & \beta_j \\ \beta_i & \gamma_{ij}} \right]}$<br>
+$[g^{uv}] = u(i)\downarrow \overset{v(j)\rightarrow}{\left[ \matrix{-1/\alpha^2 & \beta^j / \alpha^2 \\ \beta^i / \alpha^2 & \gamma^{ij} - \beta^i \beta^j / \alpha^2} \right]}$<br>
+<br>
+$\frac{\partial}{\partial \alpha} [g_{uv}] = u(i)\downarrow\overset{v(j)\rightarrow}{\left[ \matrix{-2 \alpha & 0 \\ 0 & 0} \right]}$<br>
+$\frac{\partial}{\partial \beta^m} [g_{uv}] = u(i)\downarrow \overset{v(j)\rightarrow}{\left[ \matrix{ 2 \beta_m & \gamma_{mj} \\ \gamma_{mi} & 0} \right]}$<br>
+$\frac{\partial}{\partial \gamma_{mn}} [g_{uv}] = u(i)\downarrow \overset{v(j)\rightarrow}{\left[ \matrix{ \beta^m \beta^n & \beta^m \delta^j_n \\ \beta^m \delta^n_i & \delta^m_i \delta^n_j} \right]}$<br>
+
+<br>
+
+$\delta^b_a = g^{bc} g_{ca}$<br>
+$0 = \partial \delta^b_a = \partial g^{bc} g_{ca} + g^{bc} \partial g_{ca}$<br>
+$g^{bc} \partial g_{ca} = -\partial g^{bc} g_{ca}$<br>
+$\partial g^{ab} = -g^{ac} \partial g_{cd} g^{db}$<br>
+$\frac{\partial g^{ab}}{\partial g_{cd}} = -g^{ac} g^{db}$<br>
+The index is correct for asymmetric $g_{ab}$.<br>
+<br>
+
+$\Gamma_{abc} = \frac{1}{2} (
+	\frac{\partial}{\partial x^c} g_{ab} 
+	+ \frac{\partial}{\partial x^b} g_{ac}
+	- \frac{\partial}{\partial x^a} g_{bc})$<br>
+<br>
+$ \Gamma_{(ab)c} = {1 \over 2} (\Gamma_{abc} + \Gamma_{bac})$<br>
+$	= {1 \over 4} (\frac{\partial}{\partial x^c} g_{ab} + \partial_b g_{ac} - \partial_a g_{bc} + \frac{\partial}{\partial x^c} g_{ba} + \partial_a g_{bc} - \partial_b g_{ac})$<br>
+$	= {1 \over 4} (2 \frac{\partial}{\partial x^c} g_{ab})$<br>
+$	= {1 \over 2} \frac{\partial}{\partial x^c} g_{ab} $<br>
+so $\frac{\partial}{\partial x^c} g_{ab} = 2 \Gamma_{(ab)c}$<br>
+<br>
+
+$\frac{\partial}{\partial g_{ef}} \Gamma_{abc} =
+	\frac{1}{2} (
+		\frac{\partial}{\partial x^c} \frac{\partial}{\partial g_{ef}} g_{ab}
+		+ \frac{\partial}{\partial x^b} \frac{\partial}{\partial g_{ef}} g_{ac}
+		- \frac{\partial}{\partial x^a} \frac{\partial}{\partial g_{ef}} g_{bc}
+	)$<br>
+$= \frac{1}{2} (
+		\frac{\partial}{\partial x^c} (\delta^e_a \delta^f_b)
+		+ \frac{\partial}{\partial x^b} (\delta^e_a \delta^f_c)
+		- \frac{\partial}{\partial x^a} (\delta^e_b \delta^f_c)
+	)$<br>
+$= 0$<br>
+<br>
+
+${\Gamma^a}_{bc} = g^{ad} \Gamma_{dbc}$<br>
+$\frac{\partial}{\partial g_{ef}} {\Gamma^a}_{bc} = 
+	\frac{\partial g^{ad}}{\partial g_{ef}} \Gamma_{dbc}
+	+ g^{ad} \frac{\partial}{\partial g_{ef}} \Gamma_{dbc}$<br>
+$ = -g^{ae} {\Gamma^f}_{bc}
+	+ g^{ad} \frac{\partial}{\partial g_{ef}} \Gamma_{dbc}$<br>
+$ = -g^{ae} {\Gamma^f}_{bc}$<br>
+<br>
+
+$R_{ab} = 2 ( \frac{\partial}{\partial x^{[b}} {\Gamma^c}_{c]a} + {\Gamma^c}_{d[c} {\Gamma^d}_{b]a} )$<br>
+$\frac{\partial R_{ab}}{\partial g_{ef}} = 
+	2 ( \frac{\partial}{\partial x^{[b}} (\frac{\partial}{\partial g_{ef}} {\Gamma^c}_{c]a})
+		+ \frac{\partial}{\partial g_{ef}} {\Gamma^c}_{d[c} {\Gamma^d}_{b]a}
+		+ {\Gamma^c}_{d[c} \frac{\partial}{\partial g_{ef}} {\Gamma^d}_{b]a}
+)$<br>
+$ = -2 ( \frac{\partial}{\partial x^{[b}} (g^{ce} {\Gamma^f}_{c]a})
+		+ g^{ce} {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
+		+ {\Gamma^c}_{d[c} g^{de} {\Gamma^f}_{b]a}
+)$<br>
+$ = -2 ( \frac{\partial}{\partial x^{[b}} g^{ce} {\Gamma^f}_{c]a}
+		+ g^{ce} \frac{\partial}{\partial x^{[b}} {\Gamma^f}_{c]a}
+		+ g^{ce} {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
+		+ {\Gamma^c}_{d[c} g^{de} {\Gamma^f}_{b]a}
+)$<br>
+$ = 2 ( g^{cg} \frac{\partial}{\partial x^{[b}} g_{gh} g^{he} {\Gamma^f}_{c]a}
+		- g^{ce} \frac{\partial}{\partial x^{[b}} {\Gamma^f}_{c]a}
+		- g^{ce} {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
+		- {\Gamma^c}_{d[c} g^{de} {\Gamma^f}_{b]a}
+)$<br>
+<br>
+
+$G_{ab} = G_{ab}(g_{ab})$<br>
+$G_{ab} = R_{ab} - \frac{1}{2} g_{ab} g^{cd} R_{cd}$<br>
+$\frac{\partial G_{ab}}{\partial g_{ef}} =
+	\frac{\partial R_{ab}}{\partial g_{ef}} 
+	- \frac{1}{2} (
+		\frac{\partial g_{ab}}{\partial g_{ef}} g^{cd} R_{cd}
+		+ g_{ab} \frac{\partial g^{cd}}{\partial g_{ef}} R_{cd}
+		+ g_{ab} g^{cd} \frac{\partial R_{cd}}{\partial g_{ef}}
+	)$<br>
+$= \frac{\partial R_{ab}}{\partial g_{ef}} 
+	- \frac{1}{2} (
+		\delta^e_a \delta^f_b R
+		- g_{ab} R^{ef}
+		+ g_{ab} g^{cd} \frac{\partial R_{cd}}{\partial g_{ef}}
+)$<br>
+$=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
+	+ (\delta^c_a \delta^d_b - \frac{1}{2} g_{ab} g^{cd}) \frac{\partial R_{cd}}{\partial g_{ef}}
+$<br>
+$=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
+	+ (\delta^c_a \delta^d_b - \frac{1}{2} g_{ab} g^{cd}) 
+
+	\cdot 2 ( g^{mg} \frac{\partial}{\partial x^{[d}} g_{gh} g^{he} {\Gamma^f}_{m]c}
+			- g^{me} \frac{\partial}{\partial x^{[d}} {\Gamma^f}_{m]c}
+			- g^{me} {\Gamma^f}_{n[m} {\Gamma^n}_{d]c}
+			- {\Gamma^m}_{n[m} g^{ne} {\Gamma^f}_{d]c}	)
+$<br>
+$=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
+	+ 2 ( g^{mg} \frac{\partial}{\partial x^{[b}} g_{gh} g^{he} {\Gamma^f}_{m]a}
+			- g^{me} \frac{\partial}{\partial x^{[b}} {\Gamma^f}_{m]a}
+			- g^{me} {\Gamma^f}_{n[m} {\Gamma^n}_{b]a}
+			- {\Gamma^m}_{n[m} g^{ne} {\Gamma^f}_{b]a}	)
+	
+	- g_{ab} ( g^{mg} \frac{\partial}{\partial x^{[d}} g_{gh} g^{he} {\Gamma^f}_{m]c} g^{cd} 
+			- g^{me} \frac{\partial}{\partial x^{[d}} {\Gamma^f}_{m]c} g^{cd} 
+			- g^{me} {\Gamma^f}_{n[m} {\Gamma^n}_{d]c} g^{cd} 
+			- {\Gamma^m}_{n[m} g^{ne} {\Gamma^f}_{d]c}g^{cd} )
+$<br>
+<br>
+
+Stress-energy tensor:<br>
+$T_{ab} = T_{ab}(g_{ab}, \rho, P, e_{int},  v^i, E^i, B^i, ...)$<br>
+$T_{ab} = T^{EM}_{ab} + T^{matter}_{ab} + ...$<br>
+<br>
+$T^{EM}_{ab} = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
+	(E^m E^n + B^m B^n) g_{mn} & -2 {\epsilon^j}_{mn} E^m B^n \\
+	-2 {\epsilon^i}_{mn} E^m B^n & g^{ij} (E^m E^n g_{mn} + B^m B^n g_{mn}) - 2 (E^i E^j + B^i B^j)
+}\right]}$<br>
+<br>
+
+<h3>Einstein Field Equations:</h3>
+$G_{ab} = 8 \pi T_{ab}$<br>
+<br>
+
+As a constraint:<Br>
+$\Phi = \frac{1}{2} \underset{ab}\Sigma (G_{ab} - 8 \pi T_{ab})^2$<br>
+
+$\frac{\partial \Phi}{\partial G_{ab}} = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot \frac{\partial G_{cd}}{\partial G_{ab}}$<br>
+$ = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot \delta^a_c \delta^b_d$<br>
+$ = G_{ab} - 8 \pi T_{ab}$<br>
+<br>
+
+$\frac{\partial \Phi}{\partial T_{ab}} = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot -8 \pi \frac{\partial T_{cd}}{\partial T_{ab}}$<br> 
+$ = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot -8 \pi \delta^a_c \delta^b_d$<br> 
+$ = -8 \pi (G_{ab} - 8 \pi T_{ab})$<br> 
+<br>
+
+$\frac{\partial \Phi}{\partial g_{pq}} = 
+	\frac{\partial \Phi}{\partial G_{ab}} 
+	\frac{\partial G_{ab}}{\partial g_{pq}}
+	+ \frac{\partial \Phi}{\partial T_{ab}}
+	\frac{\partial T_{ab}}{\partial g_{pq}}$<br>
+$ = (G_{ab} - 8 \pi T_{ab}) \left(
+	\frac{\partial G_{ab}}{\partial g_{pq}}
+		-8 \pi \frac{\partial T_{ab}}{\partial g_{pq}}
+	\right)$<br>
+<br>
+
+
+	</body>
+</html>
