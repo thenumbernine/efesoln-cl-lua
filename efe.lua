@@ -79,6 +79,56 @@ if gridDim > 1 then
 	end
 end
 
+-- generate the constraint error functions
+
+local function genCode()
+	local symmath = require 'symmath'
+	local Tensor = symmath.Tensor
+	local var = symmath.var
+
+	local t,x,y,z = symmath.vars('t', 'x', 'y', 'z')
+	local coords = table{t,x,y,z}
+	Tensor.coords{
+		{variables=coords},
+	}
+
+	local gLLvars = table()
+	local gUUvars = table()
+	for a=1,4 do
+		for b=a,4 do
+			gLLvars[a..b] = var('g_{'..coords[a].name..coords[b].name..'}', coords)
+			gUUvars[a..b] = var('g^{'..coords[a].name..coords[b].name..'}', coords)
+		end
+	end
+	local gLL = Tensor('_ab', function(a,b)
+		return gLLvars[sym(a,b)]
+	end)
+	local gUU = Tensor('^ab', function(a,b)
+		return gUUvars[sym(a,b)]
+	end)
+
+	symmath.tostring = require 'symmath.tostring.MultiLine'
+	local diffgeom = require 'symmath.diffgeom'(gLL, gUU)
+	
+	local MathJax = require 'symmath.tostring.MathJax'
+	symmath.tostring = MathJax
+	
+	local output = table()
+	diffgeom:print(function(s)
+		output:insert(tostring(s)..'<br>\n')
+	end)
+
+	file['efe_gen.html'] = 
+		MathJax.header
+		..output:concat'\n'
+		..MathJax.footer
+end
+
+genCode()
+os.exit()
+
+-- constants
+
 local c = 299792458			-- m/s 
 local G = 6.67384e-11		-- m^3 / (kg s^2)
 

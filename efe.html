@@ -126,11 +126,25 @@ Stress-energy tensor:<br>
 $T_{ab} = T_{ab}(g_{ab}, \rho, P, e_{int},  v^i, E^i, B^i, ...)$<br>
 $T_{ab} = T^{EM}_{ab} + T^{matter}_{ab} + ...$<br>
 <br>
-$T^{EM}_{ab} = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
-	(E^m E^n + B^m B^n) g_{mn} & -2 {\epsilon^j}_{mn} E^m B^n \\
-	-2 {\epsilon^i}_{mn} E^m B^n & g^{ij} (E^m E^n g_{mn} + B^m B^n g_{mn}) - 2 (E^i E^j + B^i B^j)
+
+$T_{EM,ab} = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
+	g_{mn} (E^m E^n + B^m B^n) & -2 \epsilon_{tjmn} E^m B^n \\
+	-2 \epsilon_{timn} E^m B^n & (g_{ij} g_{mn} - 2 g_{im} g_{jn}) (E^m  E^n + B^m B^n)
+}\right]}$<br>
+$\frac{\partial T_{EM,ab}}{\partial g_{ef}} =
+\downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
+	E^e E^f + B^e B^f & -2 \frac{\partial \epsilon_{tjmn}}{\partial g_{ef}} E^m B^n \\
+	-2 \frac{\partial \epsilon_{timn}}{\partial g_{ef}} E^m B^n &
+		(\delta^e_i \delta^f_j g_{mn}
+		+ g_{ij} \delta^e_m \delta^f_n
+		- 2 \delta^e_i \delta^f_m g_{jn}
+		- 2 g_{im} \delta^e_j \delta^f_n)
+	(E^m  E^n + B^m B^n)
 }\right]}$<br>
 <br>
+
+$\epsilon_{tabc} = ...$<br>
+$\frac{\epsilon_{tabc}}{\partial g_{ef}} = ...$<br>
 
 <h3>Einstein Field Equations:</h3>
 $G_{ab} = 8 \pi T_{ab}$<br>
