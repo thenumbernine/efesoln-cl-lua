@@ -36,13 +36,13 @@ static inline real3 real3_sub(real3 a, real3 b) {
 	return _real3(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
-constant sym3 sym3_ident = {
-<? for i=0,2 do
-	for j=i,2 do ?>
-		.s<?=i?><?=j?> = <?= i==j and 1 or 0 ?>,
-<?	end
-end ?>
-};
+constant sym3 sym3_ident = {<? 
+for i=0,2 do
+	for j=i,2 do 
+?>	.s<?=i?><?=j?> = <?= i==j and 1 or 0 ?>,<?
+	end
+end 
+?>};
 
 static inline real sym3_det(sym3 m) {
 	return m.s00 * m.s11 * m.s22
@@ -72,63 +72,63 @@ static inline real3 sym3_real3_mul(sym3 m, real3 v) {
 	};
 }
 
-constant sym4 sym4_zero = (sym4){
-<? for a=0,dim-1 do
-	for b=a,dim-1 do ?>
-	.s<?=a..b?> = 0.,
-<?	end
-end ?>
-};
+constant sym4 sym4_zero = (sym4){<?
+for a=0,dim-1 do
+	for b=a,dim-1 do 
+?>.s<?=a..b?> = 0.,<?
+	end
+end ?>};
 
 static inline real sym4_dot(sym4 a, sym4 b) {
-	return 0.
-<? for a=0,dim-1 do ?>
-	<? for b=0,dim-1 do ?>
-		+ a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?>
-	<? end ?>
-<? end ?>;
+	return 0.<?
+for a=0,dim-1 do
+	for b=0,dim-1 do 
+?> + a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?><?
+	end 
+end ?>;
 }
 
 static inline sym4 sym4_outer(real4 v) {
 	return (sym4){
-<? for a=0,dim-1 do ?>
-	<? for b=a,dim-1 do ?>
-		.s<?=a..b?> = v.s<?=a?> * v.s<?=b?>,
-	<? end ?>
-<? end ?>
-	};
+<? for a=0,dim-1 do
+	for b=a,dim-1 do
+?>		.s<?=a..b?> = v.s<?=a?> * v.s<?=b?>,
+<? 	end
+end
+?>	};
 }
 
 static inline sym4 sym4_scale(sym4 a, real s) {
 	return (sym4){
 <?
 for a=0,3 do
-	for b=a,3 do ?>
-		.s<?=a?><?=b?> = a.s<?=a?><?=b?> * s,
+	for b=a,3 do 
+?>		.s<?=a?><?=b?> = a.s<?=a?><?=b?> * s,
 <?	end
-end ?>
-	};
+end
+?>	};
 }
 
 static inline sym4 sym4_add(sym4 a, sym4 b) {
 	return (sym4){
 <?
 for a=0,3 do
-	for b=a,3 do ?>
-		.s<?=a?><?=b?> = a.s<?=a?><?=b?> + b.s<?=a?><?=b?>,
+	for b=a,3 do 
+?>		.s<?=a?><?=b?> = a.s<?=a?><?=b?> + b.s<?=a?><?=b?>,
 <?	end
-end ?>		
-	};
+end
+?>	};
 }
+
 static inline sym4 sym4_sub(sym4 a, sym4 b) {
 	return (sym4){
 <?
 for a=0,3 do
-	for b=a,3 do ?>
-		.s<?=a?><?=b?> = a.s<?=a?><?=b?> - b.s<?=a?><?=b?>,
+	for b=a,3 do 
+?>		.s<?=a?><?=b?> = a.s<?=a?><?=b?> - b.s<?=a?><?=b?>,
 <?	end
-end ?>		
-	};
+end
+?>	};
 }
 
 static inline sym4 sym4_mult_add(sym4 a, sym4 b, real c) {
@@ -137,13 +137,13 @@ static inline sym4 sym4_mult_add(sym4 a, sym4 b, real c) {
 
 static inline real4 sym4_real4_mul(sym4 m, real4 v) {
 	return (real4){
-<? for i=0,3 do ?>
-		0.
-	<? for j=0,3 do ?>
-			+ m.s<?=sym(i,j)?> * v.s<?=j?>
-	<? end ?>,
-<? end ?>
-	};
+<? for i=0,3 do
+?>		0. <? 
+	for j=0,3 do 
+?> + m.s<?=sym(i,j)?> * v.s<?=j?><? 
+	end ?>,
+<? end 
+?>	};
 }
 
 static inline real sym4_det(sym4 m) {
@@ -163,31 +163,31 @@ static inline real sym4_det(sym4 m) {
 }
 
 constant tensor_4sym4 tensor_4sym4_zero = (tensor_4sym4){
-<? for a=0,3 do ?>
-	.s<?=a?> = (sym4){
-<?	for b=0,3 do
-		for c=b,3 do ?>
-		.s<?=b?><?=c?> = 0.,
-<?		end
-	end ?>
-	},
-<? end ?>
-};
+<? for a=0,3 do 
+?>	.s<?=a?> = (sym4){<?
+	for b=0,3 do
+		for c=b,3 do 
+?>.s<?=b?><?=c?> = 0., <?
+		end
+	end
+?>	},
+<? end 
+?>};
 
 static inline tensor_4sym4 tensor_4sym4_scale(tensor_4sym4 a, real s) {
 	return (tensor_4sym4){
-<? for a=0,3 do ?>
-		.s<?=a?> = sym4_scale(a.s<?=a?>, s),
-<? end ?>	
-	};
+<? for a=0,3 do
+?>		.s<?=a?> = sym4_scale(a.s<?=a?>, s),
+<? end 
+?>	};
 }
 
 static inline tensor_4sym4 tensor_4sym4_sub(tensor_4sym4 a, tensor_4sym4 b) {
 	return (tensor_4sym4){
-<? for a=0,3 do ?>
-		.s<?=a?> = sym4_sub(a.s<?=a?>, b.s<?=a?>),
-<? end ?>
-	};
+<? for a=0,3 do 
+?>		.s<?=a?> = sym4_sub(a.s<?=a?>, b.s<?=a?>),
+<? end 
+?>	};
 }
 
 constant const int dim = <?=dim?>;	
@@ -208,15 +208,15 @@ constant const int4 stepsize = (int4)(1, <?=size.x?>, <?=size.x * size.y?>, <?=s
 
 constant real3 xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
 constant real3 xmax = _real3(<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>);
-constant real3 dx = _real3(
-	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,
-	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,
-	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>);
+constant real3 dx = _real3(<?=
+tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
+tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
+tonumber(xmax.x - xmin.x) / tonumber(size.x)?>);
 
-constant real3 inv_dx = _real3(
-	<?=tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,
-	<?=tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,
-	<?=tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
+constant real3 inv_dx = _real3(<?=
+tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
+tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
+tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
 
 
 #define getX(i) _real3( \
@@ -265,28 +265,34 @@ sym4 calc_EinsteinLL(
 
 	global const tensor_4sym4* GammaULL = GammaULLs + index;
 	real4 Gamma12L = (real4){
-<? for a=0,dim-1 do ?>
-		0. 
-	<? for b=0,dim-1 do ?>
-			+ GammaULL->s<?=b?>.s<?=sym(b,a)?>
-	<? end ?>
-	<? if a < dim-1 then ?>,<? end ?>
-<? end ?>};
+<? 
+for a=0,dim-1 do 
+?>		0. <? 
+	for b=0,dim-1 do 
+?> + GammaULL->s<?=b?>.s<?=sym(b,a)?><? 
+	end
+	if a < dim-1 then ?>,
+<? 	end
+end ?>
+};
 
 	sym4 RicciLL = {
-<? for a=0,dim-1 do ?>
-	<? for b=a,dim-1 do ?>
-		.s<?=a?><?=b?> = 0.
-		<? for c=0,dim-1 do ?>
+<? 
+for a=0,dim-1 do
+	for b=a,dim-1 do
+?>		.s<?=a?><?=b?> = 0.<?
+		for c=0,dim-1 do ?>
 			+ dGammaLULL.s<?=c?>.s<?=c?>.s<?=a..b?> 
 			- dGammaLULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?> 
-			+ Gamma12L.s<?=c?> * GammaULL->s<?=c?>.s<?=a..b?>
-			<? for d=0,dim-1 do ?>
-			- GammaULL->s<?=c?>.s<?=sym(d,b)?> * GammaULL->s<?=d?>.s<?=sym(c,a)?> 
-			<? end ?>
-		<? end ?>,
-	<? end ?>
-<? end ?>};
+			+ Gamma12L.s<?=c?> * GammaULL->s<?=c?>.s<?=a..b?><?
+			for d=0,dim-1 do ?>
+			- GammaULL->s<?=c?>.s<?=sym(d,b)?> * GammaULL->s<?=d?>.s<?=sym(c,a)?><?
+			end
+		end 
+?>,
+<?	end
+end ?>
+	};
 
 	real Gaussian = sym4_dot(RicciLL, gUUs[index]);
 	return sym4_mult_add(RicciLL, gLLs[index], -.5 * Gaussian);
@@ -317,16 +323,18 @@ sym4 calc_8piTLL(
 	
 	sym4 _8piT_EM_LL = {
 		.s00 = ESq + BSq,
-<? for i=0,subDim-1 do ?>
-		.s0<?=i+1?> = -2. * SL.s<?=i?>,
-	<? for j=i,subDim-1 do ?>
-		.s<?=i+1?><?=j+1?> = gLL->s<?=i?><?=j?> * (ESq + BSq)
-			- 2. * (
-				EL.s<?=i+1?> * EL.s<?=j+1?>
-				+ BL.s<?=i+1?> * BL.s<?=j+1?>
-			),
-	<? end ?>
-<? end ?>};
+<? 
+for i=0,subDim-1 do 
+?>		.s0<?=i+1?> = -2. * SL.s<?=i?>,
+<? 
+	for j=i,subDim-1 do 
+?>		.s<?=i+1?><?=j+1?> = gLL->s<?=i?><?=j?> * (ESq + BSq) <?
+			?>- 2. * (<?
+				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
+				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>),
+<? 	end
+end 
+?>	};
 
 	//if we're using matter ...
 

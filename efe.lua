@@ -7,7 +7,7 @@ local vec3d = require 'ffi.vec.vec3d'
 -- parameters:
 
 local updateAlpha = 1
-local maxiter = 0
+local maxiter = 1
 local bodyName = 'stellarSchwarzschild'	-- TODO use me plz
 
 -- also in hydro-cl
