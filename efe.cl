@@ -70,15 +70,6 @@ static inline real3 sym3_real3_mul(sym3 m, real3 v) {
 	};
 }
 
-constant sym4 sym4_zero = {
-<?
-for a=0,3 do
-	for b=a,3 do ?>
-	.s<?=a?><?=b?> = 0.,
-<?	end
-end ?>
-};
-
 static inline sym4 sym4_scale(sym4 a, real s) {
 	return (sym4){
 <?
@@ -99,15 +90,6 @@ for a=0,3 do
 <?	end
 end ?>		
 	};
-}
-
-static inline real sym4_dot(sym4 a, sym4 b) {
-	return 0
-<? for a=0,3 do ?>
-	<? for b=0,3 do ?>
-	+ a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?>
-	<? end ?>
-<? end ?>;
 }
 
 static inline real4 sym4_real4_mul(sym4 m, real4 v) {
@@ -253,10 +235,20 @@ void calc_EinsteinLL(
 <? end ?>};
 
 	global const sym4* gUU = gUUs + index;
-	real Gaussian = sym4_dot(*gUU, RicciLL);
+	real Gaussian = 0.
+<? for a=0,dim-1 do ?>
+	<? for b=0,dim-1 do ?>
+		+ gUU->s<?=sym(a,b)?> * RicciLL.s<?=sym(a,b)?>
+	<? end ?>
+<? end ?>;
 
 	global const sym4* gLL = gLLs + index;
-	*result = sym4_sub(RicciLL, sym4_scale(*gLL, -.5 * Gaussian));
+	
+<? for a=0,dim-1 do ?>
+	<? for b=a,dim-1 do ?>
+	result->s<?=a..b?> = RicciLL.s<?=a..b?> - .5 * gLL->s<?=a..b?> * Gaussian;
+	<? end ?>
+<? end ?>
 }
 
 void calc_8piTLL(
@@ -410,7 +402,13 @@ kernel void calc_GammaULLs(
 
 	//here's where the finite difference stuff comes in ...
 	tensor_4sym4 dgLLL;
-	dgLLL.s0 = sym4_zero;
+	dgLLL.s0 = (sym4){
+<? for a=0,dim-1 do
+	for b=a,dim-1 do ?>
+		.s<?=a..b?> = 0.,
+<?	end
+end ?>
+	};
 	<? for i=0,gridDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
