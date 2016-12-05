@@ -272,7 +272,7 @@ void calc_8piTLL(
 	real4 BL = sym4_real4_mul(*gLL, BU);
 	real BSq = dot(BL, BU);
 
-	real sqrt_det_g = sqrt(sym4_det(*gLL));
+	real sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
 	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 	
 	sym4 _8piT_EM_LL = {
@@ -532,9 +532,9 @@ kernel void calc_norm_EFE_tis(
 	INIT_KERNEL();
 	global const sym4* EFE = EFEs + index;	
 	norm_EFE_tis[index] = sqrt(0.
-	<? for i=0,subDim-1 do ?>
+<? for i=0,subDim-1 do ?>
 		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
-	<? end ?>) * c;
+<? end ?>) * c;
 }
 
 kernel void calc_norm_EFE_ijs(

@@ -60,7 +60,7 @@ local localSize1d = math.min(maxWorkGroupSize, tonumber(size:volume()))
 -- for boundaries
 local localSizeX = math.min(tonumber(size.x), 2^math.ceil(math.log(maxWorkGroupSize,2)/2))
 local localSizeY = maxWorkGroupSize / localSizeX
-local localSize2d = {localSizeX, localSizeY}
+local localSize2d = table{localSizeX, localSizeY}
 
 --	localSize = gridDim < 3 and vec3sz(16,16,16) or vec3sz(4,4,4)
 -- TODO better than constraining by math.min(size),
@@ -81,8 +81,8 @@ if gridDim > 1 then
 end
 
 print('localSize1d',localSize1d)
-print('localSize2d',localSize2d)
-print('localSize3d',localSize)
+print('localSize2d',localSize2d:unpack())
+print('localSize3d',localSize:unpack())
 
 --[[ generate the constraint error functions
 --	this is going slow - requires some symmath optimizations (described in symmath/diffgeom.lua)
@@ -514,7 +514,7 @@ local calc_dPhi_dgLL = MetaKernel{
 	real4 BL = sym4_real4_mul(*gLL, BU);
 	real BSq = dot(BL, BU);
 
-	real sqrt_det_g = sqrt(sym4_det(*gLL));
+	real sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
 	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 
 	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
