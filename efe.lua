@@ -293,8 +293,8 @@ end
 local code = compileTemplates(table{
 	typeCode,
 	file['efe.cl'],
+	file['calcVars.cl'],
 }:concat'\n')
-
 local program = require 'cl.program'{context=ctx, devices={device}, code=code}
 
 -- init
@@ -327,16 +327,22 @@ two approaches:
 I'll try for 2 and hope I have enough memory
 --]]
 
-local dPhi_dgLLs = MetaBuffer{name='dPhi_dgLL', type='sym4'}
+if maxiter > 0 then 
+	local code = compileTemplates(table{
+		typeCode,
+		file['efe.cl'],
+		file['gradientDescent.cl'],
+	}:concat'\n')
+	local program = require 'cl.program'{context=ctx, devices={device}, code=code}
+	
+	local dPhi_dgLLs = MetaBuffer{name='dPhi_dgLL', type='sym4'}
+	local calc_dPhi_dgLLs = program:kernel('calc_dPhi_dgLLs', dPhi_dgLLs.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf, EFEs.buf)
+	local update_dgLLs = program:kernel('update_dgLLs', gLLs.buf, dPhi_dgLLs.buf)
 
-local calc_dPhi_dgLLs = program:kernel('calc_dPhi_dgLLs', dPhi_dgLLs.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf, EFEs.buf)
-
-local update_dgLLs = program:kernel('update_dgLLs', gLLs.buf, dPhi_dgLLs.buf)
-
-
-for i=1,maxiter do
-	clcall(calc_dPhi_dgLLs)
-	clcall(update_dgLLs)
+	for i=1,maxiter do
+		clcall(calc_dPhi_dgLLs)
+		clcall(update_dgLLs)
+	end
 end
 
 --[[ 
@@ -361,6 +367,13 @@ end
 -- too many allocations or something and luajit is giving me nils when accessing primitive arrays
 
 print'calculating aux values...'
+
+local code = compileTemplates(table{
+	typeCode,
+	file['efe.cl'],
+	file['calcOutputVars.cl'],
+}:concat'\n')
+local program = require 'cl.program'{context=ctx, devices={device}, code=code}
 
 local tmp = MetaBuffer{name='tmp', type=real} 
 

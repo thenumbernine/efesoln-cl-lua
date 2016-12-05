@@ -3,6 +3,8 @@
 constant real c = 299792458;			// m/s 
 constant real G = 6.67384e-11;		// m^3 / (kg s^2)
 
+constant real3 real3_zero = {.x=0, .y=0, .z=0};
+
 static inline real real3_dot(real3 a, real3 b) {
 	return a.x * b.x + a.y * b.y + a.z * b.z;
 }
@@ -70,6 +72,33 @@ static inline real3 sym3_real3_mul(sym3 m, real3 v) {
 	};
 }
 
+constant sym4 sym4_zero = (sym4){
+<? for a=0,dim-1 do
+	for b=a,dim-1 do ?>
+	.s<?=a..b?> = 0.,
+<?	end
+end ?>
+};
+
+static inline real sym4_dot(sym4 a, sym4 b) {
+	return 0.
+<? for a=0,dim-1 do ?>
+	<? for b=0,dim-1 do ?>
+		+ a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?>
+	<? end ?>
+<? end ?>;
+}
+
+static inline sym4 sym4_outer(real4 v) {
+	return (sym4){
+<? for a=0,dim-1 do ?>
+	<? for b=a,dim-1 do ?>
+		.s<?=a..b?> = v.s<?=a?> * v.s<?=b?>,
+	<? end ?>
+<? end ?>
+	};
+}
+
 static inline sym4 sym4_scale(sym4 a, real s) {
 	return (sym4){
 <?
@@ -81,6 +110,16 @@ end ?>
 	};
 }
 
+static inline sym4 sym4_add(sym4 a, sym4 b) {
+	return (sym4){
+<?
+for a=0,3 do
+	for b=a,3 do ?>
+		.s<?=a?><?=b?> = a.s<?=a?><?=b?> + b.s<?=a?><?=b?>,
+<?	end
+end ?>		
+	};
+}
 static inline sym4 sym4_sub(sym4 a, sym4 b) {
 	return (sym4){
 <?
@@ -90,6 +129,10 @@ for a=0,3 do
 <?	end
 end ?>		
 	};
+}
+
+static inline sym4 sym4_mult_add(sym4 a, sym4 b, real c) {
+	return sym4_add(a, sym4_scale(b, c));
 }
 
 static inline real4 sym4_real4_mul(sym4 m, real4 v) {
@@ -181,18 +224,12 @@ constant real3 inv_dx = _real3(
 	xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),	\
 	xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
 
-void calc_EinsteinLL(
-	sym4* result,
-	global const sym4* gLLs,
-	global const sym4* gUUs,
+void calc_dGammaLULL(
+	tensor_44sym4* dGammaLULL,
 	global const tensor_4sym4* GammaULLs
 ) {
-	int4 i = globalInt4();
-	int index = indexForInt4(i);
-	
-	//here's where the finite difference stuff comes in ...
-	tensor_44sym4 dGammaLULL;
-	dGammaLULL.s0 = tensor_4sym4_zero;
+	INIT_KERNEL();
+	dGammaLULL->s0 = tensor_4sym4_zero;
 	<? for i=0,gridDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
@@ -204,10 +241,27 @@ void calc_EinsteinLL(
 		int indexR = indexForInt4(iR);
 		global const tensor_4sym4* GammaULL_next = GammaULLs + indexR;
 	
-		dGammaLULL.s<?=i+1?> = tensor_4sym4_scale(
+		dGammaLULL->s<?=i+1?> = tensor_4sym4_scale(
 			tensor_4sym4_sub(*GammaULL_next, *GammaULL_prev),
 			.5 * inv_dx.s<?=i?> );
 	}<? end ?>
+}
+
+sym4 calc_EinsteinLL(
+	global const sym4* gLLs,
+	global const sym4* gUUs,
+	global const tensor_4sym4* GammaULLs
+) {
+	int4 i = globalInt4();
+	int index = indexForInt4(i);
+	
+	//here's where the finite difference stuff comes in ...
+	tensor_44sym4 dGammaLULL;
+	calc_dGammaLULL(&dGammaLULL, GammaULLs);
+
+	//this Ricci calculation differs from the one in calc_dPhi_dgLLs because
+	// that one can extract RiemannULLL, which can be used for RicciLL calcs
+	// but this one doesn't need RiemannULLL, so we can contract one of the terms in RicciLL's calcs
 
 	global const tensor_4sym4* GammaULL = GammaULLs + index;
 	real4 Gamma12L = (real4){
@@ -234,25 +288,11 @@ void calc_EinsteinLL(
 	<? end ?>
 <? end ?>};
 
-	global const sym4* gUU = gUUs + index;
-	real Gaussian = 0.
-<? for a=0,dim-1 do ?>
-	<? for b=0,dim-1 do ?>
-		+ gUU->s<?=sym(a,b)?> * RicciLL.s<?=sym(a,b)?>
-	<? end ?>
-<? end ?>;
-
-	global const sym4* gLL = gLLs + index;
-	
-<? for a=0,dim-1 do ?>
-	<? for b=a,dim-1 do ?>
-	result->s<?=a..b?> = RicciLL.s<?=a..b?> - .5 * gLL->s<?=a..b?> * Gaussian;
-	<? end ?>
-<? end ?>
+	real Gaussian = sym4_dot(RicciLL, gUUs[index]);
+	return sym4_mult_add(RicciLL, gLLs[index], -.5 * Gaussian);
 }
 
-void calc_8piTLL(
-	sym4* result,
+sym4 calc_8piTLL(
 	global const sym4* gLL,
 	global const TPrim_t* TPrim
 ) {
@@ -295,500 +335,12 @@ void calc_8piTLL(
 		//otherwise uL = gLL->s0
 	real4 uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
 
-	sym4 _8piT_matter_LL = (sym4){
-<? for a=0,dim-1 do ?>
-	<? for b=a,dim-1 do ?>
-		.s<?=a..b?> = 8. * M_PI * (
-			uL.s<?=a?> * uL.s<?=b?> * (TPrim->rho * (1. + TPrim->eInt) + TPrim->P)
-			+ gLL->s<?=a..b?> * TPrim->P),
-	<? end ?>
-<? end ?>
-	};
+	//8 pi T_matter_ab = 8 pi (u_a u_b (rho (1 + eInt) + P) + g_ab P)
+	sym4 _8piT_matter_LL = sym4_scale(
+		sym4_add(
+			sym4_scale(sym4_outer(uL), TPrim->rho * (1. + TPrim->eInt) + TPrim->P),
+			sym4_scale(*gLL, TPrim->P)
+		), 8. * M_PI);
 
-	<? for a=0,dim-1 do ?>
-		<? for b=a,dim-1 do ?>
-	result->s<?=a..b?> = _8piT_EM_LL.s<?=a..b?> + _8piT_matter_LL.s<?=a..b?>;
-		<? end ?>
-	<? end ?>
-}
-
-// init
-
-kernel void init_gPrims(
-	global gPrim_t* gPrims
-) {
-	INIT_KERNEL();
-	
-	real3 x = getX(i);
-	real r = real3_len(x);
-
-	global gPrim_t* gPrim = gPrims + index;
-
-	//init to flat by default
-	*gPrim = (gPrim_t){
-		.alpha = 1,
-		.betaU = _real3(0,0,0),
-		.gammaLL = sym3_ident,
-	};
-
-	<?=initCond.code?>
-}
-
-kernel void init_TPrims(
-	global TPrim_t* TPrims
-) {
-	INIT_KERNEL();
-
-	real3 x = getX(i);
-	real r = real3_len(x);
-	
-	global TPrim_t* TPrim = TPrims + index;
-	
-	*TPrim = (TPrim_t){
-		.rho = 0,
-		.eInt = 0,
-		.P = 0,
-		.v = _real3(0,0,0),
-		.E = _real3(0,0,0),
-		.B = _real3(0,0,0),
-	};
-
-	<?=body.init?>
-}
-
-// compute buffers to compute EFE
-
-kernel void calc_gLLs_and_gUUs(
-	global sym4* gLLs,
-	global sym4* gUUs,
-	const global gPrim_t* gPrims
-) {
-	INIT_KERNEL();
-
-	global const gPrim_t* gPrim = gPrims + index;
-
-	real alphaSq = gPrim->alpha * gPrim->alpha;
-	real3 betaL = sym3_real3_mul(gPrim->gammaLL, gPrim->betaU);
-	real betaSq = real3_dot(betaL, gPrim->betaU);
-
-	global sym4* gLL = gLLs + index;
-	gLL->s00 = -alphaSq + betaSq;
-	<? for i=0,subDim-1 do ?>
-	gLL->s0<?=i+1?> = betaL.s<?=i?>;
-		<? for j=i,subDim-1 do ?>
-	gLL->s<?=i+1?><?=j+1?> = gPrim->gammaLL.s<?=i?><?=j?>;
-		<? end ?>
-	<? end ?>
-
-	real det_gammaLL = sym3_det(gPrim->gammaLL);
-	sym3 gammaUU = sym3_inv(det_gammaLL, gPrim->gammaLL);
-
-	global sym4* gUU = gUUs + index;
-	gUU->s00 = -1./alphaSq;
-	<? for i=0,subDim-1 do ?>
-	gUU->s0<?=i+1?> = gPrim->betaU.s<?=i?> / alphaSq;
-		<? for j=i,subDim-1 do ?>
-	gUU->s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - gPrim->betaU.s<?=i?> * gPrim->betaU.s<?=j?> / alphaSq;
-		<? end ?>
-	<? end ?>
-}
-
-kernel void calc_GammaULLs(
-	global tensor_4sym4* GammaULLs,
-	const global sym4* gLLs,
-	const global sym4* gUUs
-) {
-	INIT_KERNEL();
-
-	//here's where the finite difference stuff comes in ...
-	tensor_4sym4 dgLLL;
-	dgLLL.s0 = (sym4){
-<? for a=0,dim-1 do
-	for b=a,dim-1 do ?>
-		.s<?=a..b?> = 0.,
-<?	end
-end ?>
-	};
-	<? for i=0,gridDim-1 do ?>{
-		int4 iL = i;
-		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int indexL = indexForInt4(iL);
-		global const sym4* gLL_prev = gLLs + indexL;
-		
-		int4 iR = i;
-		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int indexR = indexForInt4(iR);
-		global const sym4* gLL_next = gLLs + indexR;
-		
-		dgLLL.s<?=i+1?> = (sym4){
-		<? for a=0,dim-1 do ?>
-			<? for b=a,dim-1 do ?>
-			.s<?=a..b?> = (gLL_next->s<?=a..b?> - gLL_prev->s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
-			<? end ?>
-		<? end ?>
-		};
-	}<? end ?>
-
-	tensor_4sym4 GammaLLL = (tensor_4sym4){
-	<? for a=0,dim-1 do ?>
-		<? for b=0,dim-1 do ?>
-			<? for c=b,dim-1 do ?>
-		.s<?=a?>.s<?=b?><?=c?> = .5 * (
-			dgLLL.s<?=c?>.s<?=sym(a,b)?>
-			+ dgLLL.s<?=b?>.s<?=sym(a,c)?>
-			- dgLLL.s<?=a?>.s<?=sym(b,c)?>),
-			<? end ?>
-		<? end ?>
-	<? end ?>};
-
-	global const sym4* gUU = gUUs + index;
-	global tensor_4sym4* GammaULL = GammaULLs + index;
-	<? for a=0,dim-1 do ?>
-		<? for b=0,dim-1 do ?>
-			<? for c=b,dim-1 do ?>
-	GammaULL->s<?=a?>.s<?=b?><?=c?> = 0.
-				<? for d=0,dim-1 do ?>
-		+ gUU->s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
-				<? end ?>;
-			<? end ?>
-		<? end ?>
-	<? end ?>
-}
-
-kernel void calc_EFEs(
-	global sym4* EFEs,
-	global const gPrim_t* gPrims,
-	global const TPrim_t* TPrims,
-	global const sym4* gLLs,
-	global const sym4* gUUs,
-	global const tensor_4sym4* GammaULLs
-) {
-	INIT_KERNEL();
-	
-	sym4 EinsteinLL;
-	calc_EinsteinLL(&EinsteinLL, gLLs, gUUs, GammaULLs);
-	
-	sym4 _8piTLL;
-	calc_8piTLL(&_8piTLL, gLLs+index, TPrims+index);
-
-	global sym4* EFE = EFEs + index;
-	<? for a=0,dim-1 do ?>
-		<? for b=a,dim-1 do ?>
-	EFE->s<?=a..b?> = EinsteinLL.s<?=a..b?> - _8piTLL.s<?=a..b?>;
-		<? end ?>
-	<? end ?>
-}
-
-// compute aux buffers for output
-
-kernel void calc_detGammas(
-	global real* detGammas,
-	global const gPrim_t* gPrims
-) {
-	INIT_KERNEL();
-	detGammas[index] = sym3_det(gPrims[index].gammaLL);
-}
-
-kernel void calc_numericalGravity(
-	global real* numericalGravity,
-	global const tensor_4sym4* GammaULLs
-) {
-	INIT_KERNEL();
-	real3 x = getX(i);
-	real r = real3_len(x);
-	global const tensor_4sym4* GammaULL = GammaULLs + index;
-	numericalGravity[index] = (0.
-		+ GammaULL->s1.s00 * x.s0 / r
-		+ GammaULL->s2.s00 * x.s1 / r
-		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
-}
-
-kernel void calc_analyticalGravity(
-	global real* analyticalGravity
-) {
-	INIT_KERNEL();
-	real3 x = getX(i);
-	real r = real3_len(x);
-	real matterRadius = min(r, (real)<?=body.radius?>);
-	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = <?=body.density?> * volumeOfMatterRadius;	// m^3
-	real dm_dr = 0;
-	analyticalGravity[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
-		* c * c;	//+9 at earth surface, without matter derivatives
-}
-
-kernel void calc_norm_EFE_tts(
-	global real* norm_EFE_tts,
-	global const sym4* EFEs
-) {
-	INIT_KERNEL();
-	norm_EFE_tts[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;
-}
-
-kernel void calc_norm_EFE_tis(
-	global real* norm_EFE_tis,
-	global const sym4* EFEs
-) {
-	INIT_KERNEL();
-	global const sym4* EFE = EFEs + index;	
-	norm_EFE_tis[index] = sqrt(0.
-<? for i=0,subDim-1 do ?>
-		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
-<? end ?>) * c;
-}
-
-kernel void calc_norm_EFE_ijs(
-	global real* norm_EFE_ijs,
-	global const sym4* EFEs
-) {
-	INIT_KERNEL();
-	global const sym4* EFE = EFEs + index;
-	norm_EFE_ijs[index] = sqrt(0.
-<? for i=0,subDim-1 do
-	for j=0,subDim-1 do ?>
-		+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
-<?	end
-end ?>);
-}
-
-kernel void calc_norm_EinsteinLLs(
-	global real* norm_EinsteinLLs,
-	global const sym4* gLLs,
-	global const sym4* gUUs,
-	global const tensor_4sym4* GammaULLs
-) {
-	INIT_KERNEL();
-	sym4 EinsteinLL;
-	calc_EinsteinLL(&EinsteinLL, gLLs, gUUs, GammaULLs);
-	norm_EinsteinLLs[index] = sqrt(0.
-<? for a=0,dim-1 do
-	for b=0,dim-1 do ?>
-		+ EinsteinLL.s<?=sym(a,b)?> * EinsteinLL.s<?=sym(a,b)?>
-<?	end
-end ?>);
-}
-
-// and here is the code used for updating weights based on the EFE
-
-kernel void calc_dPhi_dgLLs(
-	global sym4* dPhi_dgLLs,
-	global const TPrim_t* TPrims,
-	global const sym4* gLLs,
-	global const sym4* gUUs,
-	global const tensor_4sym4* GammaULLs,
-	global const sym4* EFEs
-) {
-	INIT_KERNEL();
-	
-	global const sym4* gLL = gLLs + index;
-	global const sym4* gUU = gUUs + index;
-	global const tensor_4sym4* GammaULL = GammaULLs + index;
-
-	//this is also in the Ricci computation, but should I be storing it?  is it too big?
-	tensor_44sym4 dGammaLULL;
-	dGammaLULL.s0 = tensor_4sym4_zero;
-	<? for i=0,gridDim-1 do ?>{
-		int4 iL = i;
-		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int indexL = indexForInt4(iL);
-		global const tensor_4sym4* GammaULL_prev = GammaULLs + indexL;
-		
-		int4 iR = i;
-		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int indexR = indexForInt4(iR);
-		global const tensor_4sym4* GammaULL_next = GammaULLs + indexR;
-		
-		dGammaLULL.s<?=i+1?> = tensor_4sym4_scale(
-			tensor_4sym4_sub(*GammaULL_next, *GammaULL_prev),
-			.5 * inv_dx.s<?=i?> );
-	}<? end ?>
-
-	tensor_44sym4 RiemannULLL = (tensor_44sym4){
-<? for a=0,dim-1 do ?>
-		.s<?=a?> = (tensor_4sym4){
-	<? for b=0,dim-1 do ?>
-			.s<?=b?> = (sym4){
-		<? for c=0,dim-1 do ?>
-			<? for d=c,dim-1 do ?>
-				.s<?=c?><?=d?> = 
-					dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
-					- dGammaLULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?> 
-				<? for e=0,dim-1 do ?>
-					+ GammaULL->s<?=a?>.s<?=sym(e,c)?> * GammaULL->s<?=e?>.s<?=sym(b,d)?>
-					- GammaULL->s<?=a?>.s<?=sym(e,d)?> * GammaULL->s<?=e?>.s<?=sym(b,c)?>
-				<? end ?>,
-			<? end ?>
-		<? end ?>
-			},
-	<? end ?>
-		},
-<? end ?>
-	};
-
-	sym4 RicciLL = (sym4){
-<? for a=0,dim-1 do ?>
-	<? for b=a,dim-1 do ?>
-		.s<?=a..b?> = 0.
-		<? for c=0,dim-1 do ?>
-			+ RiemannULLL.s<?=c?>.s<?=a?>.s<?=sym(c,b)?>
-		<? end ?>,
-	<? end ?>
-<? end ?>};
-
-	real RicciUL[4][4] = {
-<? for a=0,dim-1 do ?>
-		{
-	<? for b=0,dim-1 do ?>
-			0.
-		<? for c=0,dim-1 do ?>
-				+ gUU->s<?=sym(a,c)?> * RicciLL.s<?=sym(c,b)?>
-		<? end ?>,
-	<? end ?>
-		},
-<? end ?>
-	};
-
-	sym4 RicciUU = (sym4){
-<? for a=0,dim-1 do
-	for b=a,dim-1 do ?>
-		.s<?=a..b?> = 0.
-	<?	for c=0,dim-1 do ?>
-		 + RicciUL[<?=a?>][<?=c?>] * gUU->s<?=sym(c,b)?>
-	<?	end ?>,
-<?	end
-end ?>
-	};
-
-	real Gaussian = 0.
-<? for a=0,dim-1 do ?>
-		+ RicciUL[<?=a?>][<?=a?>]
-<? end ?>;
-
-
-
-	real GammaUUL[4][4][4] = {
-<? for a=0,dim-1 do ?>
-	{<? for b=0,dim-1 do ?>
-		{<? for c=0,dim-1 do ?>
-			0.
-			<? for d=0,dim-1 do ?>
-			+ GammaULL->s<?=a?>.s<?=sym(d,c)?> * gUU->s<?=sym(d,b)?>
-			<? end ?>,
-		<? end ?>},
-	<? end ?>},
-<? end ?>
-	};
-
-	//dR_ab/dg_pq
-	tensor_sym4sym4 dRLL_dgLL = (tensor_sym4sym4){
-<? for e=0,dim-1 do ?>
-	<? for f=e,dim-1 do ?>
-		.s<?=e?><?=f?> = (sym4){
-		<? for a=0,dim-1 do ?>
-			<? for b=a,dim-1 do ?>
-				.s<?=a?><?=b?> = 0.
-				<? for c=0,dim-1 do ?>
-					+ GammaUUL[<?=e?>][<?=c?>][<?=c?>] * GammaULL->s<?=f?>.s<?=sym(b,a)?>
-					- GammaUUL[<?=e?>][<?=c?>][<?=b?>] * GammaULL->s<?=f?>.s<?=sym(c,a)?>
-					- gUU->s<?=sym(c,e)?> * RiemannULLL.s<?=f?>.s<?=a?>.s<?=sym(c,b)?>
-				<? end ?>,
-			<? end ?>
-		<? end ?>
-		},
-	<? end ?>
-<? end ?>
-	};
-
-	//dG_ab/dg_pq = tensor_sym4sym4.s[pq].s[ab]
-	tensor_sym4sym4 dEinsteinLL_dgLL = (tensor_sym4sym4){
-<? for e=0,dim-1 do ?>
-	<? for f=e,dim-1 do ?>
-		.s<?=e?><?=f?> = (sym4){
-		<? for a=0,dim-1 do ?>
-			<? for b=a,dim-1 do ?>
-			.s<?=a?><?=b?> = dRLL_dgLL.s<?=e?><?=f?>.s<?=a?><?=b?>
-				- .5 * (0.
-				<? if e==a and f==b then ?> + Gaussian <? end ?>
-				+ gLL->s<?=a?><?=b?> * (
-					-RicciUU.s<?=e?><?=f?>
-				<? for c=0,dim-1 do ?>
-					<? for d=0,dim-1 do ?>
-					+ gUU->s<?=sym(c,d)?> * dRLL_dgLL.s<?=e?><?=f?>.s<?=sym(c,d)?>
-					<? end ?>
-				<? end ?>
-				)),
-			<? end ?>
-		<? end ?>},
-	<? end ?>
-<? end ?>
-	};
-
-	global const TPrim_t* TPrim = TPrims + index;
-
-	real4 EU = (real4)(0 <?for i=0,2 do ?>, TPrim->E.s<?=i?> <? end ?>); 
-	real4 EL = sym4_real4_mul(*gLL, EU);
-	real ESq = dot(EL, EU);
-	
-	real4 BU = (real4)(0 <?for i=0,2 do ?>, TPrim->B.s<?=i?> <? end ?>); 
-	real4 BL = sym4_real4_mul(*gLL, BU);
-	real BSq = dot(BL, BU);
-
-	real sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
-	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
-
-	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
-<? for e=0,dim-1 do ?>
-	<? for f=e,dim-1 do ?>
-		.s<?=e?><?=f?> = (sym4){
-			//dTEM_00/dg_<?=e?><?=f?>
-			.s00 = <?=(e==0 or f==0) and '0' or 'TPrim.E.s'..(e-1) * TPrim.E.s'..(f-1)' ?>
-					+ <?=(e==0 or f==0) and '0' or 'TPrim.B.s'..(e-1) * TPrim.B.s'..(f-1)' ?>,
-		<? for i=0,subDim-1 do ?>
-			.s0<?=i+1?> = -SL.s<?=i?> * gUU->s<?=e?><?=f?>,
-			<? for j=i,subDim-1 do ?>
-			.s<?=i+1?><?=j+1?> = 0.
-				<? if e==i+1 and f==j+1 then ?> + ESq + BSq <? end ?>
-				+ gLL->s<?=i?><?=j?> * (
-					<?=(e==0 or f==0) and '0' or 'TPrim.E.s'..(e-1) * TPrim.E.s'..(f-1)' ?>
-					+ <?=(e==0 or f==0) and '0' or 'TPrim.B.s'..(e-1) * TPrim.B.s'..(f-1)' ?>
-				)
-				- 2. * (0.
-					<? if e==i+1 then ?>
-					+ EU.s<?=f?> * EL.s<?=j+1?> + BU.s<?=f?> * BL.s<?=j+1?>
-					<? end ?>
-					<? if e==j+1 then ?>
-					+ EU.s<?=f?> * EL.s<?=i+1?> + BU.s<?=f?> * BL.s<?=i+1?>
-					<? end ?>
-				),
-			<? end ?>
-		<? end ?>},
-	<? end ?>
-<? end ?>
-	};
-
-	global const sym4* EFE = EFEs + index;	// G_ab - 8 pi T_ab
-	<? for p=0,dim-1 do ?>
-		<? for q=p,dim-1 do ?>
-	dPhi_dgLLs[index].s<?=p?><?=q?> = 0.
-			<? for a=0,dim-1 do ?>
-				<? for b=0,dim-1 do ?>
-					+ EFE->s<?=sym(a,b)?> * (dEinsteinLL_dgLL.s<?=p?><?=q?>.s<?=sym(a,b)?> - d_8piTLL_dgLL.s<?=p?><?=q?>.s<?=sym(a,b)?>)
-				<? end ?>
-			<? end ?>;
-		<? end ?>
-	<? end ?>
-}
-
-kernel void update_dgLLs(
-	global sym4* gLLs,
-	global const sym4* dPhi_dgLLs
-) {
-	INIT_KERNEL();
-	global sym4* gLL = gLLs + index;
-	global const sym4* dPhi_dgLL = dPhi_dgLLs + index;
-<? for a=0,dim-1 do ?>
-	<? for b=a,dim-1 do ?>
-	gLL.s<?=a..b?> -= dPhi_dgLL.s<?=a..b?> * <?=updateAlpha?>;
-	<? end ?>
-<? end ?>
+	return sym4_add(_8piT_EM_LL, _8piT_matter_LL);
 }
