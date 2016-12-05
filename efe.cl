@@ -104,8 +104,8 @@ end ?>
 static inline real sym4_dot(sym4 a, sym4 b) {
 	return 0
 <? for a=0,3 do ?>
-	<? for b=a,3 do ?>
-	+ a.s<?=a?><?=b?> * b.s<?=a?><?=b?>
+	<? for b=0,3 do ?>
+	+ a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?>
 	<? end ?>
 <? end ?>;
 }
@@ -221,7 +221,7 @@ void calc_EinsteinLL(
 		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
 		global const tensor_4sym4* GammaULL_next = GammaULLs + indexR;
-		
+	
 		dGammaLULL.s<?=i+1?> = tensor_4sym4_scale(
 			tensor_4sym4_sub(*GammaULL_next, *GammaULL_prev),
 			.5 * inv_dx.s<?=i?> );
@@ -242,9 +242,11 @@ void calc_EinsteinLL(
 	<? for b=a,dim-1 do ?>
 		.s<?=a?><?=b?> = 0.
 		<? for c=0,dim-1 do ?>
-			+ dGammaLULL.s<?=c?>.s<?=c?>.s<?=a..b?> - dGammaLULL.s<?=b?>.s<?=c?>.s<?=sym(a,c)?> + GammaULL->s<?=c?>.s<?=a..b?> * Gamma12L.s<?=c?>
+			+ dGammaLULL.s<?=c?>.s<?=c?>.s<?=a..b?> 
+			- dGammaLULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?> 
+			+ Gamma12L.s<?=c?> * GammaULL->s<?=c?>.s<?=a..b?>
 			<? for d=0,dim-1 do ?>
-				- GammaULL->s<?=d?>.s<?=sym(a,c)?> * GammaULL->s<?=c?>.s<?=sym(b,d)?>
+			- GammaULL->s<?=c?>.s<?=sym(d,b)?> * GammaULL->s<?=d?>.s<?=sym(c,a)?> 
 			<? end ?>
 		<? end ?>,
 	<? end ?>
@@ -281,7 +283,7 @@ void calc_8piTLL(
 	real sqrt_det_g = sqrt(sym4_det(*gLL));
 	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 	
-	sym4 T_EM_LL = {
+	sym4 _8piT_EM_LL = {
 		.s00 = ESq + BSq,
 <? for i=0,subDim-1 do ?>
 		.s0<?=i+1?> = -2. * SL.s<?=i?>,
@@ -301,18 +303,19 @@ void calc_8piTLL(
 		//otherwise uL = gLL->s0
 	real4 uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
 
-	sym4 T_matter_LL = (sym4){
+	sym4 _8piT_matter_LL = (sym4){
 <? for a=0,dim-1 do ?>
 	<? for b=a,dim-1 do ?>
-		.s<?=a..b?> = uL.s<?=a?> * uL.s<?=b?> * (TPrim->rho * (1. + TPrim->eInt) + TPrim->P)
-			+ gLL->s<?=a..b?> * TPrim->P,
+		.s<?=a..b?> = 8. * M_PI * (
+			uL.s<?=a?> * uL.s<?=b?> * (TPrim->rho * (1. + TPrim->eInt) + TPrim->P)
+			+ gLL->s<?=a..b?> * TPrim->P),
 	<? end ?>
 <? end ?>
 	};
 
 	<? for a=0,dim-1 do ?>
 		<? for b=a,dim-1 do ?>
-	result->s<?=a..b?> = T_EM_LL.s<?=a..b?> + T_matter_LL.s<?=a..b?>;
+	result->s<?=a..b?> = _8piT_EM_LL.s<?=a..b?> + _8piT_matter_LL.s<?=a..b?>;
 		<? end ?>
 	<? end ?>
 }
@@ -454,7 +457,7 @@ kernel void calc_GammaULLs(
 	<? end ?>
 }
 
-kernel void calc_EFE_constraint(
+kernel void calc_EFEs(
 	global sym4* EFEs,
 	global const gPrim_t* gPrims,
 	global const TPrim_t* TPrims,

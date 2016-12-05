@@ -160,7 +160,7 @@ body.init = template([[
 })
 
 -- initial conditions:
--- [=[ flat 
+--[=[ flat 
 local initCond = {code = ''}
 --]=]
 -- [=[ stellar schwarzschild 
@@ -357,7 +357,7 @@ local init_TPrims = program:kernel('init_TPrims', TPrims.buf)
 -- compute values for EFE
 local calc_gLLs_and_gUUs = program:kernel('calc_gLLs_and_gUUs', gLLs.buf, gUUs.buf, gPrims.buf)
 local calc_GammaULLs = program:kernel('calc_GammaULLs', GammaULLs.buf, gLLs.buf, gUUs.buf)
-local calc_EFE_constraint = program:kernel('calc_EFE_constraint', EFEs.buf, gPrims.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf)
+local calc_EFEs = program:kernel('calc_EFEs', EFEs.buf, gPrims.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf)
 
 -- run the kernels
 
@@ -367,7 +367,7 @@ clcall(init_gPrims)
 clcall(init_TPrims)
 clcall(calc_gLLs_and_gUUs)
 clcall(calc_GammaULLs)
-clcall(calc_EFE_constraint)
+clcall(calc_EFEs)
 
 --[[
 iteration:
@@ -624,7 +624,7 @@ local cols = {
 	{ix = function(index,i,j,k) return i end},
 	{iy = function(index,i,j,k) return j end},
 	{iz = function(index,i,j,k) return k end},
-	{rho = function(index) return TPrimsCPU[index].rho end},
+	{['rho(g/cm^3)'] = function(index) return TPrimsCPU[index].rho * c * c / G / 1000 end},
 	{['det-1'] = function(index) return -1+detGammas[index] end},
 	{['alpha-1'] = function(index) return -1+gPrimsCPU[index].alpha end},
 	{gravity = function(index) return numericalGravity[index] end},
