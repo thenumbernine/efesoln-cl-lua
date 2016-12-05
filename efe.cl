@@ -188,12 +188,19 @@ constant real3 dx = _real3(
 	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,
 	<?=tonumber(xmax.x - xmin.x) / tonumber(size.x)?>);
 
+constant real3 inv_dx = _real3(
+	<?=tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,
+	<?=tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,
+	<?=tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
+
+
 #define getX(i) _real3( \
 	xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),	\
 	xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),	\
 	xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
 
-sym4 calc_EinsteinLL(
+void calc_EinsteinLL(
+	sym4* result,
 	global const sym4* gLLs,
 	global const sym4* gUUs,
 	global const tensor_4sym4* GammaULLs
@@ -206,18 +213,18 @@ sym4 calc_EinsteinLL(
 	dGammaLULL.s0 = tensor_4sym4_zero;
 	<? for i=0,gridDim-1 do ?>{
 		int4 iL = i;
-		iL.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
 		global const tensor_4sym4* GammaULL_prev = GammaULLs + indexL;
 		
 		int4 iR = i;
-		iR.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
 		global const tensor_4sym4* GammaULL_next = GammaULLs + indexR;
 		
 		dGammaLULL.s<?=i+1?> = tensor_4sym4_scale(
 			tensor_4sym4_sub(*GammaULL_next, *GammaULL_prev),
-			1. / (2. * dx.s<?=i?> ));
+			.5 * inv_dx.s<?=i?> );
 	}<? end ?>
 
 	global const tensor_4sym4* GammaULL = GammaULLs + index;
@@ -247,10 +254,11 @@ sym4 calc_EinsteinLL(
 	real Gaussian = sym4_dot(*gUU, RicciLL);
 
 	global const sym4* gLL = gLLs + index;
-	return sym4_sub(RicciLL, sym4_scale(*gLL, -.5 * Gaussian));
+	*result = sym4_sub(RicciLL, sym4_scale(*gLL, -.5 * Gaussian));
 }
 
-sym4 calc_8piTLL(
+void calc_8piTLL(
+	sym4* result,
 	global const sym4* gLL,
 	global const TPrim_t* TPrim
 ) {
@@ -302,8 +310,14 @@ sym4 calc_8piTLL(
 <? end ?>
 	};
 
-	return T_EM_LL;
+	<? for a=0,dim-1 do ?>
+		<? for b=a,dim-1 do ?>
+	result->s<?=a..b?> = T_EM_LL.s<?=a..b?> + T_matter_LL.s<?=a..b?>;
+		<? end ?>
+	<? end ?>
 }
+
+// init
 
 kernel void init_gPrims(
 	global gPrim_t* gPrims
@@ -346,6 +360,8 @@ kernel void init_TPrims(
 
 	<?=body.init?>
 }
+
+// compute buffers to compute EFE
 
 kernel void calc_gLLs_and_gUUs(
 	global sym4* gLLs,
@@ -394,28 +410,32 @@ kernel void calc_GammaULLs(
 	dgLLL.s0 = sym4_zero;
 	<? for i=0,gridDim-1 do ?>{
 		int4 iL = i;
-		iL.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
 		global const sym4* gLL_prev = gLLs + indexL;
 		
 		int4 iR = i;
-		iR.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
 		global const sym4* gLL_next = gLLs + indexR;
 		
-		dgLLL.s<?=i+1?> = sym4_scale(
-			sym4_sub(*gLL_next, *gLL_prev),
-			1. / (2. * dx.s<?=i?> ));
+		dgLLL.s<?=i+1?> = (sym4){
+		<? for a=0,dim-1 do ?>
+			<? for b=a,dim-1 do ?>
+			.s<?=a..b?> = (gLL_next->s<?=a..b?> - gLL_prev->s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
+			<? end ?>
+		<? end ?>
+		};
 	}<? end ?>
 
 	tensor_4sym4 GammaLLL = (tensor_4sym4){
 	<? for a=0,dim-1 do ?>
 		<? for b=0,dim-1 do ?>
 			<? for c=b,dim-1 do ?>
-				.s<?=a?>.s<?=b?><?=c?> = .5 * (
-					dgLLL.s<?=c?>.s<?=sym(a,b)?>
-					+ dgLLL.s<?=b?>.s<?=sym(a,c)?>
-					- dgLLL.s<?=a?>.s<?=sym(b,c)?>),
+		.s<?=a?>.s<?=b?><?=c?> = .5 * (
+			dgLLL.s<?=c?>.s<?=sym(a,b)?>
+			+ dgLLL.s<?=b?>.s<?=sym(a,c)?>
+			- dgLLL.s<?=a?>.s<?=sym(b,c)?>),
 			<? end ?>
 		<? end ?>
 	<? end ?>};
@@ -432,5 +452,118 @@ kernel void calc_GammaULLs(
 			<? end ?>
 		<? end ?>
 	<? end ?>
+}
+
+kernel void calc_EFE_constraint(
+	global sym4* EFEs,
+	global const gPrim_t* gPrims,
+	global const TPrim_t* TPrims,
+	global const sym4* gLLs,
+	global const sym4* gUUs,
+	global const tensor_4sym4* GammaULLs
+) {
+	INIT_KERNEL();
+	
+	sym4 EinsteinLL;
+	calc_EinsteinLL(&EinsteinLL, gLLs, gUUs, GammaULLs);
+	
+	sym4 _8piTLL;
+	calc_8piTLL(&_8piTLL, gLLs+index, TPrims+index);
+
+	global sym4* EFE = EFEs + index;
+	<? for a=0,dim-1 do ?>
+		<? for b=a,dim-1 do ?>
+	EFE->s<?=a..b?> = EinsteinLL.s<?=a..b?> - _8piTLL.s<?=a..b?>;
+		<? end ?>
+	<? end ?>
+}
+
+// compute aux buffers for output
+
+kernel void calc_detGammas(
+	global real* detGammas,
+	global const gPrim_t* gPrims
+) {
+	INIT_KERNEL();
+	detGammas[index] = sym3_det(gPrims[index].gammaLL);
+}
+
+kernel void calc_numericalGravity(
+	global real* numericalGravity,
+	global const tensor_4sym4* GammaULLs
+) {
+	INIT_KERNEL();
+	real3 x = getX(i);
+	real r = real3_len(x);
+	global const tensor_4sym4* GammaULL = GammaULLs + index;
+	numericalGravity[index] = (0.
+		+ GammaULL->s1.s00 * x.s0 / r
+		+ GammaULL->s2.s00 * x.s1 / r
+		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
+}
+
+kernel void calc_analyticalGravity(
+	global real* analyticalGravity
+) {
+	INIT_KERNEL();
+	real3 x = getX(i);
+	real r = real3_len(x);
+	real matterRadius = min(r, (real)<?=body.radius?>);
+	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+	real m = <?=body.density?> * volumeOfMatterRadius;	// m^3
+	real dm_dr = 0;
+	analyticalGravity[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
+		* c * c;	//+9 at earth surface, without matter derivatives
+}
+
+kernel void calc_norm_EFE_tts(
+	global real* norm_EFE_tts,
+	global const sym4* EFEs
+) {
+	INIT_KERNEL();
+	norm_EFE_tts[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;
+}
+
+kernel void calc_norm_EFE_tis(
+	global real* norm_EFE_tis,
+	global const sym4* EFEs
+) {
+	INIT_KERNEL();
+	global const sym4* EFE = EFEs + index;	
+	norm_EFE_tis[index] = sqrt(0.
+	<? for i=0,subDim-1 do ?>
+		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
+	<? end ?>) * c;
+}
+
+kernel void calc_norm_EFE_ijs(
+	global real* norm_EFE_ijs,
+	global const sym4* EFEs
+) {
+	INIT_KERNEL();
+	global const sym4* EFE = EFEs + index;
+	norm_EFE_ijs[index] = sqrt(0.
+<? for i=0,subDim-1 do
+	for j=0,subDim-1 do ?>
+		+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
+<?	end
+end ?>);
+}
+
+kernel void calc_norm_EinsteinLLs(
+	global real* norm_EinsteinLLs,
+	global const sym4* gLLs,
+	global const sym4* gUUs,
+	global const tensor_4sym4* GammaULLs
+) {
+	INIT_KERNEL();
+	sym4 EinsteinLL;
+	calc_EinsteinLL(&EinsteinLL, gLLs, gUUs, GammaULLs);
+	norm_EinsteinLLs[index] = sqrt(0.
+<? for a=0,dim-1 do
+	for b=0,dim-1 do ?>
+		+ EinsteinLL.s<?=sym(a,b)?> * EinsteinLL.s<?=sym(a,b)?>
+<?	end
+end ?>);
 }
 

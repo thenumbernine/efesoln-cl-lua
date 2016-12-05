@@ -254,10 +254,9 @@ function MetaBuffer:init(args)
 	self.buf = clalloc(volume * ffi.sizeof(self.type), name, self.type)
 end
 function MetaBuffer:toCPU()
-	if not self.cpuMem then
-		self.cpuMem = ffi.new(self.type..'[?]', volume)
-	end
-	cmds:enqueueReadBuffer{buffer=self.buf, block=true, size=ffi.sizeof(self.type) * volume, ptr=self.cpuMem}
+	local cpuMem = ffi.new(self.type..'[?]', volume)
+	cmds:enqueueReadBuffer{buffer=self.buf, block=true, size=ffi.sizeof(self.type) * volume, ptr=cpuMem}
+	return cpuMem
 end
 
 local TPrims = MetaBuffer{name='TPrims', type='TPrim_t'}
@@ -349,34 +348,16 @@ function MetaKernel:__call(...)
 	clcall(self.kernel, ...)
 end
 
-function MetaKernel:toCPU()
-	for _,mb in ipairs(self.argsOut) do
-		mb:toCPU()
-	end
-end
-
-local calc_EFE_constraint = MetaKernel{
-	name = 'calc_EFE_constraint',
-	argsOut = {EFEs},
-	argsIn = {gPrims, TPrims, gLLs, gUUs, GammaULLs},
-	code = [[
-	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	sym4 _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);
-	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
-]],
-}
-
-local metaKernels = table{
-	calc_EFE_constraint,
-}
-
 -- create code
 
-local program = compileMetaKernels(metaKernels)
+local program = compileMetaKernels({})
+-- init
 local init_gPrims = program:kernel('init_gPrims', gPrims.buf)
 local init_TPrims = program:kernel('init_TPrims', TPrims.buf)
+-- compute values for EFE
 local calc_gLLs_and_gUUs = program:kernel('calc_gLLs_and_gUUs', gLLs.buf, gUUs.buf, gPrims.buf)
 local calc_GammaULLs = program:kernel('calc_GammaULLs', GammaULLs.buf, gLLs.buf, gUUs.buf)
+local calc_EFE_constraint = program:kernel('calc_EFE_constraint', EFEs.buf, gPrims.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf)
 
 -- run the kernels
 
@@ -386,7 +367,7 @@ clcall(init_gPrims)
 clcall(init_TPrims)
 clcall(calc_gLLs_and_gUUs)
 clcall(calc_GammaULLs)
---calc_EFE_constraint()
+clcall(calc_EFE_constraint)
 
 --[[
 iteration:
@@ -427,18 +408,18 @@ local calc_dPhi_dgLL = MetaKernel{
 	dGammaLULL.s0 = tensor_4sym4_zero;
 	<? for i=0,gridDim-1 do ?>{
 		int4 iL = i;
-		iL.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
 		global const tensor_4sym4* GammaULL_prev = GammaULLs + indexL;
 		
 		int4 iR = i;
-		iR.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
 		global const tensor_4sym4* GammaULL_next = GammaULLs + indexR;
 		
 		dGammaLULL.s<?=i+1?> = tensor_4sym4_scale(
 			tensor_4sym4_sub(*GammaULL_next, *GammaULL_prev),
-			1. / (2. * dx.s<?=i?> ));
+			.5 * inv_dx.s<?=i?> );
 	}<? end ?>
 
 	tensor_44sym4 RiemannULLL = (tensor_44sym4){
@@ -605,156 +586,54 @@ end
 		|G_ab|
 --]]
 
--- true runs fast, but takes more gpu mem, and as of late has been getting some weird behavior with luajit
--- false will mean less allocations but will run slower
-local calcAuxWithGPU = true
+-- too many allocations or something and luajit is giving me nils when accessing primitive arrays
 
-local detGammas, numericalGravity, analyticalGravity, EinsteinLLs, EFE_and_Einstein_norms
-if calcAuxWithGPU then
-	-- too many allocations or something and luajit is giving me nils when accessing primitive arrays
+print'calculating aux values...'
 
-	print'calculating aux values...'
+local tmp = MetaBuffer{name='tmp', type=real} 
 
-	detGammas = MetaBuffer{name='detGammas', type=real} 
-	MetaKernel{
-		name = 'calc_detGammas',
-		argsOut = {detGammas},
-		argsIn = {gPrims},
-		code = [[
-	detGammas[index] = sym3_det(gPrims[index].gammaLL);
-]],
-	}()
-		
-	numericalGravity = MetaBuffer{name='numericalGravity', type=real}
-	MetaKernel{
-		name = 'calc_numericalGravity',
-		argsOut = {numericalGravity},
-		argsIn = {GammaULLs},
-		code = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
-	global const tensor_4sym4* GammaULL = GammaULLs + index;
-	numericalGravity[index] = (0.
-		+ GammaULL->s1.s00 * x.x / r
-		+ GammaULL->s2.s00 * x.y / r
-		+ GammaULL->s3.s00 * x.z / r) * c * c;
-	]],
-	}()
+-- compute values for output
+clcall((program:kernel('calc_detGammas', tmp.buf, gPrims.buf)))
+local detGammas = tmp:toCPU()
 
-	analyticalGravity = MetaBuffer{name='analyticalGravity', type=real}
-	MetaKernel{
-		name = 'calc_analyticalGravity',
-		argsOut = {analyticalGravity},
-		code = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
-	real matterRadius = min(r, (real)<?=body.radius?>);
-	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = <?=body.density?> * volumeOfMatterRadius;	// m^3
-	real dm_dr = 0;
-	analyticalGravity[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
-		* c * c;	//+9 at earth surface, without matter derivatives
-	]],
-	}()
+clcall((program:kernel('calc_numericalGravity', tmp.buf, GammaULLs.buf)))
+local numericalGravity = tmp:toCPU()
 
-	EinsteinLLs = MetaBuffer{name='EinsteinLLs', type='sym4'}
-	MetaKernel{
-		name = 'calc_EinsteinLLs',
-		argsIn = {gLLs, gUUs, GammaULLs},
-		argsOut = {EinsteinLLs},
-		code = [[
-	EinsteinLLs[index] = calc_EinsteinLL(gLLs+index, gUUs+index, GammaULLs+index);
-	]],
-	}()
+clcall((program:kernel('calc_analyticalGravity', tmp.buf)))
+local analyticalGravity = tmp:toCPU()
 
-	--[=[ something about running this makes luajit return nils when accessing the cpuMem array
-	--I used to use a struct of its own, but LuaJIT kept returning nil when accessing it
-	-- so now I'm trying real4 ...
-	EFE_and_Einstein_norms = MetaBuffer{
-		name = 'EFE_and_Einstein_norms',
-		type = 'real4',
-	}
-	MetaKernel{
-		name = 'calc_EFE_and_Einstein_norms',
-		argsOut = {EFE_and_Einstein_norms},
-		argsIn = {EFEs, EinsteinLLs},
-		code = [[
-	global const sym4* EFE = EFEs + index;	
-	global const sym4* EinsteinLL = EinsteinLLs + index;
-	EFE_and_Einstein_norms[index] = (real4){
-		//EFE_tt
-		EFE->s00 / (8. * M_PI) * c * c / G / 1000.,
-		
-		//EFE_ti
-		sqrt(0.
-<? for i=0,subDim-1 do ?>
-			+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
-<? end ?>) * c,
-		
-		//EFE_ij
-		sqrt(0.
-<? for i=0,subDim-1 do
-	for j=0,subDim-1 do ?>
-			+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
-<?	end
-end ?>),
-		
-		//G_ab
-		sqrt(0.
-<? for a=0,dim-1 do
-	for b=0,dim-1 do ?>
-			+ EinsteinLL->s<?=sym(a,b)?> * EinsteinLL->s<?=sym(a,b)?>
-<?	end
-end ?>),
-	};
-]],
-	}()
-	--]=]
-end
+clcall((program:kernel('calc_norm_EFE_tts', tmp.buf, EFEs.buf)))
+local norm_EFE_tts = tmp:toCPU()
+
+clcall((program:kernel('calc_norm_EFE_tis', tmp.buf, EFEs.buf)))
+local norm_EFE_tis = tmp:toCPU()
+
+clcall((program:kernel('calc_norm_EFE_ijs', tmp.buf, EFEs.buf)))
+local norm_EFE_ijs = tmp:toCPU()
+
+clcall((program:kernel('calc_norm_EinsteinLLs', tmp.buf, gLLs.buf, gUUs.buf, GammaULLs.buf)))
+local norm_EinsteinLLs = tmp:toCPU()
 
 print'copying to cpu...'
-gPrims:toCPU()
-TPrims:toCPU()
-if calcAuxWithGPU then
-	detGammas:toCPU()
-	numericalGravity:toCPU()
-	analyticalGravity:toCPU()
-	EinsteinLLs:toCPU()
-	--EFE_and_Einstein_norms:toCPU()
-end
+local gPrimsCPU = gPrims:toCPU()
+local TPrimsCPU = TPrims:toCPU()
 
 print'outputting...'
 
-local cols = table{
+local cols = {
 	{ix = function(index,i,j,k) return i end},
 	{iy = function(index,i,j,k) return j end},
 	{iz = function(index,i,j,k) return k end},
---	{rho = function(index) return TPrims.cpuMem[index].rho end},
-}:append(calcAuxWithGPU and {
-	{['det-1'] = function(index) return -1+detGammas.cpuMem[index] end},
-	{['alpha-1'] = function(index) return -1+gPrims.cpuMem[index].alpha end},
-	{gravity = function(index) return numericalGravity.cpuMem[index] end},
-	{analyticalGravity = function(index) return analyticalGravity.cpuMem[index] end},
-	--[[
-	{['EFE_tt(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s0 end},
-	{['EFE_ti(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s1 end},
-	{['EFE_ij(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s2 end},
-	{['G_ab'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s3 end},
-	--]]
-} or {
-	-- TODO rewrite all these for the CPU
-	-- or use that stupid luajit/C++ interop code that I wrote to just recompile the OpenCL to C
-	--  and invoke the functions there
-	-- (because OpenCL is supposed to do that by default, but I've never seen a bug-free OpenCL CPU driver)
-	{['det-1'] = function(index) return detGammas.cpuMem[index]-1 end},
-	{['alpha-1'] = function(index) return gPrims.cpuMem[index].alpha-1 end},
-	{gravity = function(index) return numericalGravity.cpuMem[index] end},
-	{analyticalGravity = function(index) return analyticalGravity.cpuMem[index] end},
-	{['EFE_tt(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s0 end},
-	{['EFE_ti(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s1 end},
-	{['EFE_ij(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s2 end},
-	{['G_ab'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s3 end},
-})
+	{rho = function(index) return TPrimsCPU[index].rho end},
+	{['det-1'] = function(index) return -1+detGammas[index] end},
+	{['alpha-1'] = function(index) return -1+gPrimsCPU[index].alpha end},
+	{gravity = function(index) return numericalGravity[index] end},
+	{analyticalGravity = function(index) return analyticalGravity[index] end},
+	{['EFE_tt(g/cm^3)'] = function(index) return norm_EFE_tts[index] end},
+	{['|EFE_ti|(g/cm^3)'] = function(index) return norm_EFE_tis[index] end},
+	{['|EFE_ij|(g/cm^3)'] = function(index) return norm_EFE_ijs[index] end},
+	{['|G_ab|'] = function(index) return norm_EinsteinLLs[index] end},
+}
 
 local file = assert(io.open('out.txt', 'w'))
 do
