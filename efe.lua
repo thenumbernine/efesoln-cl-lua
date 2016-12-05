@@ -51,6 +51,7 @@ end
 -- https://stackoverflow.com/questions/15912668/ideal-global-local-work-group-sizes-opencl
 -- product of all local sizes must be <= max workgroup size
 local maxWorkGroupSize = tonumber(device:getInfo'CL_DEVICE_MAX_WORK_GROUP_SIZE')
+print('maxWorkGroupSize',maxWorkGroupSize)
 
 -- for volumes
 local offset = vec3sz(0,0,0)
@@ -79,7 +80,12 @@ if gridDim > 1 then
 	end
 end
 
--- generate the constraint error functions
+print('localSize1d',localSize1d)
+print('localSize2d',localSize2d)
+print('localSize3d',localSize)
+
+--[[ generate the constraint error functions
+--	this is going slow - requires some symmath optimizations (described in symmath/diffgeom.lua)
 
 local function genCode()
 	local symmath = require 'symmath'
@@ -126,6 +132,7 @@ end
 
 genCode()
 os.exit()
+--]]
 
 -- constants
 
@@ -138,17 +145,19 @@ local body = {
 	radius = 6.37101e+6,	-- m
 	mass = 5.9736e+24 * G / c / c,	-- m
 }
-body.volume = 4/3 * math.pi * body.radius^3	-- m^3
+body.volume = 4/3 * math.pi * body.radius * body.radius * body.radius	-- m^3
 body.density = body.mass / body.volume	-- 1/m^2
 
-body.init = [[
+body.init = template([[
 		
 	//spherical body:
 	
 	TPrim->rho = r < <?=body.radius?> ? <?=body.density?> : 0;
 	//TODO init this with the hydrostatic term of the schwarzschild equation of structure 
 
-]]
+]], {
+	body = body,
+})
 
 -- initial conditions:
 -- [=[ flat 
@@ -156,7 +165,7 @@ local initCond = {code = ''}
 --]=]
 -- [=[ stellar schwarzschild 
 local initCond = {
-	code = [[
+	code = template([[
 	real radius = <?=body.radius?>;
 	real mass = <?=body.mass?>;
 
@@ -177,7 +186,10 @@ local initCond = {
 		<? end ?>
 	<? end ?>
 
-]],
+]], {
+	subDim = subDim,
+	body = body,
+})
 }
 --]=]
 
@@ -185,8 +197,8 @@ local initCond = {
 
 local bodyRadii = 2
 
-local xmin = vec3d(-bodyRadii*body.radius,-bodyRadii*body.radius,-bodyRadii*body.radius)
-local xmax = vec3d(bodyRadii*body.radius,bodyRadii*body.radius,bodyRadii*body.radius)
+local xmin = vec3d(-1,-1,-1) * body.radius * bodyRadii
+local xmax = vec3d(1,1,1) * body.radius * bodyRadii
 
 print'generating code...'
 
@@ -228,7 +240,10 @@ local headerCode = table{
 
 -- allocate buffers
 
-local function clalloc(size) 
+local totalGPUSize = 0
+local function clalloc(size, name, ctype)
+	totalGPUSize = totalGPUSize + tonumber(size)
+	print((name and (name..' ') or '')..'allocating '..tonumber(size)..' bytes of type '..ctype..' with size '..ffi.sizeof(ctype)..', total '..totalGPUSize)
 	return ctx:buffer{rw=true, size=size} 
 end
 
@@ -236,7 +251,7 @@ local MetaBuffer = class()
 function MetaBuffer:init(args)
 	self.name = args.name
 	self.type = args.type
-	self.buf = clalloc(volume * ffi.sizeof(self.type))
+	self.buf = clalloc(volume * ffi.sizeof(self.type), name, self.type)
 end
 function MetaBuffer:toCPU()
 	if not self.cpuMem then
@@ -263,6 +278,7 @@ local function compileTemplates(code)
 		xmin = xmin,
 		xmax = xmax,
 		body = body,
+		initCond = initCond,
 		c = c,
 		G = G,
 	})
@@ -281,6 +297,15 @@ function compileMetaKernels(mks)
 		mk.program = program
 		mk.kernel = program:kernel(mk.name, mk.argBuffers:unpack())
 	end
+
+	return program
+end
+
+local function clcall(kernel, ...)
+	if select('#', ...) then
+		kernel:setArgs(...)
+	end
+	cmds:enqueueNDRangeKernel{kernel=kernel, dim=gridDim, globalSize=size:ptr(), localSize=localSize:ptr()}
 end
 
 local MetaKernel = class()
@@ -289,7 +314,10 @@ function MetaKernel:init(args)
 	self.name = args.name
 	self.argsOut = args.argsOut
 	self.argsIn = args.argsIn
-	self.argBuffers = table():append(self.argsOut):append(self.argsIn):map(function(arg) return arg.buf end)
+	self.argBuffers = table()
+		:append(self.argsOut)
+		:append(self.argsIn)
+		:map(function(arg) return arg.buf end)
 	self.code = template([[
 kernel void <?=self.name?>(
 <?
@@ -317,11 +345,8 @@ function MetaKernel:__call(...)
 	if not self.kernel then
 		compileMetaKernels{self}
 	end
-	
-	if select('#', ...) then
-		self.kernel:setArgs(...)
-	end
-	cmds:enqueueNDRangeKernel{kernel=self.kernel, dim=gridDim, globalSize=size:ptr(), localSize=localSize:ptr()}
+
+	clcall(self.kernel, ...)
 end
 
 function MetaKernel:toCPU()
@@ -330,171 +355,236 @@ function MetaKernel:toCPU()
 	end
 end
 
-local init_gPrim = MetaKernel{
-	name = 'init_gPrim',
-	argsOut = {gPrims},
-	code = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
-
-	global gPrim_t* gPrim = gPrims + index;
-
-	//init to flat by default
-	*gPrim = (gPrim_t){
-		.alpha = 1,
-		.betaU = _real3(0,0,0),
-		.gammaLL = sym3_ident,
-	};
-]] .. initCond.code,
-}
-
-local init_TPrim = MetaKernel{
-	name = 'init_TPrim',
-	argsOut = {TPrims},
-	code = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
-	
-	global TPrim_t* TPrim = TPrims + index;
-	
-	*TPrim = (TPrim_t){
-		.rho = 0,
-		.eInt = 0,
-		.P = 0,
-		.v = _real3(0,0,0),
-		.E = _real3(0,0,0),
-		.B = _real3(0,0,0),
-	};
-
-]]..body.init,
-}
-
-local calc_gLLs_and_gUUs = MetaKernel{
-	name = 'calc_gLLs_and_gUUs',
-	argsOut = {gLLs, gUUs},
-	argsIn = {gPrims},
-	code = template([[
-	global const gPrim_t* gPrim = gPrims + index;
-
-	real alphaSq = gPrim->alpha * gPrim->alpha;
-	real3 betaL = sym3_real3_mul(gPrim->gammaLL, gPrim->betaU);
-	real betaSq = real3_dot(betaL, gPrim->betaU);
-
-	global sym4* gLL = gLLs + index;
-	gLL->s00 = -alphaSq;
-	<? for i=0,subDim-1 do ?>{
-		gLL->s0<?=i+1?> = betaL.s<?=i?>;
-		<? for j=i,subDim-1 do ?>{
-			gLL->s<?=i+1?><?=j+1?> = gPrim->gammaLL.s<?=i?><?=j?>;
-		}<? end ?>
-	}<? end ?>
-
-	real det_gammaUU = sym3_det(gPrim->gammaLL);
-	sym3 gammaUU = sym3_inv(det_gammaUU, gPrim->gammaLL);
-
-	global sym4* gUU = gUUs + index;
-	gUUs->s00 = -1./alphaSq;
-	<? for i=0,subDim-1 do ?>{
-		gUUs->s0<?=i+1?> = gPrim->betaU.s<?=i?> / alphaSq;
-		<? for j=i,subDim-1 do ?>{
-			gUUs->s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - gPrim->betaU.s<?=i?> * gPrim->betaU.s<?=j?> / alphaSq;
-		}<? end ?>
-	}<? end ?>
-]], {
-		subDim = subDim,
-	}),
-}
-
-local calc_GammaULLs = MetaKernel{
-	name = 'calc_GammaULLs',
-	argsOut = {GammaULLs},
-	argsIn = {gLLs, gUUs},
-	code = template([[
-	
-	//here's where the finite difference stuff comes in ...
-	tensor_4sym4 dgLLL;
-	dgLLL.s0 = sym4_zero;
-	<? for i=0,gridDim-1 do ?>{
-		int4 iL = i;
-		iL.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int indexL = indexForInt4(iL);
-		global const sym4* gLL_prev = gLLs + indexL;
-		
-		int4 iR = i;
-		iR.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int indexR = indexForInt4(iR);
-		global const sym4* gLL_next = gLLs + indexR;
-		
-		dgLLL.s<?=i+1?> = sym4_scale(
-			sym4_sub(*gLL_next, *gLL_prev),
-			1. / (2. * dx.s<?=i?> ));
-	}<? end ?>
-
-	tensor_4sym4 GammaLLL = (tensor_4sym4){
-	<? for a=0,dim-1 do ?>
-		<? for b=0,dim-1 do ?>
-			<? for c=b,dim-1 do ?>
-				.s<?=a?>.s<?=b?><?=c?> = .5 * (
-					dgLLL.s<?=c?>.s<?=sym(a,b)?>
-					+ dgLLL.s<?=b?>.s<?=sym(a,c)?>
-					- dgLLL.s<?=a?>.s<?=sym(b,c)?>),
-			<? end ?>
-		<? end ?>
-	<? end ?>};
-
-	global const sym4* gUU = gUUs + index;
-	global tensor_4sym4* GammaULL = GammaULLs + index;
-	<? for a=0,dim-1 do ?>
-		<? for b=0,dim-1 do ?>
-			<? for c=b,dim-1 do ?>
-				GammaULL->s<?=a?>.s<?=b?><?=c?> = 0.
-				<? for d=0,dim-1 do ?>
-					+ gUU->s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
-				<? end ?>;
-			<? end ?>
-		<? end ?>
-	<? end ?>
-]], {
-		sym = sym,
-		dim = dim,
-		gridDim = gridDim,
-	}),
-}
-
 local calc_EFE_constraint = MetaKernel{
 	name = 'calc_EFE_constraint',
 	argsOut = {EFEs},
 	argsIn = {gPrims, TPrims, gLLs, gUUs, GammaULLs},
-	code = template([[
+	code = [[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	sym4 _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);
 	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
-]], {
-	
-}),
+]],
 }
 
 local metaKernels = table{
-	init_gPrim,
-	init_TPrim,
-	calc_gLLs_and_gUUs,
-	calc_GammaULLs,
 	calc_EFE_constraint,
 }
 
 -- create code
 
-compileMetaKernels(metaKernels)
+local program = compileMetaKernels(metaKernels)
+local init_gPrims = program:kernel('init_gPrims', gPrims.buf)
+local init_TPrims = program:kernel('init_TPrims', TPrims.buf)
+local calc_gLLs_and_gUUs = program:kernel('calc_gLLs_and_gUUs', gLLs.buf, gUUs.buf, gPrims.buf)
+local calc_GammaULLs = program:kernel('calc_GammaULLs', GammaULLs.buf, gLLs.buf, gUUs.buf)
 
 -- run the kernels
 
 print'executing...'
 
-init_gPrim()
-init_TPrim()
-calc_gLLs_and_gUUs()
-calc_GammaULLs()
-calc_EFE_constraint()
+clcall(init_gPrims)
+clcall(init_TPrims)
+clcall(calc_gLLs_and_gUUs)
+clcall(calc_GammaULLs)
+--calc_EFE_constraint()
+
+--[[
+iteration:
+
+dg_ab/dt = -dPhi/dg_ab
+for Phi = 1/2 Sum_ab (G_ab - 8 pi T_ab)^2
+
+two approaches:
+1) do this per g_ab, so you only need to allocate as big as you would for solving the constraints themselves
+2) do this for g_ab as a whole, which would mean x4^2 symmetric = x10 allocation, but would take less kernel passes
+I'll try for 2 and hope I have enough memory
+--]]
+
+local dPhi_dgLLs = MetaBuffer{name='dPhi_dgLL', type='sym4'}
+
+local alpha = 1
+local update_dgLLs = MetaKernel{
+	name = 'update_dgLLs',
+	argsOut = {gLLs},
+	argsIn = {dPhi_dgLLs},
+	code = template([[
+	gLLs[index] = sym4_sub(gLLs[index], sym4_scale(dPhi_dgLLs[index], -<?=alpha?>));
+]], {alpha=alpha}),
+}
+
+local calc_dPhi_dgLL = MetaKernel{
+	name = 'calc_dPhi_dgLL',
+	argsIn = {EFEs, TPrims, gLLs, gUUs, GammaULLs},
+	argsOut = {dPhi_dgLLs},
+	code = [[
+	
+	global const sym4* gLL = gLLs + index;
+	global const sym4* gUU = gUUs + index;
+	global const tensor_4sym4* GammaULL = GammaULLs + index;
+
+	//this is also in the Ricci computation, but should I be storing it?  is it too big?
+	tensor_44sym4 dGammaLULL;
+	dGammaLULL.s0 = tensor_4sym4_zero;
+	<? for i=0,gridDim-1 do ?>{
+		int4 iL = i;
+		iL.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		int indexL = indexForInt4(iL);
+		global const tensor_4sym4* GammaULL_prev = GammaULLs + indexL;
+		
+		int4 iR = i;
+		iR.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		int indexR = indexForInt4(iR);
+		global const tensor_4sym4* GammaULL_next = GammaULLs + indexR;
+		
+		dGammaLULL.s<?=i+1?> = tensor_4sym4_scale(
+			tensor_4sym4_sub(*GammaULL_next, *GammaULL_prev),
+			1. / (2. * dx.s<?=i?> ));
+	}<? end ?>
+
+	tensor_44sym4 RiemannULLL = (tensor_44sym4){
+<? for a=0,dim-1 do ?>
+		.s<?=a?> = (tensor_4sym4){
+	<? for b=0,dim-1 do ?>
+			.s<?=b?> = (sym4){
+		<? for c=0,dim-1 do ?>
+			<? for d=c,dim-1 do ?>
+				.s<?=c?><?=d?> = 
+					dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
+					- dGammaLULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?> 
+				<? for e=0,dim-1 do ?>
+					+ GammaULL->s<?=a?>.s<?=sym(e,c)?> * GammaULL->s<?=e?>.s<?=sym(b,d)?>
+					- GammaULL->s<?=a?>.s<?=sym(e,d)?> * GammaULL->s<?=e?>.s<?=sym(b,c)?>
+				<? end ?>,
+			<? end ?>
+		<? end ?>
+			},
+	<? end ?>
+		},
+<? end ?>
+	};
+
+	real GammaUUL[4][4][4] = {
+<? for a=0,dim-1 do ?>
+	{<? for b=0,dim-1 do ?>
+		{<? for c=0,dim-1 do ?>
+			0.
+			<? for d=0,dim-1 do ?>
+			+ GammaULL->s<?=a?>.s<?=sym(d,c)?> * gUU->s-><?=sym(d,b)?>
+			<? end ?>,
+		<? end ?>},
+	<? end ?>},
+<? end ?>
+	};
+
+	tensor_44sym4 RiemannULLL = (tensor_44sym4){
+	};
+
+	//dR_ab/dg_pq
+	tensor_sym4sym4 dRLL_dgLL = (tensor_sym4sym4){
+<? for e=0,dim-1 do ?>
+	<? for f=e,dim-1 do ?>
+		.s<?=e?><?=f?> = (sym4){
+		<? for a=0,dim-1 do ?>
+			<? for b=a,dim-1 do ?>
+				.s<?=a?><?=b?> = 0.
+				<? for c=0,dim-1 do ?>
+					+ GammaUUL[<?=e?>][<?=c?>][<?=c?>] * GammaULL.s<?=f?>.s<?=sym(b,a)?>
+					- GammaUUL[<?=e?>][<?=c?>][<?=b?>] * GammaULL.s<?=f?>.s<?=sym(c,a)?>
+					- gUU->s<?=sym(c,e)?> * RiemannULLL.s<?=f?>.s<?=a?>.s<?=sym(c,b)?>
+				<? end ?>,
+			<? end ?>
+		<? end ?>
+		},
+	<? end ?>
+<? end ?>
+	};
+
+	//dG_ab/dg_pq = tensor_sym4sym4.s[pq].s[ab]
+	tensor_sym4sym4 dEinsteinLL_dgLL = (tensor_sym4sym4){
+<? for e=0,dim-1 do ?>
+	<? for f=e,dim-1 do ?>
+		.s<?=e?><?=f?> = (sym4){
+		<? for a=0,dim-1 do ?>
+			<? for b=a,dim-1 do ?>
+			.s<?=a?><?=b?> = dRLL_dgLL.s<?=e?><?=f?>.s<?=a?><?=b?>
+				- .5 * (0.
+				<? if e==a and f==b then ?> + Gaussian <? end ?>
+				+ gLL->s<?=a?><?=b?> * (
+					-RUU.s<?=e?><?=f?>
+				<? for c=0,dim-1 do ?>
+					<? for d=0,dim-1 do ?>
+						gUU->s<?=sym(c,d)?> * dRLL_dgLL.s<?=e?><?=f?>.s<?=sym(c,d)?>
+					<? end ?>
+				<? end ?>
+				)),
+			<? end ?>
+		<? end ?>},
+	<? end ?>
+<? end ?>
+	};
+
+	global const TPrim_t* TPrim = TPrims + index;
+
+	real4 EU = (real4)(0 <?for i=0,2 do ?>, TPrim->E.s<?=i?> <? end ?>); 
+	real4 EL = sym4_real4_mul(*gLL, EU);
+	real ESq = dot(EL, EU);
+	
+	real4 BU = (real4)(0 <?for i=0,2 do ?>, TPrim->B.s<?=i?> <? end ?>); 
+	real4 BL = sym4_real4_mul(*gLL, BU);
+	real BSq = dot(BL, BU);
+
+	real sqrt_det_g = sqrt(sym4_det(*gLL));
+	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
+
+	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
+<? for e=0,dim-1 do ?>
+	<? for f=e,dim-1 do ?>
+		.s<?=e?><?=f?> = (sym4){
+			//dTEM_00/dg_<?=p?><?=q?>
+			.s00 = <?=(e==0 or f==0) and '0' or 'TPrim.E.s'..(e-1) * TPrim.E.s'..(f-1)' ?>
+					+ <?=(e==0 or f==0) and '0' or 'TPrim.B.s'..(e-1) * TPrim.B.s'..(f-1)' ?>,
+		<? for i=0,subDim-1 do ?>
+			.s0<?=i+1?> = -SL.s<?=i?> * gUU->s<?=e?><?=f?>,
+			<? for j=i,subDim-1 do ?>
+			.s<?=i+1?><?=j+1?> = 0.
+				<? if e==i+1 and f==j+1 then ?> + ESq + BSq <? end ?>
+				+ gLL->s<?=i?><?=j?> * (
+					<?=(e==0 or f==0) and '0' or 'TPrim.E.s'..(e-1) * TPrim.E.s'..(f-1)' ?>
+					+ <?=(e==0 or f==0) and '0' or 'TPrim.B.s'..(e-1) * TPrim.B.s'..(f-1)' ?>
+				)
+				- 2. * (0.
+					<? if e==i+1 then ?>
+					+ EU.s<?=f?> * EL.s<?=j+1?> + BU.s<?=f?> * BL.s<?=j+1?>
+					<? end ?>
+					<? if e==j+1 then ?>
+					+ EU.s<?=f?> * EL.s<?=i+1?> + BU.s<?=f?> * BL.s<?=i+1?>
+					<? end ?>
+				),
+			<? end ?>
+		<? end ?>},
+	<? end ?>
+<? end ?>
+	};
+
+	global const sym4* EFE = EFEs + index;	// G_ab - 8 pi T_ab
+	<? for p=0,dim-1 do ?>
+		<? for q=p,dim-1 do ?>
+	dPhi_dgLLs[index].s<?=p?><?=q?> = 0.
+			<? for a=0,dim-1 do ?>
+				<? for b=0,dim-1 do ?>
+					+ EFE->s<?=sym(a,b)?> * (dEinsteinLL_dgLL.s<?=p?><?=q?>.s<?=sym(a,b)?> - d_8piTLL_dgLL.s<?=p?><?=q?>.s<?=sym(a,b)?>)
+				<? end ?>
+			<? end ?>;
+		<? end ?>
+	<? end ?>
+]],
+}
+
+
+local maxiter = 0
+for i=1,maxiter do
+	calc_dPhi_dgLL()
+end
 
 --[[ 
 	then do some calculations
@@ -515,22 +605,32 @@ calc_EFE_constraint()
 		|G_ab|
 --]]
 
-print'calculating aux values...'
-	
-local detGammas = MetaBuffer{name='detGammas', type=real} 
-MetaKernel{
-	name = 'calc_detGammas',
-	argsOut = {detGammas},
-	argsIn = {gPrims},
-	code = 'detGammas[index] = sym3_det(gPrims[index].gammaLL);',
-}()
-	
-local numericalGravity = MetaBuffer{name='numericalGravity', type=real}
-MetaKernel{
-	name = 'calc_numericalGravity',
-	argsOut = {numericalGravity},
-	argsIn = {GammaULLs},
-	code = [[
+-- true runs fast, but takes more gpu mem, and as of late has been getting some weird behavior with luajit
+-- false will mean less allocations but will run slower
+local calcAuxWithGPU = true
+
+local detGammas, numericalGravity, analyticalGravity, EinsteinLLs, EFE_and_Einstein_norms
+if calcAuxWithGPU then
+	-- too many allocations or something and luajit is giving me nils when accessing primitive arrays
+
+	print'calculating aux values...'
+
+	detGammas = MetaBuffer{name='detGammas', type=real} 
+	MetaKernel{
+		name = 'calc_detGammas',
+		argsOut = {detGammas},
+		argsIn = {gPrims},
+		code = [[
+	detGammas[index] = sym3_det(gPrims[index].gammaLL);
+]],
+	}()
+		
+	numericalGravity = MetaBuffer{name='numericalGravity', type=real}
+	MetaKernel{
+		name = 'calc_numericalGravity',
+		argsOut = {numericalGravity},
+		argsIn = {GammaULLs},
+		code = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
 	global const tensor_4sym4* GammaULL = GammaULLs + index;
@@ -538,14 +638,14 @@ MetaKernel{
 		+ GammaULL->s1.s00 * x.x / r
 		+ GammaULL->s2.s00 * x.y / r
 		+ GammaULL->s3.s00 * x.z / r) * c * c;
-]],
-}()
+	]],
+	}()
 
-local analyticalGravity = MetaBuffer{name='analyticalGravity', type=real}
-MetaKernel{
-	name = 'calc_analyticalGravity',
-	argsOut = {analyticalGravity},
-	code = [[
+	analyticalGravity = MetaBuffer{name='analyticalGravity', type=real}
+	MetaKernel{
+		name = 'calc_analyticalGravity',
+		argsOut = {analyticalGravity},
+		code = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
 	real matterRadius = min(r, (real)<?=body.radius?>);
@@ -554,30 +654,31 @@ MetaKernel{
 	real dm_dr = 0;
 	analyticalGravity[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
 		* c * c;	//+9 at earth surface, without matter derivatives
-]],
-}()
+	]],
+	}()
 
-local EinsteinLLs = MetaBuffer{name='EinsteinLLs', type='sym4'}
-MetaKernel{
-	name = 'calc_EinsteinLLs',
-	argsIn = {gLLs, gUUs, GammaULLs},
-	argsOut = {EinsteinLLs},
-	code = [[
+	EinsteinLLs = MetaBuffer{name='EinsteinLLs', type='sym4'}
+	MetaKernel{
+		name = 'calc_EinsteinLLs',
+		argsIn = {gLLs, gUUs, GammaULLs},
+		argsOut = {EinsteinLLs},
+		code = [[
 	EinsteinLLs[index] = calc_EinsteinLL(gLLs+index, gUUs+index, GammaULLs+index);
-]],
-}()
+	]],
+	}()
 
---I used to use a struct of its own, but LuaJIT kept returning nil when accessing it
--- so now I'm trying real4 ...
-local EFE_and_Einstein_norms = MetaBuffer{
-	name = 'EFE_and_Einstein_norms',
-	type = 'real4',
-}
-MetaKernel{
-	name = 'calc_EFE_and_Einstein_norms',
-	argsOut = {EFE_and_Einstein_norms},
-	argsIn = {EFEs, EinsteinLLs},
-	code = [[
+	--[=[ something about running this makes luajit return nils when accessing the cpuMem array
+	--I used to use a struct of its own, but LuaJIT kept returning nil when accessing it
+	-- so now I'm trying real4 ...
+	EFE_and_Einstein_norms = MetaBuffer{
+		name = 'EFE_and_Einstein_norms',
+		type = 'real4',
+	}
+	MetaKernel{
+		name = 'calc_EFE_and_Einstein_norms',
+		argsOut = {EFE_and_Einstein_norms},
+		argsIn = {EFEs, EinsteinLLs},
+		code = [[
 	global const sym4* EFE = EFEs + index;	
 	global const sym4* EinsteinLL = EinsteinLLs + index;
 	EFE_and_Einstein_norms[index] = (real4){
@@ -607,24 +708,44 @@ end ?>),
 end ?>),
 	};
 ]],
-}()
+	}()
+	--]=]
+end
 
 print'copying to cpu...'
 gPrims:toCPU()
 TPrims:toCPU()
-detGammas:toCPU()
-numericalGravity:toCPU()
-analyticalGravity:toCPU()
-EinsteinLLs:toCPU()
-EFE_and_Einstein_norms:toCPU()
+if calcAuxWithGPU then
+	detGammas:toCPU()
+	numericalGravity:toCPU()
+	analyticalGravity:toCPU()
+	EinsteinLLs:toCPU()
+	--EFE_and_Einstein_norms:toCPU()
+end
 
 print'outputting...'
 
-local cols = {
+local cols = table{
 	{ix = function(index,i,j,k) return i end},
 	{iy = function(index,i,j,k) return j end},
 	{iz = function(index,i,j,k) return k end},
-	{rho = function(index) return TPrims.cpuMem[index].rho end},
+--	{rho = function(index) return TPrims.cpuMem[index].rho end},
+}:append(calcAuxWithGPU and {
+	{['det-1'] = function(index) return -1+detGammas.cpuMem[index] end},
+	{['alpha-1'] = function(index) return -1+gPrims.cpuMem[index].alpha end},
+	{gravity = function(index) return numericalGravity.cpuMem[index] end},
+	{analyticalGravity = function(index) return analyticalGravity.cpuMem[index] end},
+	--[[
+	{['EFE_tt(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s0 end},
+	{['EFE_ti(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s1 end},
+	{['EFE_ij(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s2 end},
+	{['G_ab'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s3 end},
+	--]]
+} or {
+	-- TODO rewrite all these for the CPU
+	-- or use that stupid luajit/C++ interop code that I wrote to just recompile the OpenCL to C
+	--  and invoke the functions there
+	-- (because OpenCL is supposed to do that by default, but I've never seen a bug-free OpenCL CPU driver)
 	{['det-1'] = function(index) return detGammas.cpuMem[index]-1 end},
 	{['alpha-1'] = function(index) return gPrims.cpuMem[index].alpha-1 end},
 	{gravity = function(index) return numericalGravity.cpuMem[index] end},
@@ -633,7 +754,7 @@ local cols = {
 	{['EFE_ti(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s1 end},
 	{['EFE_ij(g/cm^3)'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s2 end},
 	{['G_ab'] = function(index) return EFE_and_Einstein_norms.cpuMem[index].s3 end},
-}
+})
 
 local file = assert(io.open('out.txt', 'w'))
 do

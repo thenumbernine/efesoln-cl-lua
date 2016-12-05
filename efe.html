@@ -8,6 +8,8 @@
 	</head>
 	<body>
 
+ADM formalism of metric tensor:<br>
+
 $g_{ab} = g_{ab}(\alpha, \beta^i, \gamma_{ij})$<br>
 $[g_{uv}] = u(i)\downarrow \overset{v(j)\rightarrow}{\left[ \matrix{-\alpha^2 + \beta_k \beta^k & \beta_j \\ \beta_i & \gamma_{ij}} \right]}$<br>
 $[g^{uv}] = u(i)\downarrow \overset{v(j)\rightarrow}{\left[ \matrix{-1/\alpha^2 & \beta^j / \alpha^2 \\ \beta^i / \alpha^2 & \gamma^{ij} - \beta^i \beta^j / \alpha^2} \right]}$<br>
@@ -25,6 +27,25 @@ $\partial g^{ab} = -g^{ac} \partial g_{cd} g^{db}$<br>
 $\frac{\partial g^{ab}}{\partial g_{cd}} = -g^{ac} g^{db}$<br>
 The index is correct for asymmetric $g_{ab}$.<br>
 <br>
+
+Jacobi's formula:<br>
+$\partial det A = tr(adj(A) \partial A) = det A \cdot tr(A^{-T} \partial A)$<br>
+so $\frac{\partial g}{\partial g_{ef}} = g g^{ba} \frac{\partial g_{ab}}{\partial g_{ef}}$
+$= g g^{fe}$<br>
+<br>
+
+$[abcd] = $ permutation tensor of $abcd$.<br>
+<br>
+$\epsilon_{abcd} = \sqrt{-g} [abcd]$<br>
+$\epsilon^{abcd} = \frac{-1}{\sqrt{-g}} [abcd]$<br>
+<br>
+$\frac{\epsilon_{abcd}}{\partial g_{ef}} = \frac{\partial \sqrt{-g}}{\partial g_{ef}} [abcd]$<br>
+$ = -\frac{1}{2 \sqrt{-g}} \frac{\partial det g}{\partial g_{ef}} [abcd]$<br>
+$ = -\frac{1}{2 \sqrt{-g}} g g^{fe} [abcd]$<br>
+$ = \frac{1}{2} \sqrt{-g} g^{fe} [abcd]$<br>
+<br>
+
+Christoffel symbols of the first kind:<br>
 
 $\Gamma_{abc} = \frac{1}{2} (
 	\frac{\partial}{\partial x^c} g_{ab} 
@@ -52,6 +73,8 @@ $= \frac{1}{2} (
 $= 0$<br>
 <br>
 
+Christoffel symbols of the second kind:<br>
+
 ${\Gamma^a}_{bc} = g^{ad} \Gamma_{dbc}$<br>
 $\frac{\partial}{\partial g_{ef}} {\Gamma^a}_{bc} = 
 	\frac{\partial g^{ad}}{\partial g_{ef}} \Gamma_{dbc}
@@ -61,27 +84,59 @@ $ = -g^{ae} {\Gamma^f}_{bc}
 $ = -g^{ae} {\Gamma^f}_{bc}$<br>
 <br>
 
-$R_{ab} = 2 ( \frac{\partial}{\partial x^{[b}} {\Gamma^c}_{c]a} + {\Gamma^c}_{d[c} {\Gamma^d}_{b]a} )$<br>
+Riemann curvature:<br>
+${R^a}_{bcd} = 2 (\frac{\partial}{\partial x^{[c}} {\Gamma^a}_{d]b} + {\Gamma^a}_{e[c} {\Gamma^e}_{d]b})$<br>
+<br>
+
+Ricci curvature:<br>
+
+$R_{ab} = {R^c}_{acd}$<br>
+$= 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a} + {\Gamma^c}_{d[c} {\Gamma^d}_{b]a} )$<br>
 $\frac{\partial R_{ab}}{\partial g_{ef}} = 
-	2 ( \frac{\partial}{\partial x^{[b}} (\frac{\partial}{\partial g_{ef}} {\Gamma^c}_{c]a})
+	2 ( \frac{\partial}{\partial x^{[c}} (\frac{\partial}{\partial g_{ef}} {\Gamma^c}_{b]a})
 		+ \frac{\partial}{\partial g_{ef}} {\Gamma^c}_{d[c} {\Gamma^d}_{b]a}
 		+ {\Gamma^c}_{d[c} \frac{\partial}{\partial g_{ef}} {\Gamma^d}_{b]a}
 )$<br>
-$ = -2 ( \frac{\partial}{\partial x^{[b}} (g^{ce} {\Gamma^f}_{c]a})
+$ = -2 ( \frac{\partial}{\partial x^{[c}} (g^{ce} {\Gamma^f}_{b]a})
 		+ g^{ce} {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
 		+ {\Gamma^c}_{d[c} g^{de} {\Gamma^f}_{b]a}
 )$<br>
-$ = -2 ( \frac{\partial}{\partial x^{[b}} g^{ce} {\Gamma^f}_{c]a}
-		+ g^{ce} \frac{\partial}{\partial x^{[b}} {\Gamma^f}_{c]a}
+$ = -2 ( \frac{\partial}{\partial x^{[c}} g^{ce} {\Gamma^f}_{b]a}
+		+ g^{ce} \frac{\partial}{\partial x^{[c}} {\Gamma^f}_{b]a}
 		+ g^{ce} {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
 		+ {\Gamma^c}_{d[c} g^{de} {\Gamma^f}_{b]a}
 )$<br>
-$ = 2 ( g^{cg} \frac{\partial}{\partial x^{[b}} g_{gh} g^{he} {\Gamma^f}_{c]a}
-		- g^{ce} \frac{\partial}{\partial x^{[b}} {\Gamma^f}_{c]a}
+$ = 2 ( g^{cg} \frac{\partial}{\partial x^{[c}} g_{gh} g^{he} {\Gamma^f}_{b]a}
+		- g^{ce} \frac{\partial}{\partial x^{[c}} {\Gamma^f}_{b]a}
 		- g^{ce} {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
 		- {\Gamma^c}_{d[c} g^{de} {\Gamma^f}_{b]a}
 )$<br>
+getting rid of the $\frac{\partial}{\partial x^c} g_{ab}$...<br>
+$ = 2 ( g^{cg} 2 \Gamma_{(gh)[c} g^{he} {\Gamma^f}_{b]a}
+		- g^{ce} (
+			\frac{\partial}{\partial x^{[c}} {\Gamma^f}_{b]a}
+			+ {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
+		)
+		- {\Gamma^{ce}}_{[c} {\Gamma^f}_{b]a}
+)$<br>
+$ = 2 ( 2 {\Gamma^{(ce)}}_{[c} {\Gamma^f}_{b]a}
+		- g^{ce} (
+			\frac{\partial}{\partial x^{[c}} {\Gamma^f}_{b]a}
+			+ {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
+		)
+		- {\Gamma^{ce}}_{[c} {\Gamma^f}_{b]a}
+)$<br>
+$ = 2 ( {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a}
+		- g^{ce} (
+			\frac{\partial}{\partial x^{[c}} {\Gamma^f}_{b]a}
+			+ {\Gamma^f}_{d[c} {\Gamma^d}_{b]a}
+		)
+)$<br>
+getting rid of the $\frac{\partial}{\partial x^d} {\Gamma^a}_{bc}$...<br>
+$ = 2 {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a} - g^{ce} {R^f}_{acb}$<br>
 <br>
+
+Einstein tensor:<br>
 
 $G_{ab} = G_{ab}(g_{ab})$<br>
 $G_{ab} = R_{ab} - \frac{1}{2} g_{ab} g^{cd} R_{cd}$<br>
@@ -127,12 +182,11 @@ $T_{ab} = T_{ab}(g_{ab}, \rho, P, e_{int},  v^i, E^i, B^i, ...)$<br>
 $T_{ab} = T^{EM}_{ab} + T^{matter}_{ab} + ...$<br>
 <br>
 
-$T_{EM,ab} = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
+$T^{EM}_{ab} = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
 	g_{mn} (E^m E^n + B^m B^n) & -2 \epsilon_{tjmn} E^m B^n \\
 	-2 \epsilon_{timn} E^m B^n & (g_{ij} g_{mn} - 2 g_{im} g_{jn}) (E^m  E^n + B^m B^n)
 }\right]}$<br>
-$\frac{\partial T_{EM,ab}}{\partial g_{ef}} =
-\downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
+$ = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
 	E^e E^f + B^e B^f & -2 \frac{\partial \epsilon_{tjmn}}{\partial g_{ef}} E^m B^n \\
 	-2 \frac{\partial \epsilon_{timn}}{\partial g_{ef}} E^m B^n &
 		(\delta^e_i \delta^f_j g_{mn}
@@ -141,10 +195,23 @@ $\frac{\partial T_{EM,ab}}{\partial g_{ef}} =
 		- 2 g_{im} \delta^e_j \delta^f_n)
 	(E^m  E^n + B^m B^n)
 }\right]}$<br>
+$ = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
+	E^e E^f + B^e B^f & -2 \frac{\partial \epsilon_{tjmn}}{\partial g_{ef}} E^m B^n \\
+	-2 \frac{\partial \epsilon_{timn}}{\partial g_{ef}} E^m B^n &
+	\delta^e_i \delta^f_j g_{mn} (E^m E^n + B^m B^n)
+	+ g_{ij} (E^e  E^f + B^e B^f)
+	- 2 \delta^e_i g_{jn} (E^f  E^n + B^f B^n)
+	- 2 g_{im} \delta^e_j (E^m  E^f + B^m B^f)
+}\right]}$<br>
+$ = \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
+	E^e E^f + B^e B^f & -\sqrt{-g} g^{fe} [tjmn] E^m B^n \\
+	-\sqrt{-g} g^{fe} [timn] E^m B^n &
+	\delta^e_i \delta^f_j g_{mn} (E^m E^n + B^m B^n)
+	+ g_{ij} (E^e  E^f + B^e B^f)
+	- 2 \delta^e_i g_{jn} (E^f  E^n + B^f B^n)
+	- 2 g_{im} \delta^e_j (E^m  E^f + B^m B^f)
+}\right]}$<br>
 <br>
-
-$\epsilon_{tabc} = ...$<br>
-$\frac{\epsilon_{tabc}}{\partial g_{ef}} = ...$<br>
 
 <h3>Einstein Field Equations:</h3>
 $G_{ab} = 8 \pi T_{ab}$<br>

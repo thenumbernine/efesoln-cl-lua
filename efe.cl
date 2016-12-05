@@ -43,12 +43,12 @@ end ?>
 };
 
 static inline real sym3_det(sym3 m) {
-	return m.xx * m.yy * m.zz
-		+ m.xy * m.yz * m.xz
-		+ m.xz * m.xy * m.yz
-		- m.xz * m.yy * m.xz
-		- m.yz * m.yz * m.xx
-		- m.zz * m.xy * m.xy;
+	return m.s00 * m.s11 * m.s22
+		+ m.s01 * m.s12 * m.s02
+		+ m.s02 * m.s01 * m.s12
+		- m.s02 * m.s11 * m.s02
+		- m.s01 * m.s01 * m.s22
+		- m.s00 * m.s12 * m.s12;
 }
 
 static inline sym3 sym3_inv(real d, sym3 m) {
@@ -103,9 +103,38 @@ end ?>
 
 static inline real sym4_dot(sym4 a, sym4 b) {
 	return 0
-<? for i=0,9 do ?>
-	+ a.s[<?=i?>] * b.s[<?=i?>]
+<? for a=0,3 do ?>
+	<? for b=a,3 do ?>
+	+ a.s<?=a?><?=b?> * b.s<?=a?><?=b?>
+	<? end ?>
 <? end ?>;
+}
+
+static inline real4 sym4_real4_mul(sym4 m, real4 v) {
+	return (real4){
+<? for i=0,3 do ?>
+		0.
+	<? for j=0,3 do ?>
+			+ m.s<?=sym(i,j)?> * v.s<?=j?>
+	<? end ?>,
+<? end ?>
+	};
+}
+
+static inline real sym4_det(sym4 m) {
+	return
+		m.s03 * m.s12 * m.s12 * m.s03 - m.s02 * m.s13 * m.s12 * m.s03 -
+		m.s03 * m.s11 * m.s22 * m.s03 + m.s01 * m.s13 * m.s22 * m.s03 +
+		m.s02 * m.s11 * m.s23 * m.s03 - m.s01 * m.s12 * m.s23 * m.s03 -
+		m.s03 * m.s12 * m.s02 * m.s13 + m.s02 * m.s13 * m.s02 * m.s13 +
+		m.s03 * m.s01 * m.s22 * m.s13 - m.s00 * m.s13 * m.s22 * m.s13 -
+		m.s02 * m.s01 * m.s23 * m.s13 + m.s00 * m.s12 * m.s23 * m.s13 +
+		m.s03 * m.s11 * m.s02 * m.s23 - m.s01 * m.s13 * m.s02 * m.s23 -
+		m.s03 * m.s01 * m.s12 * m.s23 + m.s00 * m.s13 * m.s12 * m.s23 +
+		m.s01 * m.s01 * m.s23 * m.s23 - m.s00 * m.s11 * m.s23 * m.s23 -
+		m.s02 * m.s11 * m.s02 * m.s33 + m.s01 * m.s12 * m.s02 * m.s33 +
+		m.s02 * m.s01 * m.s12 * m.s33 - m.s00 * m.s12 * m.s12 * m.s33 -
+		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
 }
 
 constant tensor_4sym4 tensor_4sym4_zero = (tensor_4sym4){
@@ -232,64 +261,176 @@ sym4 calc_8piTLL(
 	assume the E and B fields are upper 3-vectors
 	T_ab = F_au F_b^u - 1/4 g_ab F_uv F^uv
 	*/
-	real ESq = 0
-<? 
-for i=0,subDim-1 do 
-	for j=i,subDim-1 do ?>
-		+ gLL->s<?=sym(i+1,j+1)?> * TPrim->E.s<?=i?> * TPrim->E.s<?=j?>
-<?	end
-end ?>;
-	real BSq = 0
-<? 
-for i=0,subDim-1 do 
-	for j=i,subDim-1 do ?>
-		+ gLL->s<?=sym(i+1,j+1)?> * TPrim->B.s<?=i?> * TPrim->B.s<?=j?>
-<?	end
-end ?>;
 
-	real3 S = real3_cross(TPrim->E, TPrim->B);
+	real4 EU = (real4)(0 <?for i=0,2 do ?>, TPrim->E.s<?=i?> <? end ?>); 
+	real4 EL = sym4_real4_mul(*gLL, EU);
+	real ESq = dot(EL, EU);
+	
+	real4 BU = (real4)(0 <?for i=0,2 do ?>, TPrim->B.s<?=i?> <? end ?>); 
+	real4 BL = sym4_real4_mul(*gLL, BU);
+	real BSq = dot(BL, BU);
 
-	sym4 T_EM_UU = {
+	real sqrt_det_g = sqrt(sym4_det(*gLL));
+	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
+	
+	sym4 T_EM_LL = {
 		.s00 = ESq + BSq,
 <? for i=0,subDim-1 do ?>
-		.s0<?=i+1?> = 2. * S.s<?=i?>,
+		.s0<?=i+1?> = -2. * SL.s<?=i?>,
 	<? for j=i,subDim-1 do ?>
-		.s<?=i+1?><?=j+1?> = 
-			<? if i == j then ?> ESq + BSq <? else ?> 0 <? end ?>
+		.s<?=i+1?><?=j+1?> = gLL->s<?=i?><?=j?> * (ESq + BSq)
 			- 2. * (
-				TPrim->E.s<?=i?> * TPrim->E.s<?=j?>
-				+ TPrim->B.s<?=i?> * TPrim->B.s<?=j?>
+				EL.s<?=i+1?> * EL.s<?=j+1?>
+				+ BL.s<?=i+1?> * BL.s<?=j+1?>
 			),
 	<? end ?>
 <? end ?>};
-
-	mat4 T_EM_LU = {
-<? for a=0,dim-1 do
-	for b=0,dim-1 do ?>
-		.s<?=a?><?=b?> = 0.
-		<? for c=0,dim-1 do ?>
-			+ gLL->s<?=sym(a,c)?> * T_EM_UU.s<?=sym(c,b)?>
-		<? end ?>,
-<?	end
-end ?>
-	};
-
-	sym4 T_EM_LL = {
-<? for a=0,dim-1 do
-	for b=a,dim-1 do ?>
-		.s<?=a?><?=b?> = 0.
-		<? for c=0,dim-1 do ?>
-			+ T_EM_LU.s<?=a?><?=c?> * gLL->s<?=sym(c,b)?>
-		<? end ?>,
-<?	end
-end ?>
-	};
 
 	//if we're using matter ...
 
 		//if we're using velocity ...
 
 		//otherwise uL = gLL->s0
+	real4 uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
+
+	sym4 T_matter_LL = (sym4){
+<? for a=0,dim-1 do ?>
+	<? for b=a,dim-1 do ?>
+		.s<?=a..b?> = uL.s<?=a?> * uL.s<?=b?> * (TPrim->rho * (1. + TPrim->eInt) + TPrim->P)
+			+ gLL->s<?=a..b?> * TPrim->P,
+	<? end ?>
+<? end ?>
+	};
 
 	return T_EM_LL;
 }
+
+kernel void init_gPrims(
+	global gPrim_t* gPrims
+) {
+	INIT_KERNEL();
+	
+	real3 x = getX(i);
+	real r = real3_len(x);
+
+	global gPrim_t* gPrim = gPrims + index;
+
+	//init to flat by default
+	*gPrim = (gPrim_t){
+		.alpha = 1,
+		.betaU = _real3(0,0,0),
+		.gammaLL = sym3_ident,
+	};
+
+	<?=initCond.code?>
+}
+
+kernel void init_TPrims(
+	global TPrim_t* TPrims
+) {
+	INIT_KERNEL();
+
+	real3 x = getX(i);
+	real r = real3_len(x);
+	
+	global TPrim_t* TPrim = TPrims + index;
+	
+	*TPrim = (TPrim_t){
+		.rho = 0,
+		.eInt = 0,
+		.P = 0,
+		.v = _real3(0,0,0),
+		.E = _real3(0,0,0),
+		.B = _real3(0,0,0),
+	};
+
+	<?=body.init?>
+}
+
+kernel void calc_gLLs_and_gUUs(
+	global sym4* gLLs,
+	global sym4* gUUs,
+	const global gPrim_t* gPrims
+) {
+	INIT_KERNEL();
+
+	global const gPrim_t* gPrim = gPrims + index;
+
+	real alphaSq = gPrim->alpha * gPrim->alpha;
+	real3 betaL = sym3_real3_mul(gPrim->gammaLL, gPrim->betaU);
+	real betaSq = real3_dot(betaL, gPrim->betaU);
+
+	global sym4* gLL = gLLs + index;
+	gLL->s00 = -alphaSq + betaSq;
+	<? for i=0,subDim-1 do ?>
+	gLL->s0<?=i+1?> = betaL.s<?=i?>;
+		<? for j=i,subDim-1 do ?>
+	gLL->s<?=i+1?><?=j+1?> = gPrim->gammaLL.s<?=i?><?=j?>;
+		<? end ?>
+	<? end ?>
+
+	real det_gammaLL = sym3_det(gPrim->gammaLL);
+	sym3 gammaUU = sym3_inv(det_gammaLL, gPrim->gammaLL);
+
+	global sym4* gUU = gUUs + index;
+	gUU->s00 = -1./alphaSq;
+	<? for i=0,subDim-1 do ?>
+	gUU->s0<?=i+1?> = gPrim->betaU.s<?=i?> / alphaSq;
+		<? for j=i,subDim-1 do ?>
+	gUU->s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - gPrim->betaU.s<?=i?> * gPrim->betaU.s<?=j?> / alphaSq;
+		<? end ?>
+	<? end ?>
+}
+
+kernel void calc_GammaULLs(
+	global tensor_4sym4* GammaULLs,
+	const global sym4* gLLs,
+	const global sym4* gUUs
+) {
+	INIT_KERNEL();
+
+	//here's where the finite difference stuff comes in ...
+	tensor_4sym4 dgLLL;
+	dgLLL.s0 = sym4_zero;
+	<? for i=0,gridDim-1 do ?>{
+		int4 iL = i;
+		iL.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		int indexL = indexForInt4(iL);
+		global const sym4* gLL_prev = gLLs + indexL;
+		
+		int4 iR = i;
+		iR.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		int indexR = indexForInt4(iR);
+		global const sym4* gLL_next = gLLs + indexR;
+		
+		dgLLL.s<?=i+1?> = sym4_scale(
+			sym4_sub(*gLL_next, *gLL_prev),
+			1. / (2. * dx.s<?=i?> ));
+	}<? end ?>
+
+	tensor_4sym4 GammaLLL = (tensor_4sym4){
+	<? for a=0,dim-1 do ?>
+		<? for b=0,dim-1 do ?>
+			<? for c=b,dim-1 do ?>
+				.s<?=a?>.s<?=b?><?=c?> = .5 * (
+					dgLLL.s<?=c?>.s<?=sym(a,b)?>
+					+ dgLLL.s<?=b?>.s<?=sym(a,c)?>
+					- dgLLL.s<?=a?>.s<?=sym(b,c)?>),
+			<? end ?>
+		<? end ?>
+	<? end ?>};
+
+	global const sym4* gUU = gUUs + index;
+	global tensor_4sym4* GammaULL = GammaULLs + index;
+	<? for a=0,dim-1 do ?>
+		<? for b=0,dim-1 do ?>
+			<? for c=b,dim-1 do ?>
+	GammaULL->s<?=a?>.s<?=b?><?=c?> = 0.
+				<? for d=0,dim-1 do ?>
+		+ gUU->s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
+				<? end ?>;
+			<? end ?>
+		<? end ?>
+	<? end ?>
+}
+
