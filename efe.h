@@ -1,10 +1,10 @@
-<? if real == 'double' then ?>
+<? if solver.real == 'double' then ?>
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 <? end ?>
 
-typedef <?=real?> real;
-typedef <?=real?>2 real2;
-typedef <?=real?>4 real4;
+typedef <?=solver.real?> real;
+typedef <?=solver.real?>2 real2;
+typedef <?=solver.real?>4 real4;
 
 typedef union {
 	real s[3];
@@ -47,15 +47,15 @@ typedef struct {
 
 typedef struct {
 	//source terms:
-<? if body.useMatter then ?>
+<? if solver.body.useMatter then ?>
 	real rho;	//matter density
 	real P;		//pressure ... due to matter.  TODO what about magnetic pressure?
 	real eInt;	//specific internal energy
-<?	if body.useVel then ?>
+<?	if solver.body.useVel then ?>
 	real3 v;	//3-vel (upper, spatial)
 <? 	end
 end ?>
-<? if body.useEM then ?>
+<? if solver.body.useEM then ?>
 //this needs to be lienar solved for ... but it's an easy problem (at least when geometry is flat)
 //	real chargeDensity;
 //	TensorUsub currentDensity;	//TODO how does this relate to matter density?
