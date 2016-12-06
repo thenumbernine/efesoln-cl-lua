@@ -190,6 +190,20 @@ static inline tensor_4sym4 tensor_4sym4_sub(tensor_4sym4 a, tensor_4sym4 b) {
 ?>	};
 }
 
+static inline tensor_sym4sym4 tensor_sym4sym4_add(
+	tensor_sym4sym4 a,
+	tensor_sym4sym4 b
+) {
+	return (tensor_sym4sym4){
+<? 
+for a=0,3 do
+	for b=a,3 do
+?>		.s<?=a..b?> = sym4_add(a.s<?=a..b?>, b.s<?=a..b?>),
+<? 	end
+end 
+?>	};
+}
+
 constant const int dim = <?=dim?>;	
 constant const int subDim = <?=subDim?>;
 constant const int gridDim = <?=gridDim?>;

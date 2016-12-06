@@ -6,9 +6,17 @@ local vec3d = require 'ffi.vec.vec3d'
 
 -- parameters:
 
-local updateAlpha = 1
-local maxiter = 1
-local bodyName = 'stellarSchwarzschild'	-- TODO use me plz
+local config = {
+	updateAlpha = 1,
+	body = 'earth',
+	bodyRadii = 2,
+	
+	initCond = 'flat',
+	--initCond = 'stellar_schwarzschild',
+	
+	maxiter = 0,
+	outputFilename = 'out.txt',
+}
 
 -- also in hydro-cl
 
@@ -166,12 +174,12 @@ body.init = template([[
 })
 
 -- initial conditions:
---[=[ flat 
-local initCond = {code = ''}
+local initConds = {
+	flat = {code = ''},
 --]=]
 -- [=[ stellar schwarzschild 
-local initCond = {
-	code = template([[
+	stellar_schwarzschild = {
+		code = template([[
 	real radius = <?=body.radius?>;
 	real mass = <?=body.mass?>;
 
@@ -192,19 +200,18 @@ local initCond = {
 		<? end ?>
 	<? end ?>
 
-]], {
-	subDim = subDim,
-	body = body,
-})
+]], 	{
+			subDim = subDim,
+			body = body,
+		})
+	},
 }
---]=]
+local initCond = initConds[config.initCond]
 
 -- end body parameters:
 
-local bodyRadii = 2
-
-local xmin = vec3d(-1,-1,-1) * body.radius * bodyRadii
-local xmax = vec3d(1,1,1) * body.radius * bodyRadii
+local xmin = vec3d(-1,-1,-1) * body.radius * config.bodyRadii
+local xmax = vec3d(1,1,1) * body.radius * config.bodyRadii
 
 print'generating code...'
 
@@ -277,7 +284,7 @@ local function compileTemplates(code)
 		initCond = initCond,
 		c = c,
 		G = G,
-		updateAlpha = updateAlpha,
+		updateAlpha = config.updateAlpha,
 	})
 end
 
@@ -327,7 +334,7 @@ two approaches:
 I'll try for 2 and hope I have enough memory
 --]]
 
-if maxiter > 0 then 
+if config.maxiter > 0 then 
 	local code = compileTemplates(table{
 		typeCode,
 		file['efe.cl'],
@@ -339,7 +346,7 @@ if maxiter > 0 then
 	local calc_dPhi_dgLLs = program:kernel('calc_dPhi_dgLLs', dPhi_dgLLs.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf, EFEs.buf)
 	local update_dgLLs = program:kernel('update_dgLLs', gLLs.buf, dPhi_dgLLs.buf)
 
-	for i=1,maxiter do
+	for i=1,config.maxiter do
 		clcall(calc_dPhi_dgLLs)
 		clcall(update_dgLLs)
 	end
@@ -420,7 +427,7 @@ local cols = {
 	{['|G_ab|'] = function(index) return norm_EinsteinLLs[index] end},
 }
 
-local file = assert(io.open('out.txt', 'w'))
+local file = assert(io.open(config.outputFilename, 'w'))
 do
 	file:write'#'
 	local sep = ''
