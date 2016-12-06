@@ -378,6 +378,92 @@ end
 
 
 	self:initBuffers()
+	
+	-- once buffers are initialized, make displayVars
+	--converts solver buffers to float[]
+	self.displayVars = {
+		{
+			name = 'alpha_1',
+			argsIn = {self.gPrims},
+			code = [[
+	texCLBuf[index] = gPrims[index].alpha-1.;
+]],
+		},
+		{
+			name = 'gamma_1',
+			argsIn = {self.gPrims},
+			code = [[
+	texCLBuf[index] = sym3_det(gPrims[index].gammaLL);
+]],
+		},
+		{
+			name = 'numerical_gravity',
+			argsIn = {self.GammaULLs},
+			code = [[
+	real3 x = getX(i);
+	real r = real3_len(x);
+	global const tensor_4sym4* GammaULL = GammaULLs + index;
+	texCLBuf[index] = (0.
+		+ GammaULL->s1.s00 * x.s0 / r
+		+ GammaULL->s2.s00 * x.s1 / r
+		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
+]],
+		},
+		{
+			name = 'analytical_gravity',
+			code = [[
+	real3 x = getX(i);
+	real r = real3_len(x);
+	real matterRadius = min(r, (real)<?=solver.body.radius?>);
+	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+	real m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
+	real dm_dr = 0;
+	texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
+		* c * c;	//+9 at earth surface, without matter derivatives
+]],
+		},
+		{
+			name = 'EFE_tt(g/cm^3)',
+			argsIn = {self.EFEs},
+			code = [[
+	texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;
+]],
+		},
+		{
+			name = '|EFE_ti|',
+			argsIn = {self.EFEs},
+			code = [[
+	global const sym4* EFE = EFEs + index;	
+	texCLBuf[index] = sqrt(0.
+<? for i=0,subDim-1 do ?>
+		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
+<? end ?>) * c;
+]],
+		},
+		{
+			name = '|EFE_ij|',
+			argsIn = {self.EFEs},
+			code = [[
+	global const sym4* EFE = EFEs + index;
+	texCLBuf[index] = sqrt(0.
+<? for i=0,subDim-1 do
+	for j=0,subDim-1 do ?>
+		+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
+<?	end
+end ?>);
+]],
+		},
+		{
+			name = '|Einstein_ab|',
+			argsIn = {self.gLLs, self.gUUs, self.GammaULLs},
+			code = [[
+	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	texCLBuf[index] = sqrt(sym4_dot(EinsteinLL, EinsteinLL));
+]],
+		},
+	}
+	self.displayVarNames = table.map(self.displayVars, function(displayVar) return displayVar.name end)
+	
 	self:initKernels()
 	self:resetState()
 
@@ -449,43 +535,6 @@ function EFESolver:clcall(kernel, ...)
 	self.cmds:enqueueNDRangeKernel{kernel=kernel, dim=self.gridDim, globalSize=self.size:ptr(), localSize=self.localSize:ptr()}
 end
 
---converts solver buffers to float[]
-EFESolver.displayVars = {
-	{
-		name = 'alpha-1',
-		create = function(self)
-			return self.MetaKernel{
-				name = 'display_alpha_1',
-				argsIn = {self.gPrims},
-				argsOut = {self.texCLBuf},
-				code = [[
-	texCLBuf[index] = gPrims[index].alpha-1.;
-]],
-			}
-		end,
-	},
-	{
-		name = 'numerical gravity',
-		create = function(self)
-			return self.MetaKernel{
-				name = 'display_numerical_gravity',
-				argsIn = {self.GammaULLs},
-				argsOut = {self.texCLBuf},
-				code = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
-	global const tensor_4sym4* GammaULL = GammaULLs + index;
-	texCLBuf[index] = (0.
-		+ GammaULL->s1.s00 * x.s0 / r
-		+ GammaULL->s2.s00 * x.s1 / r
-		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
-]],
-			}
-		end,
-	},
-}
-EFESolver.displayVarNames = table.map(EFESolver.displayVars, function(displayVar) return displayVar.name end)
-
 function EFESolver:initKernels()
 	-- create code
 	print'preprocessing code...'
@@ -495,7 +544,6 @@ function EFESolver:initKernels()
 		file['efe.cl'],
 		file['calcVars.cl'],
 		file['gradientDescent.cl'],
-		--file['calcOutputVars.cl'],
 	}:concat'\n')
 	
 	print'compiling code...'
@@ -520,7 +568,11 @@ function EFESolver:initKernels()
 end
 
 function EFESolver:refreshDisplayVarKernel()
-	self.updateDisplayVarKernel = self.displayVars[self.displayVarPtr[0]+1].create(self)
+	self.updateDisplayVarKernel = self.MetaKernel(table(
+		self.displayVars[self.displayVarPtr[0]+1], {
+			argsOut = {self.texCLBuf},
+		}
+	))
 	self:updateTex()
 end
 
@@ -587,20 +639,17 @@ function EFESolver:updateTex()
 	-- now copy from cl buffer to gl buffer
 	self.cmds:enqueueReadBuffer{buffer=self.texCLBuf.buf, block=true, size=ffi.sizeof'float' * self.volume, ptr=self.texCPUBuf}
 
-	print'begin min/max...'
 	local min, max = self.texCPUBuf[0], self.texCPUBuf[0]
 	for i=1,self.volume-1 do
 		local x = self.texCPUBuf[i]
 		min = math.min(min, x) 
 		max = math.max(max, x) 
 	end
-	print('alpha-1 min',min,'max',max)
 	self.app.minValue = min
 	self.app.maxValue = max
 	for i=1,self.volume-1 do
 		self.texCPUBuf[i] = (self.texCPUBuf[i] - min) / (max - min)
 	end
-	print'end min/max...'
 
 	self.tex:bind(0)
 	for z=0,self.tex.depth-1 do
@@ -608,25 +657,6 @@ function EFESolver:updateTex()
 	end
 	self.tex:unbind(0)
 end
-
---[[ 
-	then do some calculations
-	EFE
-	numericalGravity
-	analyticalGravity
-
-	then output it all
-		i.x i.y i.z
-		rho
-		det(gamma_ij)-1
-		alpha-1
-		gravity
-		analyticalGravity
-		EFE_tt
-		|EFE_ti|
-		|EFE_ij|
-		|G_ab|
---]]
 
 function EFESolver:updateAuxBuffers()
 
