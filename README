@@ -25,3 +25,7 @@ lua-cl
 my ffi bindings (which include my ffi vector classes)
 template-lua
 symmath-lua
+
+work is here:
+
+https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/efe.html

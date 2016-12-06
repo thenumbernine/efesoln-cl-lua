@@ -190,7 +190,6 @@ function App:event(event, eventPtr)
 				end
 				self.updateMethod = nil
 			end
-	
 		end
 	end
 end

@@ -190,7 +190,7 @@ self.useGLSharing = false 	-- for now
 	self.dim = 4 		-- spacetime dim
 	self.subDim = 3	-- space tim
 	self.gridDim = 3	-- grid dim
-	self.size = vec3sz(64,64,64)
+	self.size = vec3sz(self.config.size, self.config.size, self.config.size)
 	self.volume = tonumber(self.size:volume())
 
 	
