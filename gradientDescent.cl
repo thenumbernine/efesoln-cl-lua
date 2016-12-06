@@ -159,7 +159,7 @@ end
 ?>	};
 
 <?
-if body.useEM then ?>	
+if solver.body.useEM then ?>	
 	real4 EU = (real4)(0 <? for i=0,subDim-1 do ?>, TPrim->E.s<?=i?> <? end ?>); 
 	real4 EL = sym4_real4_mul(*gLL, EU);
 	real ESq = dot(EL, EU);
@@ -209,8 +209,8 @@ end
 ?>
 
 <?
-if body.useMatter then
-	if body.useVel then ?>//if we're using velocity ...
+if solver.body.useMatter then
+	if solver.body.useVel then ?>//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
 	real4 vL = sym4_real4_mul(*gLL, vU);
@@ -255,16 +255,15 @@ end ?>
 
 kernel void update_gLLs(
 	global sym4* gLLs,
-	global const sym4* dPhi_dgLLs
+	global const sym4* dPhi_dgLLs,
+	float updateAlpha
 ) {
 	INIT_KERNEL();
 	global sym4* gLL = gLLs + index;
 	global const sym4* dPhi_dgLL = dPhi_dgLLs + index;
 <? for a=0,dim-1 do
 	for b=a,dim-1 do
-?>	gLL->s<?=a..b?> -= dPhi_dgLL->s<?=a..b?><? 
-if updateAlpha~= 1 then ?>* <?=updateAlpha?><? end 
-?>;
+?>	gLL->s<?=a..b?> -= (real)updateAlpha * dPhi_dgLL->s<?=a..b?>;
 <?	end
 end 
 ?>}
@@ -296,7 +295,8 @@ end
 
 kernel void update_gPrims(
 	global gPrim_t* gPrims,
-	global const sym4* dPhi_dgLLs
+	global const sym4* dPhi_dgLLs,
+	float updateAlpha
 ) {
 	INIT_KERNEL();
 	global gPrim_t* gPrim = gPrims + index;
@@ -306,22 +306,29 @@ kernel void update_gPrims(
 	real3 betaU = gPrim->betaU;
 	real3 betaL = sym3_real3_mul(gammaLL, betaU);
 
-	gPrim->alpha -= <?=updateAlpha?> * -2. * dPhi_dgLL->s00;
+<? 
+if solver.convergeAlpha then
+?>
+	gPrim->alpha -= (real)updateAlpha * -2. * dPhi_dgLL->s00;
 <?
-for m=0,subDim-1 do
-?>	gPrim->betaU.s<?=m?> -= <?=updateAlpha?> * 2. * (dPhi_dgLL->s00 * betaL.s<?=m?>
-<?	for n=0,subDim-1 do ?>
+end
+if solver.convergeBeta then
+	for m=0,subDim-1 do
+?>	gPrim->betaU.s<?=m?> -= (real)updateAlpha * 2. * (dPhi_dgLL->s00 * betaL.s<?=m?>
+<?		for n=0,subDim-1 do ?>
 		+ dPhi_dgLL->s0<?=n+1?> * gammaLL.s<?=sym(n,m)?>
-<? 	end ?>);
-<? end ?>
-<?
-for m=0,subDim-1 do
-	for n=m,subDim-1 do
-?>	gPrim->gammaLL.s<?=m..n?> -= <?=updateAlpha?> * (
+<? 		end ?>);
+<? 	end 
+end
+if solver.convergeGamma then
+	for m=0,subDim-1 do
+		for n=m,subDim-1 do
+?>	gPrim->gammaLL.s<?=m..n?> -= (real)updateAlpha * (
 		betaU.s<?=m?> * (dPhi_dgLL->s00 * betaU.s<?=n?>
 			+ 2. * dPhi_dgLL->s0<?=n+1?>)
 		+ dPhi_dgLL->s<?=m+1?><?=n+1?>);
-<?	end
+<?		end
+	end
 end
 ?>
 }

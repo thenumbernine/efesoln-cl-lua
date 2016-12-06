@@ -3,6 +3,7 @@
 this should be a stand-alone tool
 --]]
 require 'ext'
+local gcmem = require 'ext.gcmem'
 local bit = require 'bit'
 local ffi = require 'ffi'
 local gl = require 'ffi.OpenGL'
@@ -358,7 +359,7 @@ function App:updateGUI()
 	ig.igImage(
 		ffi.cast('void*',ffi.cast('intptr_t',hsvTex.id)),
 		gradImageSize)
---[=[
+	
 	local gradScreenPos = ig.igGetCursorScreenPos()
 	local mousePos = ig.igGetMousePos()
 	local cursorX = mousePos.x - gradScreenPos.x
@@ -371,7 +372,6 @@ function App:updateGUI()
 		ig.igText(tostring( self.minValue * (1-frac) + self.maxValue * frac ))
 		ig.igEndTooltip()
 	end
---]=]
 	
 	ig.igSliderFloat('alpha', alpha, 0, 1, '%.3e', 10)
 	ig.igSliderFloat('gamma', alphaGamma, 0, 1000, '%.3e', 10)
@@ -387,6 +387,15 @@ function App:updateGUI()
 	--ig.igCheckbox('show curl trace', showCurlTrace)
 
 	if ig.igCollapsingHeader'simulation' then
+		local buf = gcmem.new('char[256]', ('%e'):format(self.solver.updateAlpha[0]))
+		if ig.igInputText('update alpha', buf, ffi.sizeof(buf)) then
+			local f = tonumber(ffi.string(buf, ffi.sizeof(buf)))
+			if f then
+				self.solver.updateAlpha[0] = f
+			end
+		end
+		gcmem.free(buf)
+
 		if ig.igButton(self.updateMethod and 'Stop' or 'Start') then
 			self.updateMethod = not self.updateMethod
 		end

@@ -228,8 +228,14 @@ self.useGLSharing = false 	-- for now
 	print('localSize1d',localSize1d)
 	print('localSize2d',localSize2d:unpack())
 	print('localSize3d',localSize:unpack())
+	
+	self.localSize1d = localSize1d
 	self.localSize = localSize
 
+
+print('updateAlpha was',self.config.updateAlpha)
+	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
+print('updateAlpha is',self.updateAlpha[0])
 	
 	self.body = bodies[self.config.body]
 
@@ -238,6 +244,12 @@ self.useGLSharing = false 	-- for now
 		subDim = self.subDim,
 		body = self.body,
 	})
+
+
+	-- what do we want to converge
+	self.convergeAlpha = true
+	self.convergeBeta = false
+	self.convergeGamma = false	-- TODO option for converging a scalar gamma vs a matrix gamma
 
 	-- parameters:
 
@@ -320,9 +332,14 @@ function EFESolver:initBuffers()
 		magFilter = gl.GL_LINEAR,
 		wrap = {s=gl.GL_REPEAT, t=gl.GL_REPEAT, r=gl.GL_REPEAT},
 	}
-	
+
+	-- TODO finishme
+	self:clalloc(self.volume * ffi.sizeof'real', 'reduceBuf', 'real')
+	self:clalloc(self.volume * ffi.sizeof'real' / self.localSize1d, 'reduceSwapBuf', 'real')
+	self.reduceResultPtr = ffi.new('real[1]', 0)
+
 	-- used for downloading visualization data
-	self.texCLBuf =self.MetaBuffer{name='calcDisplayVarBuf', type='float'} 
+	self.texCLBuf = self.MetaBuffer{name='calcDisplayVarBuf', type='float'} 
 
 	if self.useGLSharing then
 		self.texCLMem = require 'cl.imagegl'{context=self.ctx, tex=self.tex, write=true}
@@ -341,11 +358,9 @@ function EFESolver:compileTemplates(code)
 		size = self.size,
 		xmin = self.xmin,
 		xmax = self.xmax,
-		body = self.body,
-		initCond = self.initCond,
+		solver = self,
 		c = c,
 		G = G,
-		updateAlpha = self.config.updateAlpha,
 	})
 end
 
@@ -426,6 +441,7 @@ function EFESolver:update()
 	self:clcall(calc_gPrims_from_gLLs)
 	--]]
 	-- [[ or update gPrims directly from dPhi/dg_ab 
+	self.update_gPrims:setArg(2, self.updateAlpha)
 	self:clcall(self.update_gPrims)
 	--]]
 
@@ -451,6 +467,7 @@ function EFESolver:updateTex()
 	-- now copy from cl buffer to gl buffer
 	self.cmds:enqueueReadBuffer{buffer=self.texCLBuf.buf, block=true, size=ffi.sizeof'float' * self.volume, ptr=self.texCPUBuf}
 
+	print'begin min/max...'
 	local min, max = self.texCPUBuf[0], self.texCPUBuf[0]
 	for i=1,self.volume-1 do
 		local x = self.texCPUBuf[i]
@@ -463,10 +480,13 @@ function EFESolver:updateTex()
 	for i=1,self.volume-1 do
 		self.texCPUBuf[i] = (self.texCPUBuf[i] - min) / (max - min)
 	end
-	
+	print'end min/max...'
+
+	self.tex:bind(0)
 	for z=0,self.tex.depth-1 do
 		gl.glTexSubImage3D(gl.GL_TEXTURE_3D, 0, 0, 0, z, self.tex.width, self.tex.height, 1, gl.GL_RED, gl.GL_FLOAT, self.texCPUBuf + self.tex.width * self.tex.height * z)
 	end
+	self.tex:unbind(0)
 end
 
 --[[ 

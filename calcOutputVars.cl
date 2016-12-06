@@ -28,9 +28,9 @@ kernel void calc_analyticalGravity(
 	INIT_KERNEL();
 	real3 x = getX(i);
 	real r = real3_len(x);
-	real matterRadius = min(r, (real)<?=body.radius?>);
+	real matterRadius = min(r, (real)<?=solver.body.radius?>);
 	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = <?=body.density?> * volumeOfMatterRadius;	// m^3
+	real m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
 	real dm_dr = 0;
 	analyticalGravity[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
 		* c * c;	//+9 at earth surface, without matter derivatives

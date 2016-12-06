@@ -318,7 +318,9 @@ sym4 calc_8piTLL(
 ) {
 	sym4 _8piTLL = sym4_zero;
 
-<? if body.useEM then ?>
+<? 
+if solver.body.useEM then 
+?>
 	
 	/*
 	assume the E and B fields are upper 3-vectors
@@ -338,21 +340,19 @@ sym4 calc_8piTLL(
 	
 	_8piTLL.s00 += ESq + BSq,
 <? 
-for i=0,subDim-1 do 
+	for i=0,subDim-1 do 
 ?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>,
-<? 
-	for j=i,subDim-1 do 
+<? 		for j=i,subDim-1 do
 ?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL->s<?=i?><?=j?> * (ESq + BSq) <?
 			?>- 2. * (<?
 				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
 				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>),
-<? 	end
-end 
-?>
-
-<? end ?>
-<? if body.useMatter then ?>
-	<? if body.useVel then ?>//if we're using velocity ...
+<? 		end
+	end 
+end
+if solver.body.useMatter then
+	if solver.body.useVel then 
+?>	//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
 	real4 vL = sym4_real4_mul(*gLL, vU);
