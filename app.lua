@@ -204,7 +204,7 @@ function App:update()
 	end
 
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
-	if not canHandleMouse then 
+	if canHandleMouse then 
 		mouse:update()
 	end
 	if mouse.leftDragging then
@@ -344,6 +344,8 @@ function App:update()
 end
 
 function App:updateGUI()
+	ig.igText('iteration: '..self.solver.iteration)
+	
 	if ig.igCombo('display', self.solver.displayVarPtr, self.solver.displayVarNames) then
 		self.solver:refreshDisplayVarKernel()
 	end
@@ -366,7 +368,8 @@ function App:updateGUI()
 		ig.igText(tostring( self.minValue * (1-frac) + self.maxValue * frac ))
 		ig.igEndTooltip()
 	end
-	
+
+	ig.igText'transparency:'
 	ig.igSliderFloat('alpha', alpha, 0, 1, '%.3e', 10)
 	ig.igSliderFloat('gamma', alphaGamma, 0, 1000, '%.3e', 10)
 	ig.igRadioButton("rotate camera", rotateClip, 0)

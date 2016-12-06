@@ -216,7 +216,6 @@ self.useGLSharing = false 	-- for now
 	self.gridDim = 3	-- grid dim
 	self.size = vec3sz(self.config.size, self.config.size, self.config.size)
 	self.volume = tonumber(self.size:volume())
-
 	
 	-- https://stackoverflow.com/questions/15912668/ideal-global-local-work-group-sizes-opencl
 	-- product of all local sizes must be <= max workgroup size
@@ -341,13 +340,13 @@ print('updateAlpha is',self.updateAlpha[0])
 kernel void <?=self.name?>(
 <?
 local sep = ''
-for _,arg in ipairs(self.argsOut or {}) do ?>
-	<?=sep?>global <?=arg.type?>* <?=arg.name?>
+for _,arg in ipairs(self.argsOut or {}) do 
+?>	<?=sep?>global <?=arg.type?>* <?=arg.name?>
 <?
 	sep = ', '
 end
-for _,arg in ipairs(self.argsIn or {}) do ?>
-	<?=sep?>global const <?=arg.type?>* <?=arg.name?>
+for _,arg in ipairs(self.argsIn or {}) do
+?>	<?=sep?>global const <?=arg.type?>* <?=arg.name?>
 <?
 	sep = ', '
 end
@@ -383,21 +382,29 @@ end
 	--converts solver buffers to float[]
 	self.displayVars = {
 		{
-			name = 'alpha_1',
+			name = 'rho (g/cm^3)',
+			argsIn = {self.TPrims},
+			code = 'texCLBuf[index] = TPrims[index].rho * c * c / G / 1000;',
+		},
+		{
+			name = 'alpha-1',
 			argsIn = {self.gPrims},
 			code = [[
-	texCLBuf[index] = gPrims[index].alpha-1.;
+	texCLBuf[index] = gPrims[index].alpha - 1.;
 ]],
 		},
 		{
-			name = 'gamma_1',
+			name = '|beta|',
 			argsIn = {self.gPrims},
-			code = [[
-	texCLBuf[index] = sym3_det(gPrims[index].gammaLL);
-]],
+			code = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'
 		},
 		{
-			name = 'numerical_gravity',
+			name = 'det|gamma|-1',
+			argsIn = {self.gPrims},
+			code = 'texCLBuf[index] = sym3_det(gPrims[index].gammaLL) - 1.;',
+		},
+		{
+			name = 'numerical gravity',
 			argsIn = {self.GammaULLs},
 			code = [[
 	real3 x = getX(i);
@@ -410,7 +417,7 @@ end
 ]],
 		},
 		{
-			name = 'analytical_gravity',
+			name = 'analytical gravity',
 			code = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
@@ -423,11 +430,9 @@ end
 ]],
 		},
 		{
-			name = 'EFE_tt(g/cm^3)',
+			name = 'EFE_tt (g/cm^3)',
 			argsIn = {self.EFEs},
-			code = [[
-	texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;
-]],
+			code = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;',
 		},
 		{
 			name = '|EFE_ti|',
@@ -466,7 +471,6 @@ end ?>);
 	
 	self:initKernels()
 	self:resetState()
-
 end
 
 function EFESolver:clalloc(size, name, ctype)
@@ -568,8 +572,10 @@ function EFESolver:initKernels()
 end
 
 function EFESolver:refreshDisplayVarKernel()
+	local displayVar = self.displayVars[self.displayVarPtr[0]+1]
 	self.updateDisplayVarKernel = self.MetaKernel(table(
-		self.displayVars[self.displayVarPtr[0]+1], {
+		displayVar, {
+			name = 'display_'..tostring(displayVar):sub(10),
 			argsOut = {self.texCLBuf},
 		}
 	))
@@ -586,6 +592,8 @@ function EFESolver:resetState()
 	self:clcall(self.calc_EFEs)
 
 	self:updateTex()
+
+	self.iteration = 0
 end
 
 function EFESolver:update()
@@ -624,6 +632,8 @@ function EFESolver:update()
 	
 	-- and update the display buffer
 	self:updateTex()
+	
+	self.iteration = self.iteration + 1
 end
 
 function EFESolver:updateTex()
@@ -656,94 +666,6 @@ function EFESolver:updateTex()
 		gl.glTexSubImage3D(gl.GL_TEXTURE_3D, 0, 0, 0, z, self.tex.width, self.tex.height, 1, gl.GL_RED, gl.GL_FLOAT, self.texCPUBuf + self.tex.width * self.tex.height * z)
 	end
 	self.tex:unbind(0)
-end
-
-function EFESolver:updateAuxBuffers()
-
-	-- compute values for output
-	self:clcall((program:kernel('calc_detGammas', tmp.buf, gPrims.buf)))
-	local detGammas = tmp:toCPU()
-
-	self:clcall((program:kernel('calc_numericalGravity', tmp.buf, GammaULLs.buf)))
-	local numericalGravity = tmp:toCPU()
-
-	self:clcall((program:kernel('calc_analyticalGravity', tmp.buf)))
-	local analyticalGravity = tmp:toCPU()
-
-	self:clcall((program:kernel('calc_norm_EFE_tts', tmp.buf, EFEs.buf)))
-	local norm_EFE_tts = tmp:toCPU()
-
-	self:clcall((program:kernel('calc_norm_EFE_tis', tmp.buf, EFEs.buf)))
-	local norm_EFE_tis = tmp:toCPU()
-
-	self:clcall((program:kernel('calc_norm_EFE_ijs', tmp.buf, EFEs.buf)))
-	local norm_EFE_ijs = tmp:toCPU()
-
-	self:clcall((program:kernel('calc_norm_EinsteinLLs', tmp.buf, gLLs.buf, gUUs.buf, GammaULLs.buf)))
-	local norm_EinsteinLLs = tmp:toCPU()
-
-	print'copying to cpu...'
-	local gPrimsCPU = gPrims:toCPU()
-	local TPrimsCPU = TPrims:toCPU()
-	local dPhi_dgPrimsCPU = dPhi_dgPrims:toCPU() 
-
-	print'outputting...'
-
-	local displayCols = {
-		{ix = function(index,i,j,k) return i end},
-		{iy = function(index,i,j,k) return j end},
-		{iz = function(index,i,j,k) return k end},
-		{['rho(g/cm^3)'] = function(index) return TPrimsCPU[index].rho * c * c / G / 1000 end},
-		{['det-1'] = function(index) return -1+detGammas[index] end},
-		{['alpha-1'] = function(index) return -1+gPrimsCPU[index].alpha end},
-		{gravity = function(index) return numericalGravity[index] end},
-		{analyticalGravity = function(index) return analyticalGravity[index] end},
-	--[[ debugging
-		{['EFE_tt(g/cm^3)'] = function(index) return norm_EFE_tts[index] end},
-		{['|EFE_ti|(g/cm^3)'] = function(index) return norm_EFE_tis[index] end},
-		{['|EFE_ij|(g/cm^3)'] = function(index) return norm_EFE_ijs[index] end},
-		{['|G_ab|'] = function(index) return norm_EinsteinLLs[index] end},
-	--]]
-	-- [[ debugging the gradient descent
-		{['dPhi/dalpha'] = function(index) return dPhi_dgPrimsCPU[index].alpha end}, 
-		{['dPhi/dbeta^x'] = function(index) return dPhi_dgPrimsCPU[index].betaU.x end}, 
-	--]]
-	}
-
-	local file = assert(io.open(config.outputFilename, 'w'))
-	do
-		file:write'#'
-		local sep = ''
-		for _,col in ipairs(displayCols) do
-			file:write(sep..next(col))
-			sep = '\t'
-		end
-	end
-	file:write'\n'
-	file:flush()
-
-	local index = 0
-	for i=0,tonumber(self.size.x-1) do
-		for j=0,tonumber(self.size.y-1) do
-			for k=0,tonumber(self.size.z-1) do
-				local sep = ''
-				for _,col in ipairs(displayCols) do
-					local name, f = next(col)
-					local x = f(index,i,j,k)
-					--print(index,i,j,k,name,x)
-					assert(x, "failed for col "..next(col))
-					file:write(sep..('%.16e'):format(x))
-					sep = '\t'
-				end
-				index = index + 1
-				file:write'\n'
-				file:flush()
-			end
-		end
-	end
-	file:close()
-
-	print'done!'
 end
 
 return EFESolver
