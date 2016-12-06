@@ -362,8 +362,9 @@ if config.maxiter > 0 then
 	local program = require 'cl.program'{context=ctx, devices={device}, code=code}
 	
 	local calc_dPhi_dgLLs = program:kernel('calc_dPhi_dgLLs', dPhi_dgLLs.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf, EFEs.buf)
-	local update_dgLLs = program:kernel('update_dgLLs', gLLs.buf, dPhi_dgLLs.buf)
-	local calc_gPrims_from_gLLs = program:kernel('calc_gPrims_from_gLLs', gPrims.buf, gLLs.buf)
+	--local update_gLLs = program:kernel('update_gLLs', gLLs.buf, dPhi_dgLLs.buf)
+	--local calc_gPrims_from_gLLs = program:kernel('calc_gPrims_from_gLLs', gPrims.buf, gLLs.buf)
+	local update_gPrims = program:kernel('update_gPrims', gPrims.buf, dPhi_dgLLs.buf)
 
 	print'executing gradient descent...'
 	for i=1,config.maxiter do
@@ -372,12 +373,14 @@ if config.maxiter > 0 then
 		clcall(calc_EFEs)
 
 		clcall(calc_dPhi_dgLLs)
-		clcall(update_dgLLs)
 	
-		-- maybe soon I'll do the update wrt the gPrim_t's
-		-- but it's so easy to calculate it wrt the g_ab's
-		-- so instead I'll just recalculate the gPrim_t's from g_ab's here
+		--[[ update g_ab and refresh gPrims from this
+		clcall(update_gLLs)
 		clcall(calc_gPrims_from_gLLs)
+		--]]
+		-- [[ or update gPrims directly from dPhi/dg_ab 
+		clcall(update_gPrims)
+		--]]
 	end
 
 	print'...done!'

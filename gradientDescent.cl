@@ -253,7 +253,7 @@ end
 end ?>
 }
 
-kernel void update_dgLLs(
+kernel void update_gLLs(
 	global sym4* gLLs,
 	global const sym4* dPhi_dgLLs
 ) {
@@ -289,4 +289,39 @@ end
 	gPrim->betaU = sym3_real3_mul(gammaUU, betaL);
 	real betaSq = real3_dot(betaL, gPrim->betaU);
 	gPrim->alpha = sqrt(betaSq - gLL->s00);
+}
+
+//instead of the last two kernels, just run this one!
+//this updates gPrims directly using the dPhi/dg_ab tensor
+
+kernel void update_gPrims(
+	global gPrim_t* gPrims,
+	global const sym4* dPhi_dgLLs
+) {
+	INIT_KERNEL();
+	global gPrim_t* gPrim = gPrims + index;
+	global const sym4* dPhi_dgLL = dPhi_dgLLs + index;
+
+	sym3 gammaLL = gPrim->gammaLL;
+	real3 betaU = gPrim->betaU;
+	real3 betaL = sym3_real3_mul(gammaLL, betaU);
+
+	gPrim->alpha -= <?=updateAlpha?> * -2. * dPhi_dgLL->s00;
+<?
+for m=0,subDim-1 do
+?>	gPrim->betaU.s<?=m?> -= <?=updateAlpha?> * 2. * (dPhi_dgLL->s00 * betaL.s<?=m?>
+<?	for n=0,subDim-1 do ?>
+		+ dPhi_dgLL->s0<?=n+1?> * gammaLL.s<?=sym(n,m)?>
+<? 	end ?>);
+<? end ?>
+<?
+for m=0,subDim-1 do
+	for n=m,subDim-1 do
+?>	gPrim->gammaLL.s<?=m..n?> -= <?=updateAlpha?> * (
+		betaU.s<?=m?> * (dPhi_dgLL->s00 * betaU.s<?=n?>
+			+ 2. * dPhi_dgLL->s0<?=n+1?>)
+		+ dPhi_dgLL->s<?=m+1?><?=n+1?>);
+<?	end
+end
+?>
 }
