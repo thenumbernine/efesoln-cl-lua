@@ -1,8 +1,9 @@
 // here is the code used for updating weights based on the EFE
 
-kernel void calc_dPhi_dgLLs(
-	global sym4* dPhi_dgLLs,
+kernel void calc_dPhi_dgPrims(
+	global gPrim_t* dPhi_dgPrims,
 	global const TPrim_t* TPrims,
+	global const gPrim_t* gPrims,
 	global const sym4* gLLs,
 	global const sym4* gUUs,
 	global const tensor_4sym4* GammaULLs,
@@ -238,11 +239,12 @@ if solver.body.useMatter then
 	end 
 end
 ?>
-	
+
 	global const sym4* EFE = EFEs + index;	// G_ab - 8 pi T_ab
+	sym4 dPhi_dgLL;
 <? for p=0,dim-1 do
 	for q=p,dim-1 do 
-?>	dPhi_dgLLs[index].s<?=p..q?> = sym4_dot(<?
+?>	dPhi_dgLL.s<?=p..q?> = sym4_dot(<?
 		?>*EFE, <?
 		?>sym4_sub(<?
 			?>dEinsteinLL_dgLL.s<?=p..q?>, <?
@@ -251,56 +253,42 @@ end
 	?>);
 <? 	end
 end ?>
-}
 
-kernel void update_gLLs(
-	global sym4* gLLs,
-	global const sym4* dPhi_dgLLs,
-	float updateAlpha
-) {
-	INIT_KERNEL();
-	global sym4* gLL = gLLs + index;
-	global const sym4* dPhi_dgLL = dPhi_dgLLs + index;
-<? for a=0,dim-1 do
-	for b=a,dim-1 do
-?>	gLL->s<?=a..b?> -= (real)updateAlpha * dPhi_dgLL->s<?=a..b?>;
-<?	end
-end 
-?>}
-
-kernel void calc_gPrims_from_gLLs(
-	global gPrim_t* gPrims,
-	global const sym4* gLLs
-) {
-	INIT_KERNEL();
-	global gPrim_t* gPrim = gPrims + index;
-	global const sym4* gLL = gLLs + index;
-<? 
-for i=0,subDim-1 do 
-	for j=i,subDim-1 do
-?>	gPrim->gammaLL.s<?=i..j?> = gLL->s<?=i+1?><?=j+1?>;
+	global gPrim_t* dPhi_dgPrim = dPhi_dgPrims + index;
+	global const gPrim_t* gPrim = gPrims + index;
+<?
+if solver.convergeAlpha then
+?>	dPhi_dgPrim->alpha = -2. * gPrim->alpha * dPhi_dgLL.s00;
+<?
+end
+if solver.convergeBeta then
+	for m=0,subDim-1 do
+?>	dPhi_dgPrim->betaU.s<?=m?> = 2. * (dPhi_dgLL.s00 * betaL.s<?=m?>
+<?		for n=0,subDim-1 do ?>
+		+ dPhi_dgLL.s0<?=n+1?> * gammaLL.s<?=sym(n,m)?>
+<? 		end ?>);
 <?	end
 end
-?>	real det_gammaLL = sym3_det(gPrim->gammaLL);
-	sym3 gammaUU = sym3_inv(det_gammaLL, gPrim->gammaLL);
-	
-	real3 betaL = _real3(gLL->s01, gLL->s02, gLL->s03);
-	gPrim->betaU = sym3_real3_mul(gammaUU, betaL);
-	real betaSq = real3_dot(betaL, gPrim->betaU);
-	gPrim->alpha = sqrt(betaSq - gLL->s00);
+if solver.convergeGamma then
+	for m=0,subDim-1 do
+		for n=m,subDim-1 do
+?>	dPhi_dgPrim->gammaLL.s<?=m..n?> = 
+		betaU.s<?=m?> * (dPhi_dgLL.s00 * betaU.s<?=n?>
+		+ 2. * dPhi_dgLL.s0<?=n+1?>)
+		+ dPhi_dgLL.s<?=m+1?><?=n+1?>;
+<?		end
+	end
+end ?>
 }
-
-//instead of the last two kernels, just run this one!
-//this updates gPrims directly using the dPhi/dg_ab tensor
 
 kernel void update_gPrims(
 	global gPrim_t* gPrims,
-	global const sym4* dPhi_dgLLs,
+	global const gPrim_t* dPhi_dgPrims,
 	float updateAlpha
 ) {
 	INIT_KERNEL();
 	global gPrim_t* gPrim = gPrims + index;
-	global const sym4* dPhi_dgLL = dPhi_dgLLs + index;
+	global const gPrim_t* dPhi_dgPrim = dPhi_dgPrims + index;
 
 	sym3 gammaLL = gPrim->gammaLL;
 	real3 betaU = gPrim->betaU;
@@ -308,25 +296,18 @@ kernel void update_gPrims(
 
 <? 
 if solver.convergeAlpha then
-?>
-	gPrim->alpha -= (real)updateAlpha * -2. * dPhi_dgLL->s00;
+?>	gPrim->alpha -= (real)updateAlpha * dPhi_dgPrim->alpha;
 <?
 end
 if solver.convergeBeta then
 	for m=0,subDim-1 do
-?>	gPrim->betaU.s<?=m?> -= (real)updateAlpha * 2. * (dPhi_dgLL->s00 * betaL.s<?=m?>
-<?		for n=0,subDim-1 do ?>
-		+ dPhi_dgLL->s0<?=n+1?> * gammaLL.s<?=sym(n,m)?>
-<? 		end ?>);
+?>	gPrim->betaU.s<?=m?> -= (real)updateAlpha * dPhi_dgPrim->betaU.s<?=m?>;
 <? 	end 
 end
 if solver.convergeGamma then
 	for m=0,subDim-1 do
 		for n=m,subDim-1 do
-?>	gPrim->gammaLL.s<?=m..n?> -= (real)updateAlpha * (
-		betaU.s<?=m?> * (dPhi_dgLL->s00 * betaU.s<?=n?>
-			+ 2. * dPhi_dgLL->s0<?=n+1?>)
-		+ dPhi_dgLL->s<?=m+1?><?=n+1?>);
+?>	gPrim->gammaLL.s<?=m..n?> -= (real)updateAlpha * dPhi_dgPrim->gammaLL.s<?=m..n?>;
 <?		end
 	end
 end

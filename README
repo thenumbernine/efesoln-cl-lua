@@ -31,3 +31,7 @@ https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/efe.html
 For the spherical body problem it is converging slowly (1e-30) in flat space initial conditions,
 but once it starts to develop surface features it converges very quickly.
 I'm thinking I should use a line search to fix this.  Maybe Hessian as well, but that'd be complex, so I'll put it off until my automatic symbolic generation (which depends on me simplifying TensorRef * TensorRef in my symmath-lua)
+
+Now I'm allowing update to alpha, beta, gamma separately, and testing it with alpha update only.  Goes much faster.
+What happens is alpha varies greatly around the matter boundary (like it should), but then the large alphas get larger and small gets smaller, and the coordinates grow too much.
+Maybe I should restrict alpha and det gamma to unit volumes?  Or only converge the linearized metric, leaving the background?

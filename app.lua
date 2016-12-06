@@ -3,7 +3,6 @@
 this should be a stand-alone tool
 --]]
 require 'ext'
-local gcmem = require 'ext.gcmem'
 local bit = require 'bit'
 local ffi = require 'ffi'
 local gl = require 'ffi.OpenGL'
@@ -387,14 +386,13 @@ function App:updateGUI()
 	--ig.igCheckbox('show curl trace', showCurlTrace)
 
 	if ig.igCollapsingHeader'simulation' then
-		local buf = gcmem.new('char[256]', ('%e'):format(self.solver.updateAlpha[0]))
+		local buf = ffi.new('char[256]', ('%e'):format(self.solver.updateAlpha[0]))
 		if ig.igInputText('update alpha', buf, ffi.sizeof(buf)) then
 			local f = tonumber(ffi.string(buf, ffi.sizeof(buf)))
 			if f then
 				self.solver.updateAlpha[0] = f
 			end
 		end
-		gcmem.free(buf)
 
 		if ig.igButton(self.updateMethod and 'Stop' or 'Start') then
 			self.updateMethod = not self.updateMethod

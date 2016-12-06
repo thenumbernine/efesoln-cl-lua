@@ -315,11 +315,12 @@ end
 function EFESolver:initBuffers()
 	self.TPrims = self.MetaBuffer{name='TPrims', type='TPrim_t'}
 	self.gPrims = self.MetaBuffer{name='gPrims', type='gPrim_t'} 
+--	self.gPrimsCopy = self.MetaBuffer{name='gPrimsCopy', type='gPrim_t'} 
 	self.gLLs = self.MetaBuffer{name='gLLs', type='sym4'}
 	self.gUUs = self.MetaBuffer{name='gUUs', type='sym4'}
 	self.GammaULLs = self.MetaBuffer{name='GammaULLs', type='tensor_4sym4'}
 	self.EFEs = self.MetaBuffer{name='EFEs', type='sym4'}
-	self.dPhi_dgLLs = self.MetaBuffer{name='dPhi_dgLL', type='sym4'}
+	self.dPhi_dgPrims = self.MetaBuffer{name='dPhi_dgPrims', type='gPrim_t'}
 	
 	self.tex = require 'gl.tex3d'{
 		width = tonumber(self.size.x),
@@ -380,7 +381,7 @@ function EFESolver:initKernels()
 		file['efe.cl'],
 		file['calcVars.cl'],
 		file['gradientDescent.cl'],
-		file['calcOutputVars.cl'],
+		--file['calcOutputVars.cl'],
 	}:concat'\n')
 	
 	print'compiling code...'
@@ -396,10 +397,9 @@ function EFESolver:initKernels()
 	self.calc_GammaULLs = self.program:kernel('calc_GammaULLs', self.GammaULLs.buf, self.gLLs.buf, self.gUUs.buf)
 	self.calc_EFEs = self.program:kernel('calc_EFEs', self.EFEs.buf, self.gPrims.buf, self.TPrims.buf, self.gLLs.buf, self.gUUs.buf, self.GammaULLs.buf)
 
-	self.calc_dPhi_dgLLs = self.program:kernel('calc_dPhi_dgLLs', self.dPhi_dgLLs.buf, self.TPrims.buf, self.gLLs.buf, self.gUUs.buf, self.GammaULLs.buf, self.EFEs.buf)
-	--local update_gLLs = self.program:kernel('update_gLLs', gLLs.buf, dPhi_dgLLs.buf)
-	--local calc_gPrims_from_gLLs = self.program:kernel('calc_gPrims_from_gLLs', gPrims.buf, gLLs.buf)
-	self.update_gPrims = self.program:kernel('update_gPrims', self.gPrims.buf, self.dPhi_dgLLs.buf)
+	self.calc_dPhi_dgPrims = self.program:kernel('calc_dPhi_dgPrims', self.dPhi_dgPrims.buf, self.TPrims.buf, self.gPrims.buf, self.gLLs.buf, self.gUUs.buf, self.GammaULLs.buf, self.EFEs.buf)
+	
+	self.update_gPrims = self.program:kernel('update_gPrims', self.gPrims.buf, self.dPhi_dgPrims.buf)
 
 	self.updateDisplayVarKernel = self.program:kernel('updateDisplayVar', self.texCLBuf.buf)
 	
@@ -434,7 +434,12 @@ function EFESolver:update()
 	I'll try for 2 and hope I have enough memory
 	--]]
 
-	self:clcall(self.calc_dPhi_dgLLs)
+	self:clcall(self.calc_dPhi_dgPrims)
+
+	-- TODO now that we have dPhi/dg_ab
+	-- trace along g_ab - alpha * dPhi/dg_ab
+	-- to find what alpha gives us minimal error
+--	self.cmds:enqueueCopyBuffer{src=self.gPrims.buf, dst=self.gPrimsCopy.buf, size=ffi.sizeof'gPrim_t' * self.volume}
 
 	--[[ update g_ab and refresh gPrims from this
 	self:clcall(update_gLLs)
@@ -535,7 +540,7 @@ function EFESolver:updateAuxBuffers()
 	print'copying to cpu...'
 	local gPrimsCPU = gPrims:toCPU()
 	local TPrimsCPU = TPrims:toCPU()
-	local dPhi_dgLLsCPU = dPhi_dgLLs:toCPU() 
+	local dPhi_dgPrimsCPU = dPhi_dgPrims:toCPU() 
 
 	print'outputting...'
 
@@ -555,8 +560,8 @@ function EFESolver:updateAuxBuffers()
 		{['|G_ab|'] = function(index) return norm_EinsteinLLs[index] end},
 	--]]
 	-- [[ debugging the gradient descent
-		{['dPhi/dg_tt'] = function(index) return dPhi_dgLLsCPU[index].s00 end}, 
-		{['dPhi/dg_tx'] = function(index) return dPhi_dgLLsCPU[index].s01 end}, 
+		{['dPhi/dalpha'] = function(index) return dPhi_dgPrimsCPU[index].alpha end}, 
+		{['dPhi/dbeta^x'] = function(index) return dPhi_dgPrimsCPU[index].betaU.x end}, 
 	--]]
 	}
 
