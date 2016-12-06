@@ -316,8 +316,9 @@ sym4 calc_8piTLL(
 	global const sym4* gLL,
 	global const TPrim_t* TPrim
 ) {
-	
-	//if we're using EM ...
+	sym4 _8piTLL = sym4_zero;
+
+<? if body.useEM then ?>
 	
 	/*
 	assume the E and B fields are upper 3-vectors
@@ -335,27 +336,33 @@ sym4 calc_8piTLL(
 	real sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
 	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 	
-	sym4 _8piT_EM_LL = {
-		.s00 = ESq + BSq,
+	_8piTLL.s00 += ESq + BSq,
 <? 
 for i=0,subDim-1 do 
-?>		.s0<?=i+1?> = -2. * SL.s<?=i?>,
+?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>,
 <? 
 	for j=i,subDim-1 do 
-?>		.s<?=i+1?><?=j+1?> = gLL->s<?=i?><?=j?> * (ESq + BSq) <?
+?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL->s<?=i?><?=j?> * (ESq + BSq) <?
 			?>- 2. * (<?
 				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
 				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>),
 <? 	end
 end 
-?>	};
+?>
 
-	//if we're using matter ...
-
-		//if we're using velocity ...
-
-		//otherwise uL = gLL->s0
+<? end ?>
+<? if body.useMatter then ?>
+	<? if body.useVel then ?>//if we're using velocity ...
+	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
+	real4 vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
+	real4 vL = sym4_real4_mul(*gLL, vU);
+	real vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
+	real W = 1. / sqrt(1. - sqrt(vLenSq));
+	real4 uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
+	real4 uL = sym4_real4_mul(*gLL, uU);
+	<? else ?>//otherwise uL = gLL->s0
 	real4 uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
+	<? end ?>
 
 	//8 pi T_matter_ab = 8 pi (u_a u_b (rho (1 + eInt) + P) + g_ab P)
 	sym4 _8piT_matter_LL = sym4_scale(
@@ -363,6 +370,8 @@ end
 			sym4_scale(sym4_outer(uL), TPrim->rho * (1. + TPrim->eInt) + TPrim->P),
 			sym4_scale(*gLL, TPrim->P)
 		), 8. * M_PI);
+	_8piTLL = sym4_add(_8piTLL, _8piT_matter_LL);
+<? end ?>
 
-	return sym4_add(_8piT_EM_LL, _8piT_matter_LL);
+	return _8piTLL;
 }

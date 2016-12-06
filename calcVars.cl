@@ -31,12 +31,18 @@ kernel void init_TPrims(
 	global TPrim_t* TPrim = TPrims + index;
 	
 	*TPrim = (TPrim_t){
+<? if body.useMatter then ?>
 		.rho = 0,
 		.eInt = 0,
 		.P = 0,
+<? 	if body.useVel then ?>
 		.v = real3_zero,
+<? 	end
+end 
+if body.useEM then ?>		
 		.E = real3_zero,
 		.B = real3_zero,
+<? end ?>
 	};
 
 	<?=body.init?>

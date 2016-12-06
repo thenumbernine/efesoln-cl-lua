@@ -47,17 +47,20 @@ typedef struct {
 
 typedef struct {
 	//source terms:
+<? if body.useMatter then ?>
 	real rho;	//matter density
 	real P;		//pressure ... due to matter.  TODO what about magnetic pressure?
 	real eInt;	//specific internal energy
-
+<?	if body.useVel then ?>
 	real3 v;	//3-vel (upper, spatial)
-
+<? 	end
+end ?>
+<? if body.useEM then ?>
 //this needs to be lienar solved for ... but it's an easy problem (at least when geometry is flat)
 //	real chargeDensity;
 //	TensorUsub currentDensity;	//TODO how does this relate to matter density?
 
 //in the mean time ...
 	real3 E, B;	//upper, spatial
-
+<? end ?>
 } TPrim_t;

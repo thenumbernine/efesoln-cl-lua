@@ -8,13 +8,15 @@ local vec3d = require 'ffi.vec.vec3d'
 
 local config = {
 	updateAlpha = 1,
+	
 	body = 'earth',
+	
 	bodyRadii = 2,
 	
 	initCond = 'flat',
 	--initCond = 'stellar_schwarzschild',
 	
-	maxiter = 0,
+	maxiter = 1,
 	outputFilename = 'out.txt',
 }
 
@@ -153,31 +155,48 @@ os.exit()
 local c = 299792458			-- m/s 
 local G = 6.67384e-11		-- m^3 / (kg s^2)
 
--- body parameters:
 
-local body = {
-	radius = 6.37101e+6,	-- m
-	mass = 5.9736e+24 * G / c / c,	-- m
-}
-body.volume = 4/3 * math.pi * body.radius * body.radius * body.radius	-- m^3
-body.density = body.mass / body.volume	-- 1/m^2
+-- spherical body, no charge, no velocity
+local SphericalBody = class()
 
-body.init = template([[
-		
+function SphericalBody:init(args)
+	self.radius = args.radius
+	self.mass = args.mass
+	self.volume = 4/3 * math.pi * self.radius * self.radius * self.radius	-- m^3
+	self.density = self.mass / self.volume	-- 1/m^2
+
+	self.useMatter = true
+	self.useVel = false
+	self.useEM = false
+
+	self.init = template([[
 	//spherical body:
 	
-	TPrim->rho = r < <?=body.radius?> ? <?=body.density?> : 0;
+	TPrim->rho = r < <?=self.radius?> ? <?=self.density?> : 0;
 	//TODO init this with the hydrostatic term of the schwarzschild equation of structure 
 
-]], {
-	body = body,
-})
+]], {self=self})
+end
+
+-- body parameters:
+
+local bodies = {
+	earth = SphericalBody{
+		radius = 6.37101e+6,	-- m
+		mass = 5.9736e+24 * G / c / c,	-- m
+	},
+	sun = SphericalBody{
+		radius = 6.960e+8,	-- m
+		mass = 1.9891e+30 * G / c / c,	-- m
+	},
+}
+
+local body = bodies[config.body]
 
 -- initial conditions:
+
 local initConds = {
 	flat = {code = ''},
---]=]
--- [=[ stellar schwarzschild 
 	stellar_schwarzschild = {
 		code = template([[
 	real radius = <?=body.radius?>;
@@ -206,9 +225,10 @@ local initConds = {
 		})
 	},
 }
+
 local initCond = initConds[config.initCond]
 
--- end body parameters:
+-- parameters:
 
 local xmin = vec3d(-1,-1,-1) * body.radius * config.bodyRadii
 local xmax = vec3d(1,1,1) * body.radius * config.bodyRadii
@@ -217,6 +237,7 @@ print'generating code...'
 
 local typeCode = template(file['efe.h'], {
 	real = real,
+	body = body,
 })
 
 -- luajit the types so I can see the sizeof (I hope OpenCL agrees with padding)
@@ -318,10 +339,6 @@ print'executing...'
 
 clcall(init_gPrims)
 clcall(init_TPrims)
-clcall(calc_gLLs_and_gUUs)
-clcall(calc_GammaULLs)
-clcall(calc_EFEs)
-
 --[[
 iteration:
 
@@ -334,7 +351,9 @@ two approaches:
 I'll try for 2 and hope I have enough memory
 --]]
 
+local dPhi_dgLLs = MetaBuffer{name='dPhi_dgLL', type='sym4'}
 if config.maxiter > 0 then 
+	print'compiling gradient descent code...'
 	local code = compileTemplates(table{
 		typeCode,
 		file['efe.cl'],
@@ -342,15 +361,31 @@ if config.maxiter > 0 then
 	}:concat'\n')
 	local program = require 'cl.program'{context=ctx, devices={device}, code=code}
 	
-	local dPhi_dgLLs = MetaBuffer{name='dPhi_dgLL', type='sym4'}
 	local calc_dPhi_dgLLs = program:kernel('calc_dPhi_dgLLs', dPhi_dgLLs.buf, TPrims.buf, gLLs.buf, gUUs.buf, GammaULLs.buf, EFEs.buf)
 	local update_dgLLs = program:kernel('update_dgLLs', gLLs.buf, dPhi_dgLLs.buf)
+	local calc_gPrims_from_gLLs = program:kernel('calc_gPrims_from_gLLs', gPrims.buf, gLLs.buf)
 
+	print'executing gradient descent...'
 	for i=1,config.maxiter do
+		clcall(calc_gLLs_and_gUUs)
+		clcall(calc_GammaULLs)
+		clcall(calc_EFEs)
+
 		clcall(calc_dPhi_dgLLs)
 		clcall(update_dgLLs)
+	
+		-- maybe soon I'll do the update wrt the gPrim_t's
+		-- but it's so easy to calculate it wrt the g_ab's
+		-- so instead I'll just recalculate the gPrim_t's from g_ab's here
+		clcall(calc_gPrims_from_gLLs)
 	end
+
+	print'...done!'
 end
+
+clcall(calc_gLLs_and_gUUs)
+clcall(calc_GammaULLs)
+clcall(calc_EFEs)
 
 --[[ 
 	then do some calculations
@@ -409,6 +444,7 @@ local norm_EinsteinLLs = tmp:toCPU()
 print'copying to cpu...'
 local gPrimsCPU = gPrims:toCPU()
 local TPrimsCPU = TPrims:toCPU()
+local dPhi_dgLLsCPU = dPhi_dgLLs:toCPU() 
 
 print'outputting...'
 
@@ -421,10 +457,16 @@ local cols = {
 	{['alpha-1'] = function(index) return -1+gPrimsCPU[index].alpha end},
 	{gravity = function(index) return numericalGravity[index] end},
 	{analyticalGravity = function(index) return analyticalGravity[index] end},
+--[[ debugging
 	{['EFE_tt(g/cm^3)'] = function(index) return norm_EFE_tts[index] end},
 	{['|EFE_ti|(g/cm^3)'] = function(index) return norm_EFE_tis[index] end},
 	{['|EFE_ij|(g/cm^3)'] = function(index) return norm_EFE_ijs[index] end},
 	{['|G_ab|'] = function(index) return norm_EinsteinLLs[index] end},
+--]]
+-- [[ debugging the gradient descent
+	{['dPhi/dg_tt'] = function(index) return dPhi_dgLLsCPU[index].s00 end}, 
+	{['dPhi/dg_tx'] = function(index) return dPhi_dgLLsCPU[index].s01 end}, 
+--]]
 }
 
 local file = assert(io.open(config.outputFilename, 'w'))

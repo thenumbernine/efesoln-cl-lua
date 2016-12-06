@@ -150,82 +150,94 @@ end ?>
 
 	global const TPrim_t* TPrim = TPrims + index;
 
-	real4 EU = (real4)(0 <?for i=0,2 do ?>, TPrim->E.s<?=i?> <? end ?>); 
+	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
+<? for a=0,dim-1 do
+	for b=a,dim-1 do
+?>		.s<?=a..b?> = sym4_zero,
+<?	end
+end 
+?>	};
+
+<?
+if body.useEM then ?>	
+	real4 EU = (real4)(0 <? for i=0,subDim-1 do ?>, TPrim->E.s<?=i?> <? end ?>); 
 	real4 EL = sym4_real4_mul(*gLL, EU);
 	real ESq = dot(EL, EU);
 	
-	real4 BU = (real4)(0 <?for i=0,2 do ?>, TPrim->B.s<?=i?> <? end ?>); 
+	real4 BU = (real4)(0 <? for i=0,subDim-1 do ?>, TPrim->B.s<?=i?> <? end ?>); 
 	real4 BL = sym4_real4_mul(*gLL, BU);
 	real BSq = dot(BL, BU);
 
 	real sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
 	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 
-	tensor_sym4sym4 d_8piT_EM_LL_dgLL = (tensor_sym4sym4){
-<? for e=0,dim-1 do
-	for f=e,dim-1 do
-?>		.s<?=e..f?> = (sym4){
-			//dTEM_00/dg_<?=e..f?>
-			.s00 = <?
-		if e==0 or f==0 then 
-			?>0<? 
-		else 
-			?>TPrim->E.s<?=e-1?> * TPrim->E.s<?=f-1?> + TPrim->B.s<?=e-1?> * TPrim->B.s<?=f-1?><? 
+<?
+	for e=0,dim-1 do
+		for f=e,dim-1 do
+?>	d_8piTLL_dgLL.s<?=e..f?>.s00 += <?
+			if e==0 or f==0 then 
+				?>0<? 
+			else 
+				?>TPrim->E.s<?=e-1?> * TPrim->E.s<?=f-1?> + TPrim->B.s<?=e-1?> * TPrim->B.s<?=f-1?><? 
+			end
+			?>;
+<? 			for i=0,subDim-1 do 
+?>	d_8piTLL_dgLL.s<?=e..f?>.s0<?=i+1?> = -SL.s<?=i?> * gUU->s<?=e..f?>;
+<? 				for j=i,subDim-1 do 
+?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=i+1?><?=j+1?> = 0.<? 
+					if e==i+1 and f==j+1 then ?> + ESq + BSq <? end 
+					?> + gLL->s<?=i..j?> * (<?
+					if e==0 or f==0 then
+						?>0<?
+					else
+						?>TPrim->E.s<?=e-1?> * TPrim->E.s<?=f-1?> + TPrim->B.s<?=e-1?> * TPrim->B.s<?=f-1?><?
+					end
+					?>) - 2. * (0.<?
+					if e==i+1 then ?>
+		+ EU.s<?=f?> * EL.s<?=j+1?> + BU.s<?=f?> * BL.s<?=j+1?><?
+					end
+					if e==j+1 then ?>
+		+ EU.s<?=f?> * EL.s<?=i+1?> + BU.s<?=f?> * BL.s<?=i+1?><?
+					end 
+					?>);
+<?
+				end
+			end 
 		end
-			?>,
-<? 		for i=0,subDim-1 do 
-?>			.s0<?=i+1?> = -SL.s<?=i?> * gUU->s<?=e..f?>,
-<? 			for j=i,subDim-1 do 
-?>			.s<?=i+1?><?=j+1?> = 0.<? 
-				if e==i+1 and f==j+1 then ?> + ESq + BSq <? end 
-				?> + gLL->s<?=i..j?> * (<?
-				if e==0 or f==0 then
-					?>0<?
-				else
-					?>TPrim->E.s<?=e-1?> * TPrim->E.s<?=f-1?> + TPrim->B.s<?=e-1?> * TPrim->B.s<?=f-1?><?
-				end
-				?>) - 2. * (0.<?
-				if e==i+1 then ?>
-					+ EU.s<?=f?> * EL.s<?=j+1?> + BU.s<?=f?> * BL.s<?=j+1?><?
-				end
-				if e==j+1 then ?>
-					+ EU.s<?=f?> * EL.s<?=i+1?> + BU.s<?=f?> * BL.s<?=i+1?><?
-				end 
-				?>),
-<? 			end
-		end 
-?>		},
-<? 	end
-end 
-?>	};
-
-	//if we're using matter ...
-
-		//if we're using velocity ...
-
-		//otherwise uL = gLL->s0
-	real4 uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
-
-	tensor_sym4sym4 d_8piT_matter_LL_dgLL = (tensor_sym4sym4){
-<? for e=0,dim-1 do
-	for f=e,dim-1 do
+	end 
+end
 ?>
-		.s<?=e..f?> = (sym4){
-<?		for a=0,dim-1 do
-			for b=a,dim-1 do
-?>			.s<?=a..b?> = (0. <? 
-			if e==a then ?>+ uL.s<?=b?><? end 
-			if e==b then ?>+ uL.s<?=a?><? end 
-			?>) * uL.s<?=f?> * (TPrim->rho * (1. + TPrim->eInt) + TPrim->P)<?
-			if e==a and f==b then ?> + TPrim->P<? end ?>,
-<?			end
-		end
-?>		},
-<?	end
-end 
-?>	};
 
-	tensor_sym4sym4 d_8piTLL_dgLL = tensor_sym4sym4_add(d_8piT_EM_LL_dgLL, d_8piT_matter_LL_dgLL);
+<?
+if body.useMatter then
+	if body.useVel then ?>//if we're using velocity ...
+	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
+	real4 vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
+	real4 vL = sym4_real4_mul(*gLL, vU);
+	real vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
+	real W = 1. / sqrt(1. - sqrt(vLenSq));
+	real4 uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
+	real4 uL = sym4_real4_mul(*gLL, uU);
+	<? else ?>//otherwise uL = gLL->s0
+	real4 uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
+	<? 
+	end
+	
+	for e=0,dim-1 do
+		for f=e,dim-1 do
+			for a=0,dim-1 do
+				for b=a,dim-1 do
+?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=a..b?> += (0. <? 
+					if e==a then ?>+ uL.s<?=b?><? end 
+					if e==b then ?>+ uL.s<?=a?><? end 
+					?>) * uL.s<?=f?> * (TPrim->rho * (1. + TPrim->eInt) + TPrim->P)<?
+					if e==a and f==b then ?> + TPrim->P<? end ?>;
+<?				end
+			end
+		end
+	end 
+end
+?>
 	
 	global const sym4* EFE = EFEs + index;	// G_ab - 8 pi T_ab
 <? for p=0,dim-1 do
@@ -256,3 +268,25 @@ if updateAlpha~= 1 then ?>* <?=updateAlpha?><? end
 <?	end
 end 
 ?>}
+
+kernel void calc_gPrims_from_gLLs(
+	global gPrim_t* gPrims,
+	global const sym4* gLLs
+) {
+	INIT_KERNEL();
+	global gPrim_t* gPrim = gPrims + index;
+	global const sym4* gLL = gLLs + index;
+<? 
+for i=0,subDim-1 do 
+	for j=i,subDim-1 do
+?>	gPrim->gammaLL.s<?=i..j?> = gLL->s<?=i+1?><?=j+1?>;
+<?	end
+end
+?>	real det_gammaLL = sym3_det(gPrim->gammaLL);
+	sym3 gammaUU = sym3_inv(det_gammaLL, gPrim->gammaLL);
+	
+	real3 betaL = _real3(gLL->s01, gLL->s02, gLL->s03);
+	gPrim->betaU = sym3_real3_mul(gammaUU, betaL);
+	real betaSq = real3_dot(betaL, gPrim->betaU);
+	gPrim->alpha = sqrt(betaSq - gLL->s00);
+}
