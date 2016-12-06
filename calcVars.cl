@@ -154,28 +154,3 @@ kernel void calc_EFEs(
 	sym4 _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);
 	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
 }
-
-//converts solver buffers to float[]
-kernel void updateDisplayVar(
-	global float* result,
-
-	// alpha-1
-	//global const gPrim_t* gPrims
-
-	// numericalGravity
-	global const tensor_4sym4* GammaULLs
-) {
-	INIT_KERNEL();
-	
-	// alpha-1
-	//result[index] = gPrims[index].alpha - 1.;
-
-	// numericalGravity 
-	real3 x = getX(i);
-	real r = real3_len(x);
-	global const tensor_4sym4* GammaULL = GammaULLs + index;
-	result[index] = (0.
-		+ GammaULL->s1.s00 * x.s0 / r
-		+ GammaULL->s2.s00 * x.s1 / r
-		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
-}

@@ -161,11 +161,10 @@ end
 
 local leftShiftDown
 local rightShiftDown 
-local imguiCapturing
 function App:event(event, eventPtr)
 	App.super.event(self, event, eventPtr)
-	imguiCapturing = ig.igGetIO()[0].WantCaptureKeyboard
-	if imguiCapturing then return end
+	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
+	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
 	
 	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
 		if event.button.button == sdl.SDL_BUTTON_WHEELUP then
@@ -178,16 +177,14 @@ function App:event(event, eventPtr)
 			leftShiftDown = event.type == sdl.SDL_KEYDOWN
 		elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
 			rightShiftDown = event.type == sdl.SDL_KEYDOWN
-		elseif canHandleKeyboard then
+		elseif canHandleKeyboard and event.type == sdl.SDL_KEYDOWN then
 			if event.key.keysym.sym == sdl.SDLK_SPACE then
 				self.updateMethod = not self.updateMethod
 			elseif event.key.keysym.sym == ('u'):byte() then
 				self.updateMethod = 'step'
 			elseif event.key.keysym.sym == ('r'):byte() then
 				print'resetting...'
-				for _,solver in ipairs(self.solvers) do
-					solver:resetState()
-				end
+				self.solver:resetState()
 				self.updateMethod = nil
 			end
 		end
@@ -206,8 +203,8 @@ function App:update()
 		self.solver:update()
 	end
 
-	
-	if not imguiCapturing then 
+	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
+	if not canHandleMouse then 
 		mouse:update()
 	end
 	if mouse.leftDragging then
@@ -347,11 +344,9 @@ function App:update()
 end
 
 function App:updateGUI()
---[=[	
-	col[0] = col[0] - 4
-	ig.igCombo('column', col, colnames and colnames:sub(4) or range(4,colmax))
-	col[0] = col[0] + 4
---]=]	
+	if ig.igCombo('display', self.solver.displayVarPtr, self.solver.displayVarNames) then
+		self.solver:refreshDisplayVarKernel()
+	end
 	ig.igText(('%.3e to %.3e'):format(self.minValue, self.maxValue))
 	
 	local gradImageSize = ig.ImVec2(128, 32)
@@ -404,9 +399,7 @@ function App:updateGUI()
 		ig.igSameLine()
 		if ig.igButton'Reset' then
 			print'resetting...'
-			for _,solver in ipairs(self.solvers) do
-				solver:resetState()
-			end
+			self.solver:resetState()
 			self.updateMethod = nil
 		end
 	end	

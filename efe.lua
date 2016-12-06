@@ -47,23 +47,48 @@ local function genCode()
 
 	local t,x,y,z = symmath.vars('t', 'x', 'y', 'z')
 	local coords = table{t,x,y,z}
+	local spatialCoords = table{x,y,z}
 	Tensor.coords{
 		{variables=coords},
+		{variables=spatialCoords, symbols='ijklmn'}, 
 	}
 
-	local gLLvars = table()
-	local gUUvars = table()
-	for a=1,4 do
-		for b=a,4 do
-			gLLvars[a..b] = var('g_{'..coords[a].name..coords[b].name..'}', coords)
-			gUUvars[a..b] = var('g^{'..coords[a].name..coords[b].name..'}', coords)
-		end
-	end
+	local alpha = var'alpha'
+print('alpha',alpha)
+	local betaU = Tensor('^i', function(i) return var('betaU'..i) end)
+print('beta^i',betaU)
+	local gammaLL = Tensor('_ij', function(i,j) return var('gamma_'..sym(i,j)) end)
+print('gamma_ij',gammaLL)
+	local det_gammaLL = symmath.Matrix.determinant(gammaLL)
+print('gamma', det_gammaLL)
+	local gammaUU = symmath.Matrix.inverse(gammaLL)
+print('gamma^ij',gammaUU)
+os.exit()
+	
+	local betaL = (betaU'^j' * gammaLL'_ij')()
+	local betaSq = (betaU'^i' * betaL'_i')()
+
 	local gLL = Tensor('_ab', function(a,b)
-		return gLLvars[sym(a,b)]
+		if a==1 and b==1 then 
+			return -alpha^2 + betaSq
+		elseif a==1 then
+			return betaL[b-1]
+		elseif b==1 then
+			return betaL[a-1]
+		else
+			return gammaLL[a-1][b-1]
+		end
 	end)
 	local gUU = Tensor('^ab', function(a,b)
-		return gUUvars[sym(a,b)]
+		if a==1 and b==1 then
+			return -1/alpha^2
+		elseif a==1 then
+			return betaU[b-1] / alpha^2
+		elseif b==1 then
+			return betaU[a-1] / alpha^2
+		else
+			return gammaUU[a-1][b-1] - betaU[a-1] * betaU[b-1] / alpha^2
+		end
 	end)
 
 	symmath.tostring = require 'symmath.tostring.MultiLine'
@@ -91,7 +116,6 @@ os.exit()
 
 local c = 299792458			-- m/s 
 local G = 6.67384e-11		-- m^3 / (kg s^2)
-
 
 -- spherical body, no charge, no velocity
 
@@ -288,17 +312,70 @@ print('updateAlpha is',self.updateAlpha[0])
 	self.totalGPUSize = 0
 
 	local solver = self 
+	
 	self.MetaBuffer = class()
+	
 	function self.MetaBuffer:init(args)
 		self.name = args.name
 		self.type = args.type
 		self.buf = solver:clalloc(solver.volume * ffi.sizeof(self.type), name, self.type)
 	end
+	
 	function self.MetaBuffer:toCPU()
 		local cpuMem = ffi.new(self.type..'[?]', solver.volume)
 		solver.cmds:enqueueReadBuffer{buffer=self.buf, block=true, size=ffi.sizeof(self.type) * self.volume, ptr=cpuMem}
 		return cpuMem
 	end
+
+	self.MetaKernel = class()
+	
+	function self.MetaKernel:init(args)
+		self.name = args.name
+		self.argsOut = args.argsOut
+		self.argsIn = args.argsIn
+		self.argBuffers = table()
+			:append(self.argsOut)
+			:append(self.argsIn)
+			:map(function(arg) return arg.buf end)
+		self.code = template([[
+kernel void <?=self.name?>(
+<?
+local sep = ''
+for _,arg in ipairs(self.argsOut or {}) do ?>
+	<?=sep?>global <?=arg.type?>* <?=arg.name?>
+<?
+	sep = ', '
+end
+for _,arg in ipairs(self.argsIn or {}) do ?>
+	<?=sep?>global const <?=arg.type?>* <?=arg.name?>
+<?
+	sep = ', '
+end
+?>
+) {
+	INIT_KERNEL();
+	<?=args.code?>
+}
+]], {self=self, args=args})
+	end
+	
+	function self.MetaKernel:__call(...)
+		-- if we get a call request when we have no kernel/program, make sure to get one 
+		if not self.kernel then
+			local code = solver:compileTemplates(table{
+				solver.typeCode,
+				file['efe.cl'],
+				self.code
+			}:concat'\n')
+			
+			self.program = require 'cl.program'{context=solver.ctx, devices={solver.device}, code=code}
+			self.kernel = self.program:kernel(self.name, self.argBuffers:unpack())
+		end
+	-- create code
+
+		solver:clcall(self.kernel, ...)
+	end
+
 
 	self:initBuffers()
 	self:initKernels()
@@ -340,7 +417,7 @@ function EFESolver:initBuffers()
 	self.reduceResultPtr = ffi.new('real[1]', 0)
 
 	-- used for downloading visualization data
-	self.texCLBuf = self.MetaBuffer{name='calcDisplayVarBuf', type='float'} 
+	self.texCLBuf = self.MetaBuffer{name='texCLBuf', type='float'} 
 
 	if self.useGLSharing then
 		self.texCLMem = require 'cl.imagegl'{context=self.ctx, tex=self.tex, write=true}
@@ -372,6 +449,43 @@ function EFESolver:clcall(kernel, ...)
 	self.cmds:enqueueNDRangeKernel{kernel=kernel, dim=self.gridDim, globalSize=self.size:ptr(), localSize=self.localSize:ptr()}
 end
 
+--converts solver buffers to float[]
+EFESolver.displayVars = {
+	{
+		name = 'alpha-1',
+		create = function(self)
+			return self.MetaKernel{
+				name = 'display_alpha_1',
+				argsIn = {self.gPrims},
+				argsOut = {self.texCLBuf},
+				code = [[
+	texCLBuf[index] = gPrims[index].alpha-1.;
+]],
+			}
+		end,
+	},
+	{
+		name = 'numerical gravity',
+		create = function(self)
+			return self.MetaKernel{
+				name = 'display_numerical_gravity',
+				argsIn = {self.GammaULLs},
+				argsOut = {self.texCLBuf},
+				code = [[
+	real3 x = getX(i);
+	real r = real3_len(x);
+	global const tensor_4sym4* GammaULL = GammaULLs + index;
+	texCLBuf[index] = (0.
+		+ GammaULL->s1.s00 * x.s0 / r
+		+ GammaULL->s2.s00 * x.s1 / r
+		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
+]],
+			}
+		end,
+	},
+}
+EFESolver.displayVarNames = table.map(EFESolver.displayVars, function(displayVar) return displayVar.name end)
+
 function EFESolver:initKernels()
 	-- create code
 	print'preprocessing code...'
@@ -401,12 +515,13 @@ function EFESolver:initKernels()
 	
 	self.update_gPrims = self.program:kernel('update_gPrims', self.gPrims.buf, self.dPhi_dgPrims.buf)
 
-	self.updateDisplayVarKernel = self.program:kernel('updateDisplayVar', self.texCLBuf.buf)
-	
-	-- alpha-1
-	--self.updateDisplayVarKernel:setArg(1, self.gPrims.buf)
-	-- numericalGravity
-	self.updateDisplayVarKernel:setArg(1, self.GammaULLs.buf)
+	self.displayVarPtr = ffi.new('int[1]', 0)
+	self:refreshDisplayVarKernel()
+end
+
+function EFESolver:refreshDisplayVarKernel()
+	self.updateDisplayVarKernel = self.displayVars[self.displayVarPtr[0]+1].create(self)
+	self:updateTex()
 end
 
 function EFESolver:resetState()
@@ -460,7 +575,7 @@ function EFESolver:update()
 end
 
 function EFESolver:updateTex()
-	self:clcall(self.updateDisplayVarKernel)
+	self.updateDisplayVarKernel()
 	
 	-- TODO run a reduce on the display var stuff
 	-- get the min and max
