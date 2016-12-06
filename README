@@ -13,8 +13,6 @@ How it works:
 
 3) solve the quadratic function G_ab = 8 pi T_ab, where G_ab is derived from the metric prims, and T_ab is derived from the stress-energy (and metric) prims
 
-I'm using the render.lua from my EinsteinFieldEquationSolution project to display the results.  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ...  Maybe I'll put it in a repo of its own ... 
-
 Requires:
 
 luajit ffi
