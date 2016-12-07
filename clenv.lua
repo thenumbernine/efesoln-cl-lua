@@ -123,8 +123,11 @@ function CLEnv:clalloc(size, name, ctype)
 	return self.ctx:buffer{rw=true, size=size} 
 end
 
+function CLEnv:makeProgram(args)
+	return require 'clprogram'(table(args, {env=self}))
+end
 
-function CLEnv:makeKernel(args)
+function CLEnv:kernel(args)
 	return require 'clkernel'(table(args, {env=self}))
 end
 

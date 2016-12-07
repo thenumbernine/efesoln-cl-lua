@@ -116,10 +116,7 @@ function EFESolver:init(args)
 	self.dim = 4 		-- spacetime dim
 	self.subDim = 3		-- space dim
 
-	
-print('updateAlpha was',self.config.updateAlpha)
 	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
-print('updateAlpha is',self.updateAlpha[0])
 	
 	self.body = bodies[self.config.body]
 
@@ -130,6 +127,8 @@ print('updateAlpha is',self.updateAlpha[0])
 	})
 
 	-- what do we want to converge
+	-- TODO make these checkboxes on the GUI
+	-- except that means recompiling the gradient descent kernels if they're checked
 	self.convergeAlpha = true
 	self.convergeBeta = false
 	self.convergeGamma = false	-- TODO option for converging a scalar gamma vs a matrix gamma
@@ -159,29 +158,29 @@ print('updateAlpha is',self.updateAlpha[0])
 	self.displayVars = {
 		{
 			name = 'rho (g/cm^3)',
-			argsIn = {self.TPrims},
+			argsIn = {'TPrims'},
 			body = 'texCLBuf[index] = TPrims[index].rho * c * c / G / 1000;',
 		},
 		{
 			name = 'alpha-1',
-			argsIn = {self.gPrims},
+			argsIn = {'gPrims'},
 			body = [[
 	texCLBuf[index] = gPrims[index].alpha - 1.;
 ]],
 		},
 		{
 			name = '|beta|',
-			argsIn = {self.gPrims},
+			argsIn = {'gPrims'},
 			body = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'
 		},
 		{
 			name = 'det|gamma|-1',
-			argsIn = {self.gPrims},
+			argsIn = {'gPrims'},
 			body = 'texCLBuf[index] = sym3_det(gPrims[index].gammaLL) - 1.;',
 		},
 		{
 			name = 'numerical gravity',
-			argsIn = {self.GammaULLs},
+			argsIn = {'GammaULLs'},
 			body = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
@@ -207,12 +206,12 @@ print('updateAlpha is',self.updateAlpha[0])
 		},
 		{
 			name = 'EFE_tt (g/cm^3)',
-			argsIn = {self.EFEs},
+			argsIn = {'EFEs'},
 			body = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;',
 		},
 		{
 			name = '|EFE_ti|',
-			argsIn = {self.EFEs},
+			argsIn = {'EFEs'},
 			body = [[
 	global const sym4* EFE = EFEs + index;	
 	texCLBuf[index] = sqrt(0.
@@ -223,7 +222,7 @@ print('updateAlpha is',self.updateAlpha[0])
 		},
 		{
 			name = '|EFE_ij|',
-			argsIn = {self.EFEs},
+			argsIn = {'EFEs'},
 			body = [[
 	global const sym4* EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
@@ -236,7 +235,7 @@ end ?>);
 		},
 		{
 			name = '|Einstein_ab|',
-			argsIn = {self.gLLs, self.gUUs, self.GammaULLs},
+			argsIn = {'gLLs', 'gUUs', 'GammaULLs'},
 			body = [[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(sym4_dot(EinsteinLL, EinsteinLL));
@@ -252,7 +251,7 @@ end
 function EFESolver:initBuffers()
 	self.TPrims = self:makeBuffer{name='TPrims', type='TPrim_t'}
 	self.gPrims = self:makeBuffer{name='gPrims', type='gPrim_t'} 
---	self.gPrimsCopy = self:makeBuffer{name='gPrimsCopy', type='gPrim_t'} 
+--	self.gPrimsCopy = self:makeBuffer{name='gPrimsCopy', type='gPrim_t'}
 	self.gLLs = self:makeBuffer{name='gLLs', type='sym4'}
 	self.gUUs = self:makeBuffer{name='gUUs', type='sym4'}
 	self.GammaULLs = self:makeBuffer{name='GammaULLs', type='tensor_4sym4'}
@@ -318,17 +317,22 @@ function EFESolver:initKernels()
 	
 	print'done compiling code!'
 
-	-- init
-	self.init_gPrims = self.program:kernel('init_gPrims', self.gPrims.buf)
-	self.init_TPrims = self.program:kernel('init_TPrims', self.TPrims.buf)
-	-- compute values for EFE
-	self.calc_gLLs_and_gUUs = self.program:kernel('calc_gLLs_and_gUUs', self.gLLs.buf, self.gUUs.buf, self.gPrims.buf)
-	self.calc_GammaULLs = self.program:kernel('calc_GammaULLs', self.GammaULLs.buf, self.gLLs.buf, self.gUUs.buf)
-	self.calc_EFEs = self.program:kernel('calc_EFEs', self.EFEs.buf, self.gPrims.buf, self.TPrims.buf, self.gLLs.buf, self.gUUs.buf, self.GammaULLs.buf)
+	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
+	local program = self:makeProgram{code=code} 
 
-	self.calc_dPhi_dgPrims = self.program:kernel('calc_dPhi_dgPrims', self.dPhi_dgPrims.buf, self.TPrims.buf, self.gPrims.buf, self.gLLs.buf, self.gUUs.buf, self.GammaULLs.buf, self.EFEs.buf)
+	-- init
+	self.init_gPrims = program:kernel{name='init_gPrims', argsOut={self.gPrims}}
+	self.init_TPrims = program:kernel{name='init_TPrims', argsOut={self.TPrims}}
+	-- compute values for EFE
+	self.calc_gLLs_and_gUUs = program:kernel{name='calc_gLLs_and_gUUs', argsOut={self.gLLs, self.gUUs}, argsIn={self.gPrims}}
+	self.calc_GammaULLs = program:kernel{name='calc_GammaULLs', argsOut={self.GammaULLs}, argsIn={self.gLLs, self.gUUs}}
+	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.gPrims, self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
+
+	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
 	
-	self.update_gPrims = self.program:kernel('update_gPrims', self.gPrims.buf, self.dPhi_dgPrims.buf)
+	self.update_gPrims = program:kernel{name='update_gPrims', argsOut={self.gPrims}, argsIn={self.dPhi_dgPrims}}
+
+	program:compile()
 
 	self.displayVarPtr = ffi.new('int[1]', 0)
 	self:refreshDisplayVarKernel()
@@ -336,27 +340,36 @@ end
 
 function EFESolver:refreshDisplayVarKernel()
 	local displayVar = self.displayVars[self.displayVarPtr[0]+1]
-	self.updateDisplayVarKernel = self:makeKernel(table(
+	self.updateDisplayVarKernel = self:kernel(table(
 		displayVar, {
 			name = 'display_'..tostring(displayVar):sub(10),
 			header = self:compileTemplates(table{
 				self.typeCode,
 				file['efe.cl'],
 			}:concat'\n'),
+			body = template(displayVar.body, {
+				subDim = self.subDim,
+				sym = sym,
+				solver = self,
+			}),
+			argsIn = displayVar.argsIn and table.map(displayVar.argsIn, function(arg) 
+				return self[arg]
+			end) or nil,
 			argsOut = {self.texCLBuf},
 		}
 	))
+	self.updateDisplayVarKernel:compile()
 	self:updateTex()
 end
 
 function EFESolver:resetState()
-	self:clcall(self.init_gPrims)
-	self:clcall(self.init_TPrims)
+	self.init_gPrims()
+	self.init_TPrims()
 
 	-- every time gPrims changes, update these:
-	self:clcall(self.calc_gLLs_and_gUUs)
-	self:clcall(self.calc_GammaULLs)
-	self:clcall(self.calc_EFEs)
+	self.calc_gLLs_and_gUUs()
+	self.calc_GammaULLs()
+	self.calc_EFEs()
 
 	self:updateTex()
 
@@ -376,7 +389,7 @@ function EFESolver:update()
 	I'll try for 2 and hope I have enough memory
 	--]]
 
-	self:clcall(self.calc_dPhi_dgPrims)
+	self.calc_dPhi_dgPrims()
 
 	-- TODO now that we have dPhi/dg_ab
 	-- trace along g_ab - alpha * dPhi/dg_ab
@@ -388,14 +401,14 @@ function EFESolver:update()
 	self:clcall(calc_gPrims_from_gLLs)
 	--]]
 	-- [[ or update gPrims directly from dPhi/dg_ab 
-	self.update_gPrims:setArg(2, self.updateAlpha)
-	self:clcall(self.update_gPrims)
+	self.update_gPrims.kernel:setArg(2, self.updateAlpha)
+	self.update_gPrims()
 	--]]
 
 	-- update gPrim aux values 
-	self:clcall(self.calc_gLLs_and_gUUs)
-	self:clcall(self.calc_GammaULLs)
-	self:clcall(self.calc_EFEs)
+	self.calc_gLLs_and_gUUs()
+	self.calc_GammaULLs()
+	self.calc_EFEs()
 	
 	-- and update the display buffer
 	self:updateTex()

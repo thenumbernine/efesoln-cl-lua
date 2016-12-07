@@ -178,7 +178,13 @@ function App:event(event, eventPtr)
 		elseif event.key.keysym.sym == sdl.SDLK_RSHIFT then
 			rightShiftDown = event.type == sdl.SDL_KEYDOWN
 		elseif canHandleKeyboard and event.type == sdl.SDL_KEYDOWN then
-			if event.key.keysym.sym == sdl.SDLK_SPACE then
+			if event.key.keysym.sym == sdl.SDLK_UP then
+				self.solver.displayVarPtr[0] = math.max(0, self.solver.displayVarPtr[0] - 1)
+				self.solver:refreshDisplayVarKernel()
+			elseif event.key.keysym.sym == sdl.SDLK_DOWN then
+				self.solver.displayVarPtr[0] = math.min(#self.solver.displayVars-1, self.solver.displayVarPtr[0] + 1)
+				self.solver:refreshDisplayVarKernel()
+			elseif event.key.keysym.sym == sdl.SDLK_SPACE then
 				self.updateMethod = not self.updateMethod
 			elseif event.key.keysym.sym == ('u'):byte() then
 				self.updateMethod = 'step'
