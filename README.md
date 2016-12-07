@@ -35,6 +35,4 @@ Now I'm allowing update to alpha, beta, gamma separately, and testing it with al
 What happens is alpha varies greatly around the matter boundary (like it should), but then the large alphas get larger and small gets smaller, and the coordinates grow too much.
 Maybe I should restrict alpha and det gamma to unit volumes?  Or only converge the linearized metric, leaving the background?
 
-https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/efe.html
-
-(https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
+![](https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
