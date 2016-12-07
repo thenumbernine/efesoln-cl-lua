@@ -16,6 +16,7 @@ Which means I'm skipping the C++.  Hooray!
 
 * luajit
 * malkia's ufo
+* cimgui
 * lua-ext
 * lua-vec
 * lua-cl

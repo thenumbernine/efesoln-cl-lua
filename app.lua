@@ -49,6 +49,8 @@ local showCurlTrace = ffi.new('bool[1]', false)
 
 local App = class(ImGuiApp)
 
+App.title = 'Einstein Field Equation Solver'
+
 function App:initGL()
 	App.super.initGL(self)
 
@@ -390,8 +392,21 @@ function App:updateGUI()
 	--ig.igCheckbox('show curl trace', showCurlTrace)
 
 	if ig.igCollapsingHeader'simulation' then
+		if ig.igCheckbox('converge alpha', self.solver.convergeAlpha) then
+			print('alpha', self.solver.convergeAlpha[0])
+			self.solver:refreshKernels()
+		end
+		if ig.igCheckbox('converge beta', self.solver.convergeBeta) then
+			print('beta', self.solver.convergeBeta[0])
+			self.solver:refreshKernels()
+		end
+		if ig.igCheckbox('converge gamma', self.solver.convergeGamma) then
+			print('gamma', self.solver.convergeGamma[0])
+			self.solver:refreshKernels()
+		end
+		
 		local buf = ffi.new('char[256]', ('%e'):format(self.solver.updateAlpha[0]))
-		if ig.igInputText('update alpha', buf, ffi.sizeof(buf)) then
+		if ig.igInputText('step scale', buf, ffi.sizeof(buf)) then
 			local f = tonumber(ffi.string(buf, ffi.sizeof(buf)))
 			if f then
 				self.solver.updateAlpha[0] = f

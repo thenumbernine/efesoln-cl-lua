@@ -49,8 +49,16 @@ function SphericalBody:init(args)
 	self.init = template([[
 	//spherical body:
 	
-	TPrim->rho = r < <?=self.radius?> ? <?=self.density?> : 0;
-	//TODO init this with the hydrostatic term of the schwarzschild equation of structure 
+	const real rho0 = <?=self.density?>;
+	const real radius = <?=self.radius?>;
+	const real radius3 = radius * radius * radius;
+	const real mass = <?=self.mass?>;
+	real r2 = r * r;
+	TPrim->rho = r < radius ? rho0 : 0;
+	TPrim->P = r < radius ? (rho0 * (
+		(sqrt(1. - 2. * mass * r2 / radius3) - sqrt(1. - 2. * mass / radius))
+		/ (3. * sqrt(1. - 2. * mass / radius) - sqrt(1. - 2. * mass * r2 / radius3))
+	)) : 0;
 
 ]], {self=self})
 end
@@ -95,10 +103,10 @@ local initConds = {
 				<? if i == j then ?> + 1. <? end ?>;
 		<? end ?>
 	<? end ?>
-
 ]],
 	},
 }
+
 
 
 local EFESolver = class(CLEnv)
@@ -127,19 +135,17 @@ function EFESolver:init(args)
 	})
 
 	-- what do we want to converge
-	-- TODO make these checkboxes on the GUI
-	-- except that means recompiling the gradient descent kernels if they're checked
-	self.convergeAlpha = true
-	self.convergeBeta = false
-	self.convergeGamma = false	-- TODO option for converging a scalar gamma vs a matrix gamma
+	-- upon changing these, regenerate the gradientDescent.cl kernels
+	self.convergeAlpha = ffi.new('bool[1]', true)
+	self.convergeBeta = ffi.new('bool[1]', false)
+	self.convergeGamma = ffi.new('bool[1]', false)	-- TODO option for converging a scalar gamma vs a matrix gamma
 
 	-- parameters:
 
 	self.xmin = vec3d(-1,-1,-1) * self.body.radius * self.config.bodyRadii
 	self.xmax = vec3d(1,1,1) * self.body.radius * self.config.bodyRadii
 
-	print'generating code...'
-
+	-- update this every time body changes
 	self.typeCode = template(file['efe.h'], {
 		solver = self,
 	})
@@ -147,41 +153,34 @@ function EFESolver:init(args)
 	-- luajit the types so I can see the sizeof (I hope OpenCL agrees with padding)
 
 	ffi.cdef(self.typeCode)
-	
 
-	local solver = self 
-	
-	self:initBuffers()
-	
+	-- this needs to be updated every time self.body changes
 	-- once buffers are initialized, make displayVars
 	--converts solver buffers to float[]
-	self.displayVars = {
-		{
-			name = 'rho (g/cm^3)',
-			argsIn = {'TPrims'},
-			body = 'texCLBuf[index] = TPrims[index].rho * c * c / G / 1000;',
-		},
-		{
-			name = 'alpha-1',
-			argsIn = {'gPrims'},
-			body = [[
-	texCLBuf[index] = gPrims[index].alpha - 1.;
-]],
-		},
-		{
-			name = '|beta|',
-			argsIn = {'gPrims'},
-			body = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'
-		},
-		{
-			name = 'det|gamma|-1',
-			argsIn = {'gPrims'},
-			body = 'texCLBuf[index] = sym3_det(gPrims[index].gammaLL) - 1.;',
-		},
-		{
-			name = 'numerical gravity',
-			argsIn = {'GammaULLs'},
-			body = [[
+	self.displayVars = table()
+	:append(
+		table.map({
+			{[{'TPrims'}] = table()
+				:append(self.body.useMatter and {
+					{['rho (g/cm^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G / 1000;'},
+					{['P (m)'] = 'texCLBuf[index] = TPrims[index].P;'},
+					{['eInt (m)'] = 'texCLBuf[index] = TPrims[index].eInt;'},
+				} or nil)
+				:append(self.body.useMatter and self.body.useVel and {
+					{['v (m/s)'] = 'texCLBuf[index] = TPrims[index].v * c;'},
+				} or nil)
+				:append(self.body.useEM and {
+					{['|E|'] = 'texCLBuf[index] = real3_len(TPrims[index].E);'},
+					{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
+				} or nil)
+			},
+			{[{'gPrims'}] = {
+				{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
+				{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
+				{['det|gamma|-1'] = 'texCLBuf[index] = sym3_det(gPrims[index].gammaLL) - 1.;'},
+			}},
+			{[{'GammaULLs'}] = {
+				{['numerical gravity'] = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
 	global const tensor_4sym4* GammaULL = GammaULLs + index;
@@ -189,11 +188,10 @@ function EFESolver:init(args)
 		+ GammaULL->s1.s00 * x.s0 / r
 		+ GammaULL->s2.s00 * x.s1 / r
 		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
-]],
-		},
-		{
-			name = 'analytical gravity',
-			body = [[
+]]},
+			}},	
+			{[{}] = {
+				{['analytical gravity'] = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
 	real matterRadius = min(r, (real)<?=solver.body.radius?>);
@@ -202,49 +200,45 @@ function EFESolver:init(args)
 	real dm_dr = 0;
 	texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
 		* c * c;	//+9 at earth surface, without matter derivatives
-]],
-		},
-		{
-			name = 'EFE_tt (g/cm^3)',
-			argsIn = {'EFEs'},
-			body = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;',
-		},
-		{
-			name = '|EFE_ti|',
-			argsIn = {'EFEs'},
-			body = [[
+]]},		
+			}},
+			{[{'EFEs'}] = {
+				{['EFE_tt (g/cm^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;'},
+				{['|EFE_ti|'] = [[
 	global const sym4* EFE = EFEs + index;	
 	texCLBuf[index] = sqrt(0.
 <? for i=0,subDim-1 do ?>
 		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
 <? end ?>) * c;
-]],
-		},
-		{
-			name = '|EFE_ij|',
-			argsIn = {'EFEs'},
-			body = [[
+]]},
+				{['|EFE_ij|'] = [[
 	global const sym4* EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
-<? for i=0,subDim-1 do
-	for j=0,subDim-1 do ?>
-		+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
-<?	end
-end ?>);
-]],
-		},
-		{
-			name = '|Einstein_ab|',
-			argsIn = {'gLLs', 'gUUs', 'GammaULLs'},
-			body = [[
+	<? for i=0,subDim-1 do
+	for j=0,subDim-1 do
+	?>	+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
+	<?	end
+	end ?>);
+]]},
+			}},
+			{[{'gLLs', 'gUUs', 'GammaULLs'}] = {
+				{['|Einstein_ab|'] = [[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(sym4_dot(EinsteinLL, EinsteinLL));
-]],
-		},
-	}
+]]},		
+			}},
+		}, function(kv)
+			local bufs, funcs = next(kv)
+			return table.map(funcs, function(kv)
+				local k,v = next(kv)
+				return {name=k, argsIn=bufs, body=v}
+			end)
+		end):unpack()
+	)
 	self.displayVarNames = table.map(self.displayVars, function(displayVar) return displayVar.name end)
-	
-	self:initKernels()
+
+	self:initBuffers()	
+	self:refreshKernels()
 	self:resetState()
 end
 
@@ -301,7 +295,7 @@ function EFESolver:compileTemplates(code)
 	})
 end
 
-function EFESolver:initKernels()
+function EFESolver:refreshKernels()
 	-- create code
 	print'preprocessing code...'
 
@@ -311,11 +305,6 @@ function EFESolver:initKernels()
 		file['calcVars.cl'],
 		file['gradientDescent.cl'],
 	}:concat'\n')
-	
-	print'compiling code...'
-	self.program = require 'cl.program'{context=self.ctx, devices={self.device}, code=code}
-	
-	print'done compiling code!'
 
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
 	local program = self:makeProgram{code=code} 
@@ -332,7 +321,10 @@ function EFESolver:initKernels()
 	
 	self.update_gPrims = program:kernel{name='update_gPrims', argsOut={self.gPrims}, argsIn={self.dPhi_dgPrims}}
 
+	print'compiling code...'
 	program:compile()
+	
+	print'done compiling code!'
 
 	self.displayVarPtr = ffi.new('int[1]', 0)
 	self:refreshDisplayVarKernel()

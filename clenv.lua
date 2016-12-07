@@ -1,15 +1,21 @@
+--[[
+This is going to be more like my lua-gl than my lua-cl
+Honestly lua-cl was just a port of cl.hpp -- no wrapping classes
+This is the wrapping classes for cl.hpp
+
+cl environment for execution
+handles platform, device, command queue
+glSharing? fp64?
+local sizes, global size
+and ffi typedefs to match the OpenCL types
+--]]
+
 local class = require 'ext.class'
 local table = require 'ext.table'
 local string = require 'ext.string'
 local vec3sz = require 'vec3sz'
 local ffi = require 'ffi'
 local template = require 'template'
-
--- cl environment for execution
--- handles platform, device, command queue
--- glSharing? fp64?
--- local sizes, global size
--- and ffi typedefs to match the OpenCL types
 
 local CLEnv = class()
 
