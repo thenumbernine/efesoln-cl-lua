@@ -1,17 +1,17 @@
 #!/usr/bin/env luajit
 local ffi = require 'ffi'
-require 'ext'
+local class = require 'ext.class'
+local table = require 'ext.table'
 local template = require 'template'
 local vec3d = require 'ffi.vec.vec3d'
 local gl = require 'ffi.OpenGL'
+local CLEnv = require 'clenv'
 
 -- parameters:
 
 local config = require 'config'
 
 -- also in hydro-cl
-
-local vec3sz = require 'ffi.vec.create_ffi'(3,'size_t','sz')
 
 local function clnumber(x)
 	local s = tostring(tonumber(x))
@@ -22,95 +22,10 @@ end
 
 -- end also in hydro-cl
 
-local function get64bit(list)
-	local best = list:map(function(item)
-		local exts = item:getExtensions():lower():trim()
-		return {item=item, fp64=exts:match'cl_%w+_fp64'}
-	end):sort(function(a,b)
-		return (a.fp64 and 1 or 0) > (b.fp64 and 1 or 0)
-	end)[1]
-	return best.item, best.fp64
-end
-
 -- helper for indexing symmetric matrices
 local function sym(i,j)
 	if i <= j then return i..j else return j..i end
 end
-
---[[ generate the constraint error functions
---	this is going slow - requires some symmath optimizations (described in symmath/diffgeom.lua)
-
-local function genCode()
-	local symmath = require 'symmath'
-	local Tensor = symmath.Tensor
-	local var = symmath.var
-
-	local t,x,y,z = symmath.vars('t', 'x', 'y', 'z')
-	local coords = table{t,x,y,z}
-	local spatialCoords = table{x,y,z}
-	Tensor.coords{
-		{variables=coords},
-		{variables=spatialCoords, symbols='ijklmn'}, 
-	}
-
-	local alpha = var'alpha'
-print('alpha',alpha)
-	local betaU = Tensor('^i', function(i) return var('betaU'..i) end)
-print('beta^i',betaU)
-	local gammaLL = Tensor('_ij', function(i,j) return var('gamma_'..sym(i,j)) end)
-print('gamma_ij',gammaLL)
-	local det_gammaLL = symmath.Matrix.determinant(gammaLL)
-print('gamma', det_gammaLL)
-	local gammaUU = symmath.Matrix.inverse(gammaLL)
-print('gamma^ij',gammaUU)
-os.exit()
-	
-	local betaL = (betaU'^j' * gammaLL'_ij')()
-	local betaSq = (betaU'^i' * betaL'_i')()
-
-	local gLL = Tensor('_ab', function(a,b)
-		if a==1 and b==1 then 
-			return -alpha^2 + betaSq
-		elseif a==1 then
-			return betaL[b-1]
-		elseif b==1 then
-			return betaL[a-1]
-		else
-			return gammaLL[a-1][b-1]
-		end
-	end)
-	local gUU = Tensor('^ab', function(a,b)
-		if a==1 and b==1 then
-			return -1/alpha^2
-		elseif a==1 then
-			return betaU[b-1] / alpha^2
-		elseif b==1 then
-			return betaU[a-1] / alpha^2
-		else
-			return gammaUU[a-1][b-1] - betaU[a-1] * betaU[b-1] / alpha^2
-		end
-	end)
-
-	symmath.tostring = require 'symmath.tostring.MultiLine'
-	local diffgeom = require 'symmath.diffgeom'(gLL, gUU)
-	
-	local MathJax = require 'symmath.tostring.MathJax'
-	symmath.tostring = MathJax
-	
-	local output = table()
-	diffgeom:print(function(s)
-		output:insert(tostring(s)..'<br>\n')
-	end)
-
-	file['efe_gen.html'] = 
-		MathJax.header
-		..output:concat'\n'
-		..MathJax.footer
-end
-
-genCode()
-os.exit()
---]]
 
 -- constants
 
@@ -186,76 +101,22 @@ local initConds = {
 }
 
 
-local EFESolver = class()
+local EFESolver = class(CLEnv)
 
 function EFESolver:init(args)
 	self.app = args.app
 	self.config = args.config
 	
-	self.platform = get64bit(require 'cl.platform'.getAll())
-	self.device, self.fp64 = get64bit(self.platform:getDevices{gpu=true})
+	CLEnv.init(self, {
+		-- TODO rename to 'gridSize' ?
+		size = {self.config.size, self.config.size, self.config.size},
+		gridDim = 3,
+	})
 	
-	local exts = string.split(string.trim(self.device:getExtensions()):lower(),'%s+')
-	self.useGLSharing = exts:find(nil, function(ext) 
-		return ext:match'cl_%w+_gl_sharing' 
-	end)
-self.useGLSharing = false 	-- for now
-	self.ctx = require 'cl.context'{
-		platform = self.platform, 
-		device = self.device,
-		glSharing = self.useGLSharing,
-	}
-	self.cmds = require 'cl.commandqueue'{context=self.ctx, device=self.device}
-
-	-- initialize types
-
-	self.real = self.fp64 and 'double' or 'float'
-
 	self.dim = 4 		-- spacetime dim
-	self.subDim = 3	-- space tim
-	self.gridDim = 3	-- grid dim
-	self.size = vec3sz(self.config.size, self.config.size, self.config.size)
-	self.volume = tonumber(self.size:volume())
+	self.subDim = 3		-- space dim
+
 	
-	-- https://stackoverflow.com/questions/15912668/ideal-global-local-work-group-sizes-opencl
-	-- product of all local sizes must be <= max workgroup size
-	local maxWorkGroupSize = tonumber(self.device:getInfo'CL_DEVICE_MAX_WORK_GROUP_SIZE')
-	print('maxWorkGroupSize',maxWorkGroupSize)
-
-	-- for volumes
-	local localSize1d = math.min(maxWorkGroupSize, self.volume)
-
-	-- for boundaries
-	local localSizeX = math.min(tonumber(self.size.x), 2^math.ceil(math.log(maxWorkGroupSize,2)/2))
-	local localSizeY = maxWorkGroupSize / localSizeX
-	local localSize2d = table{localSizeX, localSizeY}
-
-	--	localSize = gridDim < 3 and vec3sz(16,16,16) or vec3sz(4,4,4)
-	-- TODO better than constraining by math.min(self.size),
-	-- look at which sizes have the most room, and double them accordingly, until all of maxWorkGroupSize is taken up
-	local localSize = vec3sz(1,1,1)
-	local rest = maxWorkGroupSize
-	local localSizeX = math.min(tonumber(self.size.x), 2^math.ceil(math.log(rest,2)/self.gridDim))
-	localSize.x = localSizeX
-	if self.gridDim > 1 then
-		rest = rest / localSizeX
-		if self.gridDim == 2 then
-			localSize.y = math.min(tonumber(self.size.y), rest)
-		elseif self.gridDim == 3 then
-			local localSizeY = math.min(tonumber(self.size.y), 2^math.ceil(math.log(math.sqrt(rest),2)))
-			localSize.y = localSizeY
-			localSize.z = math.min(tonumber(self.size.z), rest / localSizeY)
-		end
-	end
-
-	print('localSize1d',localSize1d)
-	print('localSize2d',localSize2d:unpack())
-	print('localSize3d',localSize:unpack())
-	
-	self.localSize1d = localSize1d
-	self.localSize = localSize
-
-
 print('updateAlpha was',self.config.updateAlpha)
 	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
 print('updateAlpha is',self.updateAlpha[0])
@@ -267,7 +128,6 @@ print('updateAlpha is',self.updateAlpha[0])
 		subDim = self.subDim,
 		body = self.body,
 	})
-
 
 	-- what do we want to converge
 	self.convergeAlpha = true
@@ -287,95 +147,11 @@ print('updateAlpha is',self.updateAlpha[0])
 
 	-- luajit the types so I can see the sizeof (I hope OpenCL agrees with padding)
 
-	-- boilerplate
-	ffi.cdef(template([[
-	typedef union {
-		<?=real?> s[2];
-		struct { <?=real?> s0, s1; };
-		struct { <?=real?> x, y; };
-	} <?=real?>2;
-
-	//for real4 I'm using x,y,z,w to match OpenCL
-	//...though for my own use I am storing t,x,y,z
-	typedef union {
-		<?=real?> s[4];
-		struct { <?=real?> s0, s1, s2, s3; };
-		struct { <?=real?> x, y, z, w; };	
-	} <?=real?>4;
-
-
-	]], {real=self.real}))
-
 	ffi.cdef(self.typeCode)
 	
-	self.totalGPUSize = 0
 
 	local solver = self 
 	
-	self.MetaBuffer = class()
-	
-	function self.MetaBuffer:init(args)
-		self.name = args.name
-		self.type = args.type
-		self.buf = solver:clalloc(solver.volume * ffi.sizeof(self.type), name, self.type)
-	end
-	
-	function self.MetaBuffer:toCPU()
-		local cpuMem = ffi.new(self.type..'[?]', solver.volume)
-		solver.cmds:enqueueReadBuffer{buffer=self.buf, block=true, size=ffi.sizeof(self.type) * self.volume, ptr=cpuMem}
-		return cpuMem
-	end
-
-	self.MetaKernel = class()
-	
-	function self.MetaKernel:init(args)
-		self.name = args.name
-		self.argsOut = args.argsOut
-		self.argsIn = args.argsIn
-		self.argBuffers = table()
-			:append(self.argsOut)
-			:append(self.argsIn)
-			:map(function(arg) return arg.buf end)
-		self.code = template([[
-kernel void <?=self.name?>(
-<?
-local sep = ''
-for _,arg in ipairs(self.argsOut or {}) do 
-?>	<?=sep?>global <?=arg.type?>* <?=arg.name?>
-<?
-	sep = ', '
-end
-for _,arg in ipairs(self.argsIn or {}) do
-?>	<?=sep?>global const <?=arg.type?>* <?=arg.name?>
-<?
-	sep = ', '
-end
-?>
-) {
-	INIT_KERNEL();
-	<?=args.code?>
-}
-]], {self=self, args=args})
-	end
-	
-	function self.MetaKernel:__call(...)
-		-- if we get a call request when we have no kernel/program, make sure to get one 
-		if not self.kernel then
-			local code = solver:compileTemplates(table{
-				solver.typeCode,
-				file['efe.cl'],
-				self.code
-			}:concat'\n')
-			
-			self.program = require 'cl.program'{context=solver.ctx, devices={solver.device}, code=code}
-			self.kernel = self.program:kernel(self.name, self.argBuffers:unpack())
-		end
-	-- create code
-
-		solver:clcall(self.kernel, ...)
-	end
-
-
 	self:initBuffers()
 	
 	-- once buffers are initialized, make displayVars
@@ -384,29 +160,29 @@ end
 		{
 			name = 'rho (g/cm^3)',
 			argsIn = {self.TPrims},
-			code = 'texCLBuf[index] = TPrims[index].rho * c * c / G / 1000;',
+			body = 'texCLBuf[index] = TPrims[index].rho * c * c / G / 1000;',
 		},
 		{
 			name = 'alpha-1',
 			argsIn = {self.gPrims},
-			code = [[
+			body = [[
 	texCLBuf[index] = gPrims[index].alpha - 1.;
 ]],
 		},
 		{
 			name = '|beta|',
 			argsIn = {self.gPrims},
-			code = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'
+			body = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'
 		},
 		{
 			name = 'det|gamma|-1',
 			argsIn = {self.gPrims},
-			code = 'texCLBuf[index] = sym3_det(gPrims[index].gammaLL) - 1.;',
+			body = 'texCLBuf[index] = sym3_det(gPrims[index].gammaLL) - 1.;',
 		},
 		{
 			name = 'numerical gravity',
 			argsIn = {self.GammaULLs},
-			code = [[
+			body = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
 	global const tensor_4sym4* GammaULL = GammaULLs + index;
@@ -418,7 +194,7 @@ end
 		},
 		{
 			name = 'analytical gravity',
-			code = [[
+			body = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
 	real matterRadius = min(r, (real)<?=solver.body.radius?>);
@@ -432,12 +208,12 @@ end
 		{
 			name = 'EFE_tt (g/cm^3)',
 			argsIn = {self.EFEs},
-			code = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;',
+			body = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;',
 		},
 		{
 			name = '|EFE_ti|',
 			argsIn = {self.EFEs},
-			code = [[
+			body = [[
 	global const sym4* EFE = EFEs + index;	
 	texCLBuf[index] = sqrt(0.
 <? for i=0,subDim-1 do ?>
@@ -448,7 +224,7 @@ end
 		{
 			name = '|EFE_ij|',
 			argsIn = {self.EFEs},
-			code = [[
+			body = [[
 	global const sym4* EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
 <? for i=0,subDim-1 do
@@ -461,7 +237,7 @@ end ?>);
 		{
 			name = '|Einstein_ab|',
 			argsIn = {self.gLLs, self.gUUs, self.GammaULLs},
-			code = [[
+			body = [[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(sym4_dot(EinsteinLL, EinsteinLL));
 ]],
@@ -473,21 +249,15 @@ end ?>);
 	self:resetState()
 end
 
-function EFESolver:clalloc(size, name, ctype)
-	self.totalGPUSize = self.totalGPUSize + tonumber(size)
-	print((name and (name..' ') or '')..'allocating '..tonumber(size)..' bytes of type '..ctype..' with size '..ffi.sizeof(ctype)..', total '..self.totalGPUSize)
-	return self.ctx:buffer{rw=true, size=size} 
-end
-
 function EFESolver:initBuffers()
-	self.TPrims = self.MetaBuffer{name='TPrims', type='TPrim_t'}
-	self.gPrims = self.MetaBuffer{name='gPrims', type='gPrim_t'} 
---	self.gPrimsCopy = self.MetaBuffer{name='gPrimsCopy', type='gPrim_t'} 
-	self.gLLs = self.MetaBuffer{name='gLLs', type='sym4'}
-	self.gUUs = self.MetaBuffer{name='gUUs', type='sym4'}
-	self.GammaULLs = self.MetaBuffer{name='GammaULLs', type='tensor_4sym4'}
-	self.EFEs = self.MetaBuffer{name='EFEs', type='sym4'}
-	self.dPhi_dgPrims = self.MetaBuffer{name='dPhi_dgPrims', type='gPrim_t'}
+	self.TPrims = self:makeBuffer{name='TPrims', type='TPrim_t'}
+	self.gPrims = self:makeBuffer{name='gPrims', type='gPrim_t'} 
+--	self.gPrimsCopy = self:makeBuffer{name='gPrimsCopy', type='gPrim_t'} 
+	self.gLLs = self:makeBuffer{name='gLLs', type='sym4'}
+	self.gUUs = self:makeBuffer{name='gUUs', type='sym4'}
+	self.GammaULLs = self:makeBuffer{name='GammaULLs', type='tensor_4sym4'}
+	self.EFEs = self:makeBuffer{name='EFEs', type='sym4'}
+	self.dPhi_dgPrims = self:makeBuffer{name='dPhi_dgPrims', type='gPrim_t'}
 	
 	self.tex = require 'gl.tex3d'{
 		width = tonumber(self.size.x),
@@ -507,7 +277,7 @@ function EFESolver:initBuffers()
 	self.reduceResultPtr = ffi.new('real[1]', 0)
 
 	-- used for downloading visualization data
-	self.texCLBuf = self.MetaBuffer{name='texCLBuf', type='float'} 
+	self.texCLBuf = self:makeBuffer{name='texCLBuf', type='float'} 
 
 	if self.useGLSharing then
 		self.texCLMem = require 'cl.imagegl'{context=self.ctx, tex=self.tex, write=true}
@@ -530,13 +300,6 @@ function EFESolver:compileTemplates(code)
 		c = c,
 		G = G,
 	})
-end
-
-function EFESolver:clcall(kernel, ...)
-	if select('#', ...) then
-		kernel:setArgs(...)
-	end
-	self.cmds:enqueueNDRangeKernel{kernel=kernel, dim=self.gridDim, globalSize=self.size:ptr(), localSize=self.localSize:ptr()}
 end
 
 function EFESolver:initKernels()
@@ -573,9 +336,13 @@ end
 
 function EFESolver:refreshDisplayVarKernel()
 	local displayVar = self.displayVars[self.displayVarPtr[0]+1]
-	self.updateDisplayVarKernel = self.MetaKernel(table(
+	self.updateDisplayVarKernel = self:makeKernel(table(
 		displayVar, {
 			name = 'display_'..tostring(displayVar):sub(10),
+			header = self:compileTemplates(table{
+				self.typeCode,
+				file['efe.cl'],
+			}:concat'\n'),
 			argsOut = {self.texCLBuf},
 		}
 	))
