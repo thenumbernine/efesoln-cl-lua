@@ -391,42 +391,54 @@ function App:updateGUI()
 	--ig.igCheckbox('show gradient trace', showGradTrace)
 	--ig.igCheckbox('show curl trace', showCurlTrace)
 
-	if ig.igCollapsingHeader'simulation' then
-		if ig.igCheckbox('converge alpha', self.solver.convergeAlpha) then
-			print('alpha', self.solver.convergeAlpha[0])
-			self.solver:refreshKernels()
-		end
-		if ig.igCheckbox('converge beta', self.solver.convergeBeta) then
-			print('beta', self.solver.convergeBeta[0])
-			self.solver:refreshKernels()
-		end
-		if ig.igCheckbox('converge gamma', self.solver.convergeGamma) then
-			print('gamma', self.solver.convergeGamma[0])
-			self.solver:refreshKernels()
-		end
+	ig.igSeparator()
+	ig.igText'simulation:'
 		
-		local buf = ffi.new('char[256]', ('%e'):format(self.solver.updateAlpha[0]))
-		if ig.igInputText('step scale', buf, ffi.sizeof(buf)) then
-			local f = tonumber(ffi.string(buf, ffi.sizeof(buf)))
-			if f then
-				self.solver.updateAlpha[0] = f
-			end
-		end
+	if ig.igCheckbox('converge alpha', self.solver.convergeAlpha) then
+		print('alpha', self.solver.convergeAlpha[0])
+		self.solver:refreshKernels()
+	end
+	if ig.igCheckbox('converge beta', self.solver.convergeBeta) then
+		print('beta', self.solver.convergeBeta[0])
+		self.solver:refreshKernels()
+	end
+	if ig.igCheckbox('converge gamma', self.solver.convergeGamma) then
+		print('gamma', self.solver.convergeGamma[0])
+		self.solver:refreshKernels()
+	end
 
-		if ig.igButton(self.updateMethod and 'Stop' or 'Start') then
-			self.updateMethod = not self.updateMethod
+	-- InputFloat doesn't allow formats
+	-- SliderFloat allows formats but doesn't allow text-editing
+	-- hmm...
+	local buf = ffi.new('char[256]', ('%e'):format(self.solver.updateAlpha[0]))
+	if ig.igInputText('step scale', buf, ffi.sizeof(buf)) then
+		local f = tonumber(ffi.string(buf, ffi.sizeof(buf)))
+		if f then
+			self.solver.updateAlpha[0] = f
 		end
-		ig.igSameLine()
-		if ig.igButton'Step' then
-			self.updateMethod = 'step'
+	end
+
+	if ig.igButton(self.updateMethod and 'Stop' or 'Start') then
+		self.updateMethod = not self.updateMethod
+	end
+	ig.igSameLine()
+	if ig.igButton'Step' then
+		self.updateMethod = 'step'
+	end
+	
+	ig.igSeparator()
+	ig.igText'initial conditions:'
+	for i,initCond in ipairs(self.solver.initConds) do
+		if ig.igRadioButton(initCond.name, self.solver.initCondPtr, i) then
+			self.solver:refreshInitCond()
 		end
-		ig.igSameLine()
-		if ig.igButton'Reset' then
-			print'resetting...'
-			self.solver:resetState()
-			self.updateMethod = nil
-		end
-	end	
+	end
+	
+	if ig.igButton'Reset' then
+		print'resetting...'
+		self.solver:resetState()
+		self.updateMethod = nil
+	end
 end
 
 return App

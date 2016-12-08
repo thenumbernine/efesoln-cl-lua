@@ -78,18 +78,17 @@ local bodies = {
 
 -- initial conditions:
 
-local initConds = {
-	flat = {
-		code = '',
-	},
-	stellar_schwarzschild = {
-		code = [[
-	real radius = <?=body.radius?>;
-	real mass = <?=body.mass?>;
+local EFESolver = class(CLEnv)
+
+EFESolver.initConds = table{
+	{flat = ''},
+	{stellar_schwarzschild = [[
+	real radius = <?=solver.body.radius?>;
+	real mass = <?=solver.body.mass?>;
 
 	real matterRadius = (real)min(r, radius);
 	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = <?=body.density?> * volumeOfMatterRadius;	// m^3		
+	real m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3		
 
 	gPrim->alpha = r > radius 
 		? sqrt(1 - 2*mass/r)
@@ -103,13 +102,11 @@ local initConds = {
 				<? if i == j then ?> + 1. <? end ?>;
 		<? end ?>
 	<? end ?>
-]],
-	},
-}
-
-
-
-local EFESolver = class(CLEnv)
+]]},
+}:map(function(kv)
+	local k,v = next(kv)
+	return {name=k, code=v}
+end)
 
 function EFESolver:init(args)
 	self.app = args.app
@@ -128,11 +125,10 @@ function EFESolver:init(args)
 	
 	self.body = bodies[self.config.body]
 
-	self.initCond = initConds[self.config.initCond]
-	self.initCond.code = template(self.initCond.code, {
-		subDim = self.subDim,
-		body = self.body,
-	})
+	self.initCondPtr = ffi.new('int[1]', 
+		self.initConds:find(nil, function(initCond)
+			return initCond.name == self.config.initCond
+		end) or 1)
 
 	-- what do we want to converge
 	-- upon changing these, regenerate the gradientDescent.cl kernels
@@ -310,7 +306,6 @@ function EFESolver:refreshKernels()
 	local program = self:makeProgram{code=code} 
 
 	-- init
-	self.init_gPrims = program:kernel{name='init_gPrims', argsOut={self.gPrims}}
 	self.init_TPrims = program:kernel{name='init_TPrims', argsOut={self.TPrims}}
 	-- compute values for EFE
 	self.calc_gLLs_and_gUUs = program:kernel{name='calc_gLLs_and_gUUs', argsOut={self.gLLs, self.gUUs}, argsIn={self.gPrims}}
@@ -326,8 +321,35 @@ function EFESolver:refreshKernels()
 	
 	print'done compiling code!'
 
+	self:refreshInitCond()
+
 	self.displayVarPtr = ffi.new('int[1]', 0)
 	self:refreshDisplayVarKernel()
+end
+
+function EFESolver:refreshInitCond()
+	local initCond = self.initConds[self.initCondPtr[0]]
+	self.init_gPrims = self:kernel{
+		argsOut = {self.gPrims},
+		header = self:compileTemplates(table{
+			self.typeCode,
+			file['efe.cl'],
+		}:concat'\n'),
+		body = [[
+	real3 x = getX(i);
+	real r = real3_len(x);
+
+	global gPrim_t* gPrim = gPrims + index;
+
+	//init to flat by default
+	*gPrim = (gPrim_t){
+		.alpha = 1,
+		.betaU = real3_zero,
+		.gammaLL = sym3_ident,
+	};
+
+]]..self:compileTemplates(initCond.code),
+	}
 end
 
 function EFESolver:refreshDisplayVarKernel()

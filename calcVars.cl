@@ -1,25 +1,5 @@
 // init
 
-kernel void init_gPrims(
-	global gPrim_t* gPrims
-) {
-	INIT_KERNEL();
-	
-	real3 x = getX(i);
-	real r = real3_len(x);
-
-	global gPrim_t* gPrim = gPrims + index;
-
-	//init to flat by default
-	*gPrim = (gPrim_t){
-		.alpha = 1,
-		.betaU = real3_zero,
-		.gammaLL = sym3_ident,
-	};
-
-	<?=solver.initCond.code?>
-}
-
 kernel void init_TPrims(
 	global TPrim_t* TPrims
 ) {

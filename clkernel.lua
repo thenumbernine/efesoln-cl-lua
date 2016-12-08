@@ -51,8 +51,7 @@ for _,arg in ipairs(self.argsIn or {}) do
 <?
 sep = ', '
 end
-?>
-) {
+?>) {
 INIT_KERNEL();
 <?=args.body?>
 }
