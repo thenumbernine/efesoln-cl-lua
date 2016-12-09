@@ -350,6 +350,30 @@ function EFESolver:init(args)
 
 	ffi.cdef(self.typeCode)
 
+	local function makeDiv(field)
+		return template([[
+	real div = 0.;
+	<? for i=0,gridDim-1 do ?>{
+		int4 iL = i;
+		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		int indexL = indexForInt4(iL);
+		global const TPrim_t* TPrim_prev = TPrims + indexL;
+		
+		int4 iR = i;
+		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		int indexR = indexForInt4(iR);
+		global const TPrim_t* TPrim_next = TPrims + indexR;
+	
+		div += (TPrim_next-><?=field?>.s<?=i?> - TPrim_prev-><?=field?>.s<?=i?>) * .5 * inv_dx.s<?=i?>;
+	}<? end ?>
+
+	texCLBuf[index] = div;
+]], {
+	field = field,
+	gridDim = self.gridDim,
+})
+	end
+
 	-- this needs to be updated every time self.body changes
 	-- once buffers are initialized, make displayVars
 	--converts solver buffers to float[]
@@ -367,7 +391,9 @@ function EFESolver:init(args)
 				} or nil)
 				:append(self.body.useEM and {
 					{['|E|'] = 'texCLBuf[index] = real3_len(TPrims[index].E);'},
+					{['div E'] = makeDiv'E'},
 					{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
+					{['div B'] = makeDiv'B'},
 				} or nil)
 			},
 			{[{'gPrims'}] = {
@@ -386,7 +412,7 @@ function EFESolver:init(args)
 		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
 ]]},
 			}},	
-			{[{}] = {
+			{[{}] = self.body.density and {
 				{['analytical gravity'] = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
@@ -397,7 +423,7 @@ function EFESolver:init(args)
 	texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
 		* c * c;	//+9 at earth surface, without matter derivatives
 ]]},		
-			}},
+			} or {}},
 			{[{'EFEs'}] = {
 				{['EFE_tt (g/cm^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;'},
 				{['|EFE_ti|'] = [[
