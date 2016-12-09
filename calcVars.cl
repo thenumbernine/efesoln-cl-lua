@@ -4,9 +4,6 @@ kernel void init_TPrims(
 	global TPrim_t* TPrims
 ) {
 	INIT_KERNEL();
-
-	real3 x = getX(i);
-	real r = real3_len(x);
 	
 	global TPrim_t* TPrim = TPrims + index;
 	
@@ -25,7 +22,7 @@ if solver.body.useEM then ?>
 <? end ?>
 	};
 
-	<?=solver.body.init?>
+<?=solver.body.init?>
 }
 
 // compute buffers to compute EFE

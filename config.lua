@@ -3,12 +3,15 @@ return {
 	
 	updateAlpha = 1e+30,
 	
-	body = 'earth',
+	--body = 'earth',
+	--body = 'sun',
+	body = 'EM Field',
 	
 	bodyRadii = 2,
 	
 	initCond = 'flat',
-	--initCond = 'stellar_schwarzschild',
+	--initCond = 'stellar Schwarzschild',
+	--initCond = 'stellar Kerr-Newman',
 	
 	outputFilename = 'out.txt',
 }

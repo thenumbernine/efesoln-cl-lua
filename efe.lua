@@ -47,7 +47,8 @@ function SphericalBody:init(args)
 	self.useEM = false
 
 	self.init = template([[
-	//spherical body:
+	real3 x = getX(i);
+	real r = real3_len(x);
 	
 	const real rho0 = <?=self.density?>;
 	const real radius = <?=self.radius?>;
@@ -63,6 +64,57 @@ function SphericalBody:init(args)
 ]], {self=self})
 end
 
+local EMFieldBody = class()
+
+function EMFieldBody:init(args)
+	self.radius = args.radius
+	
+	self.useMatter = false
+	self.useVel = false
+	self.useEM = true
+	
+	self.init = template([[
+	const real radius = <?=self.radius?>;
+	
+	real3 x = getX(i);
+	
+	real polar_rSq = x.x*x.x + x.y*x.y;
+	real polar_r = sqrt(polar_rSq);		//r in polar coordinates	
+	real dr = polar_r - radius;			//difference from polar radius to torus big radius
+	real r = sqrt(x.z*x.z + dr*dr);		//r in torus radial coordinates
+	real theta = atan2(x.z, dr);		//angle around the small radius
+	real phi = atan2(x.x, x.y);			//angle around the big radius
+
+	//F^uv_;v = -4 pi J^u
+	// means that the divergence of the EM is the 4-current 
+	//the divergence of the exterior of the 4-potential is the 4-current
+	//so if the 4-current is a Dirac delta function along the line in space where there is current
+	// then the EM tensor is going to be an inverse falloff around it
+
+	//4-current
+	//t is current density
+	//i is charge density = current density * drift velocity
+	//stressEnergyPrims.chargeDensity
+	//stressEnergyPrims.A
+
+	/*
+	point on the surface:
+		r * cos(phi) * cos(theta)
+		r * sin(phi) * cos(theta)
+		r * sin(theta)
+	*/
+
+	TPrim->E.x = -x.y / polar_rSq;
+	TPrim->E.y = x.x / polar_rSq;
+	TPrim->E.z = 0;
+
+	TPrim->B.x = cos(theta) / r * cos(phi);
+	TPrim->B.y = cos(theta) / r * sin(phi);
+	TPrim->B.z = -sin(theta) / r;
+
+]], {self=self})
+end
+
 -- body parameters:
 
 local bodies = {
@@ -74,6 +126,9 @@ local bodies = {
 		radius = 6.960e+8,	-- m
 		mass = 1.9891e+30 * G / c / c,	-- m
 	},
+	['EM Field'] = EMFieldBody{
+		radius = 2,
+	},
 }
 
 -- initial conditions:
@@ -82,26 +137,171 @@ local EFESolver = class(CLEnv)
 
 EFESolver.initConds = table{
 	{flat = ''},
-	{stellar_schwarzschild = [[
-	real radius = <?=solver.body.radius?>;
-	real mass = <?=solver.body.mass?>;
-
+	{['stellar Schwarzschild'] = [[
+	const real radius = <?=solver.body.radius?>;
+	const real mass = <?=solver.body.mass?>;
+	const real density = <?=solver.body.density?>;
+	
 	real matterRadius = (real)min(r, radius);
 	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3		
-
+	real m = density * volumeOfMatterRadius;	// m^3		
+	
+	/*
+	g_ti = beta_i = 0
+	g_tt = -alpha^2 + beta^2 = -alpha^2 = -1 + Rs/r <=> alpha = sqrt(1 - Rs/r)
+	g_ij = gamma_ij = delta_ij + x^i x^j / r^2 2M/(r - 2M)		<- but x is upper, and you can't lower it without specifying gamma_ij
+	 ... which might be why the contravariant spatial metrics of spherical and cartesian look so similar 
+	*/
+	/*
+	I'm going by MTW box 23.2 eqn 6 d/dt (proper time) = sqrt(1 - R/r) for r > R
+		and ( 3/2 sqrt(1 - 2 M / R) - 1/2 sqrt(1 - 2 M r^2 / R^3) ) for r < R
+		for M = total mass 
+		and R = planet radius 
+	*/
 	gPrim->alpha = r > radius 
 		? sqrt(1 - 2*mass/r)
 		: (1.5 * sqrt(1 - 2*mass/radius) - .5 * sqrt(1 - 2*mass*r*r/(radius*radius*radius)));
+<?
+for i=0,subDim-1 do
+?>	gPrim->betaU.s<?=i?> = 0;
+<?	for j=i,subDim-1 do
+?>	gPrim->gammaLL.s<?=i..j?> = <?if i==j then?>1. + <?end?>x.s<?=i?>/r * x.s<?=j?>/r * 2*m/(r - 2*m);
+<?	end
+end
+?>
+	/*
+	dr^2's coefficient
+	spherical: 1/(1 - 2M/r) = 1/((r - 2M)/r) = r/(r - 2M)
+	spherical contravariant: 1 - 2M/r
+	cartesian contravariant: delta_ij - x/r y/r 2M/r
+	hmm, contravariant terms of cartesian vs spherical look more similar than covariant terms do
 
-	<? for i=0,subDim-1 do ?>
-		gPrim->betaU.s<?=i?> = 0;
-		<? for j=i,subDim-1 do ?>
-			gPrim->gammaLL.s<?=i?><?=j?> = 
-				x.s<?=i?>/r * x.s<?=j?>/r * 2*m/(r - 2*m)
-				<? if i == j then ?> + 1. <? end ?>;
-		<? end ?>
-	<? end ?>
+	in the OV metric, dr^2's coefficient is exp(2 Lambda) = 1/(1 - 2 m(r) / r) where m(r) is the enclosing mass
+	so the contravariant coefficient would be exp(-2 Lambda) = 1 - 2 m(r) / r
+	I'm going to do the lazy thing and guess this converts to delta^ij - 2 m(r) x^i x^j / r^3
+	*/
+
+#if 0	//rotating about a distance
+	/*
+	now if we are going to rotate this
+	at a distance of L and at an angular frequency of omega
+	(not considering relativistic Thomas precession just yet)
+	
+	this might be a mess, but I'm (1) calculating the change in time as if I were in a frame rotating by L exp(i omega t)
+	then (2) re-centering the frame at L exp(i omega t) ... so I can use the original coordinate system
+	*/
+	real dr_alpha = r > radius 
+		? (mass / (r * r * sqrt(1. - 2. * mass / r))) 
+		: (mass * r / (radius * radius * radius * sqrt(1. - 2. * mass * r * r / (radius * radius * radius))));
+	real dr_m = r > radius ? 0 : (4. * M_PI * r * r * density);
+	MetricPrims& dt_metricPrims = dt_metricPrimGrid(index);
+	real L = 149.6e+9;	//distance from earth to sun, in m 
+	//real omega = 0; //no rotation
+	//real omega = 2. * M_PI / (60. * 60. * 24. * 365.25) / c;	//one revolution per year in m^-1 
+	//real omega = 1;	//angular velocity of the speed of light
+	real omega = c;	//I'm trying to find a difference ...
+	real t = 0;	//where the position should be.  t=0 means the body is moved by [L, 0], and its derivatives are along [0, L omega] 
+	Vector<real,2> dt_xHat(L * omega * sin(omega * t), -L * omega * cos(omega * t));
+	dt_metricPrims.alpha = dr_alpha * (xi(0)/r * dt_xHat(0) + xi(1)/r * dt_xHat(1));
+	for (int i = 0; i < subDim; ++i) {
+		dt_metricPrims.betaU(i) = 0;
+	}
+	for (int i = 0; i < subDim; ++i) {
+		for (int j = 0; j < subDim; ++j) {
+			real sum = 0;
+			for (int k = 0; k < 2; ++k) {
+				//gamma_ij = f/g
+				//so d/dxHat^k gamma_ij = 
+				real dxHat_k_of_gamma_ij = 
+				// f' / g
+				(
+					((i==k)*xi(j) + xi(i)*(j==k)) * 2.*m + xi(i)*xi(j) * 2.*dr_m * xi(k)/r
+				) / (r * r * (r - 2 * m))
+				// - f g' / g^2
+				- (xi(i) * xi(j) * 2 * m) * ( (xi(k) - 2 * dr_m * xi(k)) * r + 2 * xi(k) * (r - 2 * m) )
+				/ (r * r * r * r * (r - 2 * m) * (r - 2 * m));
+				sum += dxHat_k_of_gamma_ij * dt_xHat(k);
+			}
+			dt_metricPrims.gammaLL(i,j) = sum;
+		}
+	}
+#endif
+
+#if 0	//work that beta
+	/*
+	so if we can get the gamma^ij beta_j,t components to equal the Gamma^t_tt components ...
+	 voila, gravity goes away.
+	I'm approximating this as beta^i_,t ... but it really is beta^j_,t gamma_ij + beta^j gamma_ij,t
+	 ... which is the same as what I've got, but I'm setting gamma_ij,t to zero
+	*/
+	//expanding ...
+	MetricPrims& dt_metricPrims = dt_metricPrimGrid(index);
+	TensorLsub betaL;
+	for (int i = 0; i < subDim; ++i) {
+		//negate all gravity by throttling the change in space/time coupling of the metric
+		real dm_dr = 0;
+		betaL(i) = -(2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * xi(i)/r;
+	}
+	TensorSUsub gammaUU = inverse(metricPrims.gammaLL);
+	for (int i = 0; i < subDim; ++i) {
+		real sum = 0;
+		for (int j = 0; j < subDim; ++j) {
+			sum += gammaUU(i,j) * betaL(j);
+		}
+		dt_metricPrims.betaU(i) = sum;
+	}
+#endif
+
+
+]]},
+	{['stellar Kerr-Newman'] = [[
+	const real radius = <?=solver.body.radius?>;
+	const real mass = <?=solver.body.mass?>;
+	
+	real angularVelocity = 2. * M_PI / (60. * 60. * 24.) / c;	//angular velocity, in m^-1
+	real inertia = 2. / 5. * mass * radius * radius;	//moment of inertia about a sphere, in m^3
+	real angularMomentum = inertia * angularVelocity;	//angular momentum in m^2
+	real a = angularMomentum / mass;	//m
+			
+	//real r is the solution of (x*x + y*y) / (r*r + a*a) + z*z / (r*r) = 1 
+	// r^4 - (x^2 + y^2 + z^2 - a^2) r^2 - a^2 z^2 = 0
+	real RSq_minus_aSq = x*x + y*y + z*z - a*a;
+	//so we have two solutions ... which do we use? 
+	//from gnuplot it looks like the two of these are the same ...
+	real r = sqrt((RSq_minus_aSq + sqrt(RSq_minus_aSq * RSq_minus_aSq + 4.*a*a*z*z)) / 2.);	//use the positive root
+
+	//should I use the Kerr-Schild 'r' coordinate?
+	//well, if 'm' is the mass enclosed within the coordinate
+	// and that determines 'a', the angular momentum per mass within the coordinate (should it?)
+	// then we would have a circular definition
+	//real R = sqrt(x*x + y*y + z*z); 
+	real matterRadius = std::min<real>(r, radius);
+	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+	real m = density * volumeOfMatterRadius;	// m^3
+
+	real Q = 0;	//charge
+	real H = (r*m - Q*Q/2.)/(r*r + a*a*z*z/(r*r));
+
+	//3.4.33 through 3.4.35 of Alcubierre "Introduction to 3+1 Numerical Relativity"
+	
+	/*TODO fix this for the metric within the star
+	 in other news, this is an unsolved problem!
+	https://arxiv.org/pdf/1503.02172.pdf section 3.11
+	https://arxiv.org/pdf/1410.2130.pdf section 4.2 last paragraph
+	*/
+	//metricPrims.alpha = 1./sqrt(1. + 2*H);
+	metricPrims.alpha = sqrt(1. - 2*H/(1+2*H) );
+	
+	real3 l = _real3( (r*x + a*y)/(r*r + a*a), (r*y - a*x)/(r*r + a*a), z/r );
+<?
+for i=0,subDim-1 do
+?>	gPrim->betaU.s<?=i?> = 2. * H * l.s<?=i?> / (1. + 2. * H);
+<?
+	for j=i,subDim-1 do
+?>	gPrims->gammaLL.s<?=i..j?> = <?if i==j then?>1. + <?end?>2. * H * l.s<?=i?> * l.s<?=j?>;
+<?	end
+end
+?>
 ]]},
 }:map(function(kv)
 	local k,v = next(kv)

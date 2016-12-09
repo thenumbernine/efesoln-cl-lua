@@ -338,15 +338,15 @@ if solver.body.useEM then
 	real sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
 	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 	
-	_8piTLL.s00 += ESq + BSq,
+	_8piTLL.s00 += ESq + BSq;
 <? 
 	for i=0,subDim-1 do 
-?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>,
+?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>;
 <? 		for j=i,subDim-1 do
 ?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL->s<?=i?><?=j?> * (ESq + BSq) <?
 			?>- 2. * (<?
 				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
-				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>),
+				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>);
 <? 		end
 	end 
 end
