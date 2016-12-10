@@ -363,10 +363,10 @@ function EFESolver:init(args)
 		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
 		global const TPrim_t* TPrim_next = TPrims + indexR;
-	
+		
 		div += (TPrim_next-><?=field?>.s<?=i?> - TPrim_prev-><?=field?>.s<?=i?>) * .5 * inv_dx.s<?=i?>;
 	}<? end ?>
-
+	
 	texCLBuf[index] = div;
 ]], {
 	field = field,
