@@ -1,11 +1,3 @@
-<? if solver.real == 'double' then ?>
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-<? end ?>
-
-typedef <?=solver.real?> real;
-typedef <?=solver.real?>2 real2;
-typedef <?=solver.real?>4 real4;
-
 typedef union {
 	real s[3];
 	struct { real s0, s1, s2; };

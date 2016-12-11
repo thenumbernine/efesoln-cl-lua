@@ -6,21 +6,10 @@ local template = require 'template'
 local vec3d = require 'ffi.vec.vec3d'
 local gl = require 'ffi.OpenGL'
 local CLEnv = require 'cl.obj.env'
-
+local clnumber = require 'cl.obj.number'
 -- parameters:
 
 local config = require 'config'
-
--- also in hydro-cl
-
-local function clnumber(x)
-	local s = tostring(tonumber(x))
-	if s:find'e' then return s end
-	if not s:find'%.' then s = s .. '.' end
-	return s
-end
-
--- end also in hydro-cl
 
 -- helper for indexing symmetric matrices
 local function sym(i,j)
@@ -315,7 +304,7 @@ function EFESolver:init(args)
 	CLEnv.init(self, {
 		-- TODO rename to 'gridSize' ?
 		size = {self.config.size, self.config.size, self.config.size},
-		gridDim = 3,
+		verbose = true,
 	})
 	
 	self.dim = 4 		-- spacetime dim
@@ -465,14 +454,14 @@ function EFESolver:init(args)
 end
 
 function EFESolver:initBuffers()
-	self.TPrims = self:makeBuffer{name='TPrims', type='TPrim_t'}
-	self.gPrims = self:makeBuffer{name='gPrims', type='gPrim_t'} 
---	self.gPrimsCopy = self:makeBuffer{name='gPrimsCopy', type='gPrim_t'}
-	self.gLLs = self:makeBuffer{name='gLLs', type='sym4'}
-	self.gUUs = self:makeBuffer{name='gUUs', type='sym4'}
-	self.GammaULLs = self:makeBuffer{name='GammaULLs', type='tensor_4sym4'}
-	self.EFEs = self:makeBuffer{name='EFEs', type='sym4'}
-	self.dPhi_dgPrims = self:makeBuffer{name='dPhi_dgPrims', type='gPrim_t'}
+	self.TPrims = self:buffer{name='TPrims', type='TPrim_t'}
+	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'} 
+--	self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
+	self.gLLs = self:buffer{name='gLLs', type='sym4'}
+	self.gUUs = self:buffer{name='gUUs', type='sym4'}
+	self.GammaULLs = self:buffer{name='GammaULLs', type='tensor_4sym4'}
+	self.EFEs = self:buffer{name='EFEs', type='sym4'}
+	self.dPhi_dgPrims = self:buffer{name='dPhi_dgPrims', type='gPrim_t'}
 	
 	self.tex = require 'gl.tex3d'{
 		width = tonumber(self.size.x),
@@ -492,7 +481,7 @@ function EFESolver:initBuffers()
 	self.reduceResultPtr = ffi.new('real[1]', 0)
 
 	-- used for downloading visualization data
-	self.texCLBuf = self:makeBuffer{name='texCLBuf', type='float'} 
+	self.texCLBuf = self:buffer{name='texCLBuf', type='float'} 
 
 	if self.useGLSharing then
 		self.texCLMem = require 'cl.imagegl'{context=self.ctx, tex=self.tex, write=true}
@@ -529,7 +518,7 @@ function EFESolver:refreshKernels()
 	}:concat'\n')
 
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
-	local program = self:makeProgram{code=code} 
+	local program = self:program{code=code} 
 
 	-- init
 	self.init_TPrims = program:kernel{name='init_TPrims', argsOut={self.TPrims}}

@@ -206,19 +206,6 @@ end
 
 constant const int dim = <?=dim?>;	
 constant const int subDim = <?=subDim?>;
-constant const int gridDim = <?=gridDim?>;
-
-constant const int4 size = (int4)(<?=clnumber(size.x)?>, <?=clnumber(size.y)?>, <?=clnumber(size.z)?>, 0);
-constant const int4 stepsize = (int4)(1, <?=size.x?>, <?=size.x * size.y?>, <?=size.x * size.y * size.z?>);
-
-#define globalInt4()	(int4)(get_global_id(0), get_global_id(1), get_global_id(2), 0)
-
-#define indexForInt4(i) (i.x + size.x * (i.y + size.y * i.z))
-
-#define INIT_KERNEL() \
-	int4 i = globalInt4(); \
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) return; \
-	int index = indexForInt4(i);
 
 constant real3 xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
 constant real3 xmax = _real3(<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>);
