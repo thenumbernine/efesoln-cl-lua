@@ -107,11 +107,11 @@ end
 -- body parameters:
 
 local bodies = {
-	earth = SphericalBody{
+	Earth = SphericalBody{
 		radius = 6.37101e+6,	-- m
 		mass = 5.9736e+24 * G / c / c,	-- m
 	},
-	sun = SphericalBody{
+	Sun = SphericalBody{
 		radius = 6.960e+8,	-- m
 		mass = 1.9891e+30 * G / c / c,	-- m
 	},
@@ -123,6 +123,8 @@ local bodies = {
 -- initial conditions:
 
 local EFESolver = class(CLEnv)
+
+EFESolver.useFourPotential = false
 
 EFESolver.initConds = table{
 	{flat = ''},
@@ -243,9 +245,11 @@ end
 
 
 ]]},
+	-- looks like an error
 	{['stellar Kerr-Newman'] = [[
 	const real radius = <?=solver.body.radius?>;
 	const real mass = <?=solver.body.mass?>;
+	const real density = <?=solver.body.density?>;
 	
 	real angularVelocity = 2. * M_PI / (60. * 60. * 24.) / c;	//angular velocity, in m^-1
 	real inertia = 2. / 5. * mass * radius * radius;	//moment of inertia about a sphere, in m^3
@@ -254,22 +258,22 @@ end
 			
 	//real r is the solution of (x*x + y*y) / (r*r + a*a) + z*z / (r*r) = 1 
 	// r^4 - (x^2 + y^2 + z^2 - a^2) r^2 - a^2 z^2 = 0
-	real RSq_minus_aSq = x*x + y*y + z*z - a*a;
+	real RSq_minus_aSq = real3_lenSq(x) - a*a;
 	//so we have two solutions ... which do we use? 
 	//from gnuplot it looks like the two of these are the same ...
-	real r = sqrt((RSq_minus_aSq + sqrt(RSq_minus_aSq * RSq_minus_aSq + 4.*a*a*z*z)) / 2.);	//use the positive root
+	r = sqrt((RSq_minus_aSq + sqrt(RSq_minus_aSq * RSq_minus_aSq + 4.*a*a*x.z*x.z)) / 2.);	//use the positive root
 
 	//should I use the Kerr-Schild 'r' coordinate?
 	//well, if 'm' is the mass enclosed within the coordinate
 	// and that determines 'a', the angular momentum per mass within the coordinate (should it?)
 	// then we would have a circular definition
-	//real R = sqrt(x*x + y*y + z*z); 
-	real matterRadius = std::min<real>(r, radius);
+	//real R = real3_len(x);
+	real matterRadius = min(r, radius);
 	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
 	real m = density * volumeOfMatterRadius;	// m^3
 
 	real Q = 0;	//charge
-	real H = (r*m - Q*Q/2.)/(r*r + a*a*z*z/(r*r));
+	real H = (r*m - Q*Q/2.)/(r*r + a*a*x.z*x.z/(r*r));
 
 	//3.4.33 through 3.4.35 of Alcubierre "Introduction to 3+1 Numerical Relativity"
 	
@@ -279,9 +283,9 @@ end
 	https://arxiv.org/pdf/1410.2130.pdf section 4.2 last paragraph
 	*/
 	//metricPrims.alpha = 1./sqrt(1. + 2*H);
-	metricPrims.alpha = sqrt(1. - 2*H/(1+2*H) );
+	gPrim->alpha = sqrt(1. - 2*H/(1+2*H) );
 	
-	real3 l = _real3( (r*x + a*y)/(r*r + a*a), (r*y - a*x)/(r*r + a*a), z/r );
+	real3 l = _real3( (r*x.x + a*x.y)/(r*r + a*a), (r*x.y - a*x.x)/(r*r + a*a), x.z/r );
 <?
 for i=0,subDim-1 do
 ?>	gPrim->betaU.s<?=i?> = 2. * H * l.s<?=i?> / (1. + 2. * H);
@@ -321,6 +325,7 @@ function EFESolver:init(args)
 
 	-- what do we want to converge
 	-- upon changing these, regenerate the gradientDescent.cl kernels
+	-- TODO just use primitives 
 	self.convergeAlpha = ffi.new('bool[1]', true)
 	self.convergeBeta = ffi.new('bool[1]', false)
 	self.convergeGamma = ffi.new('bool[1]', false)	-- TODO option for converging a scalar gamma vs a matrix gamma
@@ -415,7 +420,7 @@ function EFESolver:init(args)
 			} or {}},
 			{[{'EFEs'}] = {
 				{['EFE_tt (g/cm^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;'},
-				{['|EFE_ti|'] = [[
+				{['|EFE_ti|*c'] = [[
 	global const sym4* EFE = EFEs + index;	
 	texCLBuf[index] = sqrt(0.
 <? for i=0,subDim-1 do ?>
@@ -425,18 +430,39 @@ function EFESolver:init(args)
 				{['|EFE_ij|'] = [[
 	global const sym4* EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
-	<? for i=0,subDim-1 do
+<? for i=0,subDim-1 do
 	for j=0,subDim-1 do
 	?>	+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
-	<?	end
-	end ?>);
+<?	end
+end ?>);
 ]]},
 			}},
 			{[{'gLLs', 'gUUs', 'GammaULLs'}] = {
 				{['|Einstein_ab|'] = [[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(sym4_dot(EinsteinLL, EinsteinLL));
+]]},
+				{['Einstein_tt (g/cm^3)'] = [[
+	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G / 1000.;
+]]},
+				{['|Einstein_ti|*c'] = [[
+	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	texCLBuf[index] = sqrt(0.
+<? for i=0,subDim-1 do ?>
+		+ EinsteinLL.s0<?=i+1?> * EinsteinLL.s0<?=i+1?>
+<? end ?>) * c;
 ]]},		
+				{['|Einstein_ij| (g/cm^3)'] = [[
+	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	texCLBuf[index] = sqrt(0.
+<? for i=0,subDim-1 do
+	for j=0,subDim-1 do
+	?>	+ EinsteinLL.s<?=sym(i+1,j+1)?> * EinsteinLL.s<?=sym(i+1,j+1)?>
+<?	end
+end ?>) / (8. * M_PI) * c * c / G / 1000.;
+]]},
+		
 			}},
 		}, function(kv)
 			local bufs, funcs = next(kv)
@@ -525,6 +551,9 @@ function EFESolver:refreshKernels()
 	-- compute values for EFE
 	self.calc_gLLs_and_gUUs = program:kernel{name='calc_gLLs_and_gUUs', argsOut={self.gLLs, self.gUUs}, argsIn={self.gPrims}}
 	self.calc_GammaULLs = program:kernel{name='calc_GammaULLs', argsOut={self.GammaULLs}, argsIn={self.gLLs, self.gUUs}}
+	if self.useFourPotential then
+		self.solveAL = program:kernel{name='solveAL', argsOut={self.TPrims}}
+	end
 	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.gPrims, self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
 
 	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
@@ -595,12 +624,7 @@ function EFESolver:resetState()
 	self.init_gPrims()
 	self.init_TPrims()
 
-	-- every time gPrims changes, update these:
-	self.calc_gLLs_and_gUUs()
-	self.calc_GammaULLs()
-	self.calc_EFEs()
-
-	self:updateTex()
+	self:updateAux()
 
 	self.iteration = 0
 end
@@ -634,15 +658,28 @@ function EFESolver:update()
 	self.update_gPrims()
 	--]]
 
-	-- update gPrim aux values 
-	self.calc_gLLs_and_gUUs()
-	self.calc_GammaULLs()
-	self.calc_EFEs()
-	
-	-- and update the display buffer
-	self:updateTex()
+	self:updateAux()
 	
 	self.iteration = self.iteration + 1
+end
+
+function EFESolver:updateAux()
+	-- every time gPrims changes, update these:
+	self.calc_gLLs_and_gUUs()
+	self.calc_GammaULLs()
+
+	if self.useFourPotential then
+		-- if we're using charge and current densities then here we'll have to recalculate A_u from J_u
+		-- using Jacobi iteration
+		for i=1,20 do
+			self.solveAL()
+		end
+	end
+
+	self.calc_EFEs()
+
+	-- and update the display buffer
+	self:updateTex()
 end
 
 function EFESolver:updateTex()

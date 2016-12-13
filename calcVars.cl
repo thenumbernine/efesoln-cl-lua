@@ -23,6 +23,10 @@ if solver.body.useEM then ?>
 	};
 
 <?=solver.body.init?>
+
+<? if solver.useFourPotential then ?>
+	TPrim->AL = real4_scale(TPrim->JU, -1);
+<? end ?>
 }
 
 // compute buffers to compute EFE
@@ -117,6 +121,113 @@ kernel void calc_GammaULLs(
 		<? end ?>
 	<? end ?>
 }
+
+/*
+J_a = (rho, j_i)
+
+flat space:
+
+F_uv^,v = 4 pi J_u
+F_uv = A_v,u - A_u,v
+A_v,u^v - A_u,v^v = 4 pi J^u
+
+use the gauge A_v,^v = 0
+
+A_u,v^v = -4 pi J_u
+
+curved space:
+A_v;u^v - A_u;v^v + R^u_v A^v = 4 pi J^u
+
+use gauge A^u_;u = 0
+
+-A_u;v^v + R^u_v A^v = 4 pi J^u
+A_a;u^u - R_a^u A_u = -4 pi J_a
+
+to enforce the gauge, A^u_;u = 0
+we need to subtract the potential gradient component of A
+...or don't use the gauge :-p
+
+D A_a = -J_a
+A_a = -D^-1 J_a for some D...
+
+what is D?
+
+A_v;u^v - A_u;v^v + R_u^v A_v = 4 pi J_u
+= g^vw (A_v;uw - A_u;vw + R_uv A_w) = 4 pi J_u
+= g^vw (A_v;u;w - A_u;v;w + R_uv A_w) = 4 pi J_u
+= g^vw (
+	(A_v,u - Gamma^r_vu A_r)_;w 
+	- (A_u,v - Gamma^r_uv A_r)_;w 
+	+ R_uv A_w) = 4 pi J_u
+= g^vw (
+	(A_v,u - Gamma^r_vu A_r)_,w 
+	- (A_s,u - Gamma^r_su A_r) Gamma^s_vw
+	- (A_v,s - Gamma^r_vs A_r) Gamma^s_uw
+	- (A_u,v - Gamma^r_uv A_r)_,w 
+	+ (A_u,s - Gamma^r_us A_r) Gamma^s_vw
+	+ (A_s,v - Gamma^r_sv A_r) Gamma^s_uw
+	+ R_uv A_w) = 4 pi J_u
+= g^vw (
+	A_v,uw 
+	- A_u,vw 
+	- Gamma^s_vw A_s,u 
+	+ Gamma^s_uw A_s,v 
+	- Gamma^s_uw A_v,s
+	+ Gamma^s_vw A_u,s 
+	+ R_uv A_w) = 4 pi J_u
+
+
+or how about I enforce the A^u_;u = 0 constraint as well?
+
+so every iteration that we converge J_a for -1/(4pi) (g^vw D_v D_w delta^u_a  - R_a^u) A_u = J_a
+we also constrain A^u_;u = 0, which means divergence-free, 
+which means subtract out the potential (in curved space) 
+... how? 
+*/
+<? if solver.useFourPotential then ?>
+kernel void solveAL(
+	global TPrim_t* TPrims
+) {
+	INIT_KERNEL();
+
+	real4 skewSum = real4_zero;
+	<? for i=0,gridDim-1 do ?>{
+		int4 iL = i;
+		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
+		int indexL = indexForInt4(iL);
+		global TPrim_t* TPrim_prev = TPrims + indexL;
+
+		skewSum = real4_add(
+			skewSum,
+			real4_scale(
+				TPrim_prev->JU,
+				inv_dx.s<?=i?> * inv_dx.s<?=i?>)
+			);
+		
+		int4 iR = i;
+		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
+		int indexR = indexForInt4(iR);
+		global TPrim_t* TPrim_next = TPrims + indexR;
+
+		skewSum = real4_add(
+			skewSum,
+			real4_scale(
+				TPrim_next->JU,
+				inv_dx.s<?=i?> * inv_dx.s<?=i?>)
+			);
+	}<? end ?>
+
+	const real diag = -2. * (0
+<? for i=0,solver.dim-1 do ?>
+		+ 1. / (dx<?=i?> * dx<?=i?>)
+<? end ?>
+	);
+
+	global TPrim_t* TPrim = TPrims + index;
+
+	TPrim->AL = real4_sub(TPrim->AL, skewSum) / diag;
+}
+<? end ?>
 
 kernel void calc_EFEs(
 	global sym4* EFEs,

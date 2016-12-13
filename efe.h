@@ -48,11 +48,16 @@ typedef struct {
 <? 	end
 end ?>
 <? if solver.body.useEM then ?>
+	<? if solver.useFourPotential then ?>
+	real4 JL;	//4-current: rho, j  use to solve ...
+	real4 AL;	//4-potential: phi, A
+	<? else ?>
 //this needs to be lienar solved for ... but it's an easy problem (at least when geometry is flat)
 //	real chargeDensity;
 //	TensorUsub currentDensity;	//TODO how does this relate to matter density?
 
 //in the mean time ...
 	real3 E, B;	//upper, spatial
+	<? end ?>
 <? end ?>
 } TPrim_t;
