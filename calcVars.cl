@@ -76,7 +76,7 @@ kernel void calc_GammaULLs(
 	//here's where the finite difference stuff comes in ...
 	tensor_4sym4 dgLLL;
 	dgLLL.s0 = sym4_zero;
-	<? for i=0,gridDim-1 do ?>{
+	<? for i=0,dim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
@@ -88,8 +88,8 @@ kernel void calc_GammaULLs(
 		global const sym4* gLL_next = gLLs + indexR;
 		
 		dgLLL.s<?=i+1?> = (sym4){
-		<? for a=0,dim-1 do ?>
-			<? for b=a,dim-1 do ?>
+		<? for a=0,stDim-1 do ?>
+			<? for b=a,stDim-1 do ?>
 			.s<?=a..b?> = (gLL_next->s<?=a..b?> - gLL_prev->s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
 			<? end ?>
 		<? end ?>
@@ -97,9 +97,9 @@ kernel void calc_GammaULLs(
 	}<? end ?>
 
 	tensor_4sym4 GammaLLL = (tensor_4sym4){
-	<? for a=0,dim-1 do ?>
-		<? for b=0,dim-1 do ?>
-			<? for c=b,dim-1 do ?>
+	<? for a=0,stDim-1 do ?>
+		<? for b=0,stDim-1 do ?>
+			<? for c=b,stDim-1 do ?>
 		.s<?=a?>.s<?=b?><?=c?> = .5 * (
 			dgLLL.s<?=c?>.s<?=sym(a,b)?>
 			+ dgLLL.s<?=b?>.s<?=sym(a,c)?>
@@ -110,11 +110,11 @@ kernel void calc_GammaULLs(
 
 	global const sym4* gUU = gUUs + index;
 	global tensor_4sym4* GammaULL = GammaULLs + index;
-	<? for a=0,dim-1 do ?>
-		<? for b=0,dim-1 do ?>
-			<? for c=b,dim-1 do ?>
+	<? for a=0,stDim-1 do ?>
+		<? for b=0,stDim-1 do ?>
+			<? for c=b,stDim-1 do ?>
 	GammaULL->s<?=a?>.s<?=b?><?=c?> = 0.
-				<? for d=0,dim-1 do ?>
+				<? for d=0,stDim-1 do ?>
 		+ gUU->s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
 				<? end ?>;
 			<? end ?>
@@ -191,7 +191,7 @@ kernel void solveAL(
 	INIT_KERNEL();
 
 	real4 skewSum = real4_zero;
-	<? for i=0,gridDim-1 do ?>{
+	<? for i=0,dim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
@@ -218,7 +218,7 @@ kernel void solveAL(
 	}<? end ?>
 
 	const real diag = -2. * (0
-<? for i=0,solver.dim-1 do ?>
+<? for i=0,solver.stDim-1 do ?>
 		+ 1. / (dx<?=i?> * dx<?=i?>)
 <? end ?>
 	);

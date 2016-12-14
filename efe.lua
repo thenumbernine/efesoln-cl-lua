@@ -311,7 +311,7 @@ function EFESolver:init(args)
 		verbose = true,
 	})
 	
-	self.dim = 4 		-- spacetime dim
+	self.stDim = 4 		-- spacetime dim
 	self.subDim = 3		-- space dim
 
 	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
@@ -347,7 +347,7 @@ function EFESolver:init(args)
 	local function makeDiv(field)
 		return template([[
 	real div = 0.;
-	<? for i=0,gridDim-1 do ?>{
+	<? for i=0,dim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
@@ -364,7 +364,7 @@ function EFESolver:init(args)
 	texCLBuf[index] = div;
 ]], {
 	field = field,
-	gridDim = self.gridDim,
+	dim = self.dim,
 })
 	end
 
@@ -520,8 +520,8 @@ function EFESolver:compileTemplates(code)
 	return template(code, {
 		clnumber = clnumber,
 		sym = sym,
-		gridDim = self.gridDim,
-		dim = self.dim,
+		dim = self.dim,	-- the grid dimension
+		stDim = self.stDim,
 		subDim = self.subDim,
 		size = self.size,
 		xmin = self.xmin,
@@ -642,6 +642,7 @@ function EFESolver:update()
 	I'll try for 2 and hope I have enough memory
 	--]]
 
+	-- here's the newton update method
 	self.calc_dPhi_dgPrims()
 
 	-- TODO now that we have dPhi/dg_ab
@@ -657,6 +658,16 @@ function EFESolver:update()
 	self.update_gPrims.kernel:setArg(2, self.updateAlpha)
 	self.update_gPrims()
 	--]]
+
+	--[[
+	then there's the krylov solver treat-it-as-a-linear-system method
+	G_ab(gPrims) = 8 pi T_ab(also gPrims, but let's pretend not)
+	A x = y
+	solve using Jacobi method ... means isolating the diagonal terms
+	solve using conjugate gradient / residual / bicgstab / gmres ...
+	how about conj grad? ... in OpenCL ... 
+	--]]
+
 
 	self:updateAux()
 	

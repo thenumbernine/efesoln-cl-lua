@@ -20,15 +20,15 @@ kernel void calc_dPhi_dgPrims(
 	calc_dGammaLULL(&dGammaLULL, GammaULLs);
 
 	tensor_44sym4 RiemannULLL = (tensor_44sym4){
-<? for a=0,dim-1 do
+<? for a=0,stDim-1 do
 ?>		.s<?=a?> = (tensor_4sym4){
-<? 	for b=0,dim-1 do
+<? 	for b=0,stDim-1 do
 ?>			.s<?=b?> = (sym4){
-<? 		for c=0,dim-1 do 
-			for d=c,dim-1 do 
+<? 		for c=0,stDim-1 do 
+			for d=c,stDim-1 do 
 ?>				.s<?=c..d?> = dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
 					- dGammaLULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?><?
-				for e=0,dim-1 do ?>
+				for e=0,stDim-1 do ?>
 					+ GammaULL->s<?=a?>.s<?=sym(e,c)?> * GammaULL->s<?=e?>.s<?=sym(b,d)?>
 					- GammaULL->s<?=a?>.s<?=sym(e,d)?> * GammaULL->s<?=e?>.s<?=sym(b,c)?><? 
 				end ?>,
@@ -41,10 +41,10 @@ kernel void calc_dPhi_dgPrims(
 ?>	};
 
 	sym4 RicciLL = (sym4){
-<? for a=0,dim-1 do 
-	for b=a,dim-1 do
+<? for a=0,stDim-1 do 
+	for b=a,stDim-1 do
 ?>		.s<?=a..b?> = 0. <?
-		for c=0,dim-1 do 
+		for c=0,stDim-1 do 
 ?> + RiemannULLL.s<?=c?>.s<?=a?>.s<?=sym(c,b)?><? 
 		end ?>,
 <? 	end
@@ -52,12 +52,12 @@ end
 ?>	};
 
 	real RicciUL[4][4] = {
-<? for a=0,dim-1 do 
+<? for a=0,stDim-1 do 
 ?>		{
 <?
-	for b=0,dim-1 do 
+	for b=0,stDim-1 do 
 ?>			0.<?
-		for c=0,dim-1 do 
+		for c=0,stDim-1 do 
 ?> + gUU->s<?=sym(a,c)?> * RicciLL.s<?=sym(c,b)?><?
 		end ?>,
 <?
@@ -67,10 +67,10 @@ end
 ?>	};
 
 	sym4 RicciUU = (sym4){
-<? for a=0,dim-1 do
-	for b=a,dim-1 do 
+<? for a=0,stDim-1 do
+	for b=a,stDim-1 do 
 ?>		.s<?=a..b?> = 0.<?
-		for c=0,dim-1 do 
+		for c=0,stDim-1 do 
 		?> + RicciUL[<?=a?>][<?=c?>] * gUU->s<?=sym(c,b)?><?
 	end ?>,
 <?	end
@@ -78,18 +78,18 @@ end
 ?>	};
 
 	real Gaussian = 0.<? 
-for a=0,dim-1 do 
+for a=0,stDim-1 do 
 ?> + RicciUL[<?=a?>][<?=a?>]<?
 end ?>;
 
 	real GammaUUL[4][4][4] = {
-<? for a=0,dim-1 do 
+<? for a=0,stDim-1 do 
 ?>		{
-<?	for b=0,dim-1 do 
+<?	for b=0,stDim-1 do 
 ?>			{
-<? 		for c=0,dim-1 do 
+<? 		for c=0,stDim-1 do 
 ?>				0.<? 
-			for d=0,dim-1 do 
+			for d=0,stDim-1 do 
 ?> + GammaULL->s<?=a?>.s<?=sym(d,c)?> * gUU->s<?=sym(d,b)?><?
 			end ?>,
 <? 		end 
@@ -101,13 +101,13 @@ end ?>;
 
 	//dR_ab/dg_pq
 	tensor_sym4sym4 dRicciLL_dgLL = (tensor_sym4sym4){
-<? for e=0,dim-1 do 
-	for f=e,dim-1 do
+<? for e=0,stDim-1 do 
+	for f=e,stDim-1 do
 ?>		.s<?=e..f?> = (sym4){
-<? 		for a=0,dim-1 do
-			for b=a,dim-1 do
+<? 		for a=0,stDim-1 do
+			for b=a,stDim-1 do
 ?>			.s<?=a..b?> = 0.<?
-				for c=0,dim-1 do ?> 
+				for c=0,stDim-1 do ?> 
 				+ GammaUUL[<?=e?>][<?=c?>][<?=c?>] * GammaULL->s<?=f?>.s<?=sym(b,a)?>
 				- GammaUUL[<?=e?>][<?=c?>][<?=b?>] * GammaULL->s<?=f?>.s<?=sym(c,a)?>
 				- gUU->s<?=sym(c,e)?> * RiemannULLL.s<?=f?>.s<?=a?>.s<?=sym(c,b)?><? 
@@ -121,8 +121,8 @@ end
 
 	//g^cd dR_cd/dg_ef
 	sym4 gUU_dRicciLL_dgLL = (sym4){
-<? for e=0,dim-1 do 
-	for f=e,dim-1 do 
+<? for e=0,stDim-1 do 
+	for f=e,stDim-1 do 
 ?>		.s<?=e..f?> = sym4_dot(*gUU, dRicciLL_dgLL.s<?=e..f?>),
 <?	end
 end ?>
@@ -130,11 +130,11 @@ end ?>
 
 	//dG_ab/dg_pq = tensor_sym4sym4.s[pq].s[ab]
 	tensor_sym4sym4 dEinsteinLL_dgLL = (tensor_sym4sym4){
-<? for e=0,dim-1 do
-	for f=e,dim-1 do 
+<? for e=0,stDim-1 do
+	for f=e,stDim-1 do 
 ?>		.s<?=e..f?> = (sym4){
-<? 		for a=0,dim-1 do
-			for b=a,dim-1 do 
+<? 		for a=0,stDim-1 do
+			for b=a,stDim-1 do 
 ?>			.s<?=a..b?> = dRicciLL_dgLL.s<?=e..f?>.s<?=a..b?><?
 				?> - .5 * (<?
 				if e==a and f==b then ?>Gaussian<? else ?>0.<? end 
@@ -152,8 +152,8 @@ end ?>
 	global const TPrim_t* TPrim = TPrims + index;
 
 	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
-<? for a=0,dim-1 do
-	for b=a,dim-1 do
+<? for a=0,stDim-1 do
+	for b=a,stDim-1 do
 ?>		.s<?=a..b?> = sym4_zero,
 <?	end
 end 
@@ -173,8 +173,8 @@ if solver.body.useEM then ?>
 	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 
 <?
-	for e=0,dim-1 do
-		for f=e,dim-1 do
+	for e=0,stDim-1 do
+		for f=e,stDim-1 do
 ?>	d_8piTLL_dgLL.s<?=e..f?>.s00 += <?
 			if e==0 or f==0 then 
 				?>0<? 
@@ -224,10 +224,10 @@ if solver.body.useMatter then
 	<? 
 	end
 	
-	for e=0,dim-1 do
-		for f=e,dim-1 do
-			for a=0,dim-1 do
-				for b=a,dim-1 do
+	for e=0,stDim-1 do
+		for f=e,stDim-1 do
+			for a=0,stDim-1 do
+				for b=a,stDim-1 do
 ?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=a..b?> += (0. <? 
 					if e==a then ?>+ uL.s<?=b?><? end 
 					if e==b then ?>+ uL.s<?=a?><? end 
@@ -242,8 +242,8 @@ end
 
 	global const sym4* EFE = EFEs + index;	// G_ab - 8 pi T_ab
 	sym4 dPhi_dgLL;
-<? for p=0,dim-1 do
-	for q=p,dim-1 do 
+<? for p=0,stDim-1 do
+	for q=p,stDim-1 do 
 ?>	dPhi_dgLL.s<?=p..q?> = sym4_dot(<?
 		?>*EFE, <?
 		?>sym4_sub(<?

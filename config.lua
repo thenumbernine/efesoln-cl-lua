@@ -9,9 +9,9 @@ return {
 	
 	bodyRadii = 2,
 	
-	--initCond = 'flat',
+	initCond = 'flat',
 	--initCond = 'stellar Schwarzschild',
-	initCond = 'stellar Kerr-Newman',
+	--initCond = 'stellar Kerr-Newman',
 	
 	outputFilename = 'out.txt',
 }

@@ -73,16 +73,16 @@ static inline real3 sym3_real3_mul(sym3 m, real3 v) {
 }
 
 constant sym4 sym4_zero = (sym4){<?
-for a=0,dim-1 do
-	for b=a,dim-1 do 
+for a=0,stDim-1 do
+	for b=a,stDim-1 do 
 ?>.s<?=a..b?> = 0.,<?
 	end
 end ?>};
 
 static inline real sym4_dot(sym4 a, sym4 b) {
 	return 0.<?
-for a=0,dim-1 do
-	for b=0,dim-1 do 
+for a=0,stDim-1 do
+	for b=0,stDim-1 do 
 ?> + a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?><?
 	end 
 end ?>;
@@ -90,8 +90,8 @@ end ?>;
 
 static inline sym4 sym4_outer(real4 v) {
 	return (sym4){
-<? for a=0,dim-1 do
-	for b=a,dim-1 do
+<? for a=0,stDim-1 do
+	for b=a,stDim-1 do
 ?>		.s<?=a..b?> = v.s<?=a?> * v.s<?=b?>,
 <? 	end
 end
@@ -204,7 +204,7 @@ end
 ?>	};
 }
 
-constant const int dim = <?=dim?>;	
+constant const int stDim = <?=stDim?>;	
 constant const int subDim = <?=subDim?>;
 
 constant real3 xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
@@ -231,7 +231,7 @@ void calc_dGammaLULL(
 ) {
 	INIT_KERNEL();
 	dGammaLULL->s0 = tensor_4sym4_zero;
-	<? for i=0,gridDim-1 do ?>{
+	<? for i=0,dim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
@@ -267,26 +267,26 @@ sym4 calc_EinsteinLL(
 	global const tensor_4sym4* GammaULL = GammaULLs + index;
 	real4 Gamma12L = (real4){
 <? 
-for a=0,dim-1 do 
+for a=0,stDim-1 do 
 ?>		0. <? 
-	for b=0,dim-1 do 
+	for b=0,stDim-1 do 
 ?> + GammaULL->s<?=b?>.s<?=sym(b,a)?><? 
 	end
-	if a < dim-1 then ?>,
+	if a < stDim-1 then ?>,
 <? 	end
 end ?>
 };
 
 	sym4 RicciLL = {
 <? 
-for a=0,dim-1 do
-	for b=a,dim-1 do
+for a=0,stDim-1 do
+	for b=a,stDim-1 do
 ?>		.s<?=a?><?=b?> = 0.<?
-		for c=0,dim-1 do ?>
+		for c=0,stDim-1 do ?>
 			+ dGammaLULL.s<?=c?>.s<?=c?>.s<?=a..b?> 
 			- dGammaLULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?> 
 			+ Gamma12L.s<?=c?> * GammaULL->s<?=c?>.s<?=a..b?><?
-			for d=0,dim-1 do ?>
+			for d=0,stDim-1 do ?>
 			- GammaULL->s<?=c?>.s<?=sym(d,b)?> * GammaULL->s<?=d?>.s<?=sym(c,a)?><?
 			end
 		end 
