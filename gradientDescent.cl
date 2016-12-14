@@ -161,11 +161,11 @@ end
 
 <?
 if solver.body.useEM then ?>	
-	real4 EU = (real4)(0 <? for i=0,subDim-1 do ?>, TPrim->E.s<?=i?> <? end ?>); 
+	real4 EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->E.s<?=i?> <? end ?>); 
 	real4 EL = sym4_real4_mul(*gLL, EU);
 	real ESq = dot(EL, EU);
 	
-	real4 BU = (real4)(0 <? for i=0,subDim-1 do ?>, TPrim->B.s<?=i?> <? end ?>); 
+	real4 BU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->B.s<?=i?> <? end ?>); 
 	real4 BL = sym4_real4_mul(*gLL, BU);
 	real BSq = dot(BL, BU);
 
@@ -182,9 +182,9 @@ if solver.body.useEM then ?>
 				?>TPrim->E.s<?=e-1?> * TPrim->E.s<?=f-1?> + TPrim->B.s<?=e-1?> * TPrim->B.s<?=f-1?><? 
 			end
 			?>;
-<? 			for i=0,subDim-1 do 
+<? 			for i=0,sDim-1 do 
 ?>	d_8piTLL_dgLL.s<?=e..f?>.s0<?=i+1?> = -SL.s<?=i?> * gUU->s<?=e..f?>;
-<? 				for j=i,subDim-1 do 
+<? 				for j=i,sDim-1 do 
 ?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=i+1?><?=j+1?> = 0.<? 
 					if e==i+1 and f==j+1 then ?> + ESq + BSq <? end 
 					?> + gLL->s<?=i..j?> * (<?
@@ -267,16 +267,16 @@ if solver.convergeAlpha[0] then
 <?
 end
 if solver.convergeBeta[0] then
-	for m=0,subDim-1 do
+	for m=0,sDim-1 do
 ?>	dPhi_dgPrim->betaU.s<?=m?> = 2. * (dPhi_dgLL.s00 * betaL.s<?=m?>
-<?		for n=0,subDim-1 do ?>
+<?		for n=0,sDim-1 do ?>
 		+ dPhi_dgLL.s0<?=n+1?> * gammaLL.s<?=sym(n,m)?>
 <? 		end ?>);
 <?	end
 end
 if solver.convergeGamma[0] then
-	for m=0,subDim-1 do
-		for n=m,subDim-1 do
+	for m=0,sDim-1 do
+		for n=m,sDim-1 do
 ?>	dPhi_dgPrim->gammaLL.s<?=m..n?> = 
 		betaU.s<?=m?> * (dPhi_dgLL.s00 * betaU.s<?=n?>
 		+ 2. * dPhi_dgLL.s0<?=n+1?>)
@@ -301,13 +301,13 @@ if solver.convergeAlpha[0] then
 <?
 end
 if solver.convergeBeta[0] then
-	for m=0,subDim-1 do
+	for m=0,sDim-1 do
 ?>	gPrim->betaU.s<?=m?> -= (real)updateAlpha * dPhi_dgPrim->betaU.s<?=m?>;
 <? 	end 
 end
 if solver.convergeGamma[0] then
-	for m=0,subDim-1 do
-		for n=m,subDim-1 do
+	for m=0,sDim-1 do
+		for n=m,sDim-1 do
 ?>	gPrim->gammaLL.s<?=m..n?> -= (real)updateAlpha * dPhi_dgPrim->gammaLL.s<?=m..n?>;
 <?		end
 	end

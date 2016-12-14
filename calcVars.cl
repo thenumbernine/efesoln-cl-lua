@@ -46,9 +46,9 @@ kernel void calc_gLLs_and_gUUs(
 
 	global sym4* gLL = gLLs + index;
 	gLL->s00 = -alphaSq + betaSq;
-	<? for i=0,subDim-1 do ?>
+	<? for i=0,sDim-1 do ?>
 	gLL->s0<?=i+1?> = betaL.s<?=i?>;
-		<? for j=i,subDim-1 do ?>
+		<? for j=i,sDim-1 do ?>
 	gLL->s<?=i+1?><?=j+1?> = gPrim->gammaLL.s<?=i?><?=j?>;
 		<? end ?>
 	<? end ?>
@@ -58,9 +58,9 @@ kernel void calc_gLLs_and_gUUs(
 
 	global sym4* gUU = gUUs + index;
 	gUU->s00 = -1./alphaSq;
-	<? for i=0,subDim-1 do ?>
+	<? for i=0,sDim-1 do ?>
 	gUU->s0<?=i+1?> = gPrim->betaU.s<?=i?> / alphaSq;
-		<? for j=i,subDim-1 do ?>
+		<? for j=i,sDim-1 do ?>
 	gUU->s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - gPrim->betaU.s<?=i?> * gPrim->betaU.s<?=j?> / alphaSq;
 		<? end ?>
 	<? end ?>

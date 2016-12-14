@@ -153,9 +153,9 @@ EFESolver.initConds = table{
 		? sqrt(1 - 2*mass/r)
 		: (1.5 * sqrt(1 - 2*mass/radius) - .5 * sqrt(1 - 2*mass*r*r/(radius*radius*radius)));
 <?
-for i=0,subDim-1 do
+for i=0,sDim-1 do
 ?>	gPrim->betaU.s<?=i?> = 0;
-<?	for j=i,subDim-1 do
+<?	for j=i,sDim-1 do
 ?>	gPrim->gammaLL.s<?=i..j?> = <?if i==j then?>1. + <?end?>x.s<?=i?>/r * x.s<?=j?>/r * 2*m/(r - 2*m);
 <?	end
 end
@@ -194,11 +194,11 @@ end
 	real t = 0;	//where the position should be.  t=0 means the body is moved by [L, 0], and its derivatives are along [0, L omega] 
 	Vector<real,2> dt_xHat(L * omega * sin(omega * t), -L * omega * cos(omega * t));
 	dt_metricPrims.alpha = dr_alpha * (xi(0)/r * dt_xHat(0) + xi(1)/r * dt_xHat(1));
-	for (int i = 0; i < subDim; ++i) {
+	for (int i = 0; i < sDim; ++i) {
 		dt_metricPrims.betaU(i) = 0;
 	}
-	for (int i = 0; i < subDim; ++i) {
-		for (int j = 0; j < subDim; ++j) {
+	for (int i = 0; i < sDim; ++i) {
+		for (int j = 0; j < sDim; ++j) {
 			real sum = 0;
 			for (int k = 0; k < 2; ++k) {
 				//gamma_ij = f/g
@@ -228,15 +228,15 @@ end
 	//expanding ...
 	MetricPrims& dt_metricPrims = dt_metricPrimGrid(index);
 	TensorLsub betaL;
-	for (int i = 0; i < subDim; ++i) {
+	for (int i = 0; i < sDim; ++i) {
 		//negate all gravity by throttling the change in space/time coupling of the metric
 		real dm_dr = 0;
 		betaL(i) = -(2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * xi(i)/r;
 	}
 	TensorSUsub gammaUU = inverse(metricPrims.gammaLL);
-	for (int i = 0; i < subDim; ++i) {
+	for (int i = 0; i < sDim; ++i) {
 		real sum = 0;
-		for (int j = 0; j < subDim; ++j) {
+		for (int j = 0; j < sDim; ++j) {
 			sum += gammaUU(i,j) * betaL(j);
 		}
 		dt_metricPrims.betaU(i) = sum;
@@ -287,10 +287,10 @@ end
 	
 	real3 l = _real3( (r*x.x + a*x.y)/(r*r + a*a), (r*x.y - a*x.x)/(r*r + a*a), x.z/r );
 <?
-for i=0,subDim-1 do
+for i=0,sDim-1 do
 ?>	gPrim->betaU.s<?=i?> = 2. * H * l.s<?=i?> / (1. + 2. * H);
 <?
-	for j=i,subDim-1 do
+	for j=i,sDim-1 do
 ?>	gPrims->gammaLL.s<?=i..j?> = <?if i==j then?>1. + <?end?>2. * H * l.s<?=i?> * l.s<?=j?>;
 <?	end
 end
@@ -312,7 +312,7 @@ function EFESolver:init(args)
 	})
 	
 	self.stDim = 4 		-- spacetime dim
-	self.subDim = 3		-- space dim
+	self.sDim = 3		-- space dim
 
 	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
 	
@@ -423,15 +423,15 @@ function EFESolver:init(args)
 				{['|EFE_ti|*c'] = [[
 	global const sym4* EFE = EFEs + index;	
 	texCLBuf[index] = sqrt(0.
-<? for i=0,subDim-1 do ?>
+<? for i=0,sDim-1 do ?>
 		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
 <? end ?>) * c;
 ]]},
 				{['|EFE_ij|'] = [[
 	global const sym4* EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
-<? for i=0,subDim-1 do
-	for j=0,subDim-1 do
+<? for i=0,sDim-1 do
+	for j=0,sDim-1 do
 	?>	+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
 <?	end
 end ?>);
@@ -449,15 +449,15 @@ end ?>);
 				{['|Einstein_ti|*c'] = [[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(0.
-<? for i=0,subDim-1 do ?>
+<? for i=0,sDim-1 do ?>
 		+ EinsteinLL.s0<?=i+1?> * EinsteinLL.s0<?=i+1?>
 <? end ?>) * c;
 ]]},		
 				{['|Einstein_ij| (g/cm^3)'] = [[
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(0.
-<? for i=0,subDim-1 do
-	for j=0,subDim-1 do
+<? for i=0,sDim-1 do
+	for j=0,sDim-1 do
 	?>	+ EinsteinLL.s<?=sym(i+1,j+1)?> * EinsteinLL.s<?=sym(i+1,j+1)?>
 <?	end
 end ?>) / (8. * M_PI) * c * c / G / 1000.;
@@ -522,7 +522,7 @@ function EFESolver:compileTemplates(code)
 		sym = sym,
 		dim = self.dim,	-- the grid dimension
 		stDim = self.stDim,
-		subDim = self.subDim,
+		sDim = self.sDim,
 		size = self.size,
 		xmin = self.xmin,
 		xmax = self.xmax,
@@ -606,7 +606,7 @@ function EFESolver:refreshDisplayVarKernel()
 				file['efe.cl'],
 			}:concat'\n'),
 			body = template(displayVar.body, {
-				subDim = self.subDim,
+				sDim = self.sDim,
 				sym = sym,
 				solver = self,
 			}),

@@ -205,7 +205,7 @@ end
 }
 
 constant const int stDim = <?=stDim?>;	
-constant const int subDim = <?=subDim?>;
+constant const int sDim = <?=sDim?>;
 
 constant real3 xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
 constant real3 xmax = _real3(<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>);
@@ -327,9 +327,9 @@ if solver.body.useEM then
 	
 	_8piTLL.s00 += ESq + BSq;
 <? 
-	for i=0,subDim-1 do 
+	for i=0,sDim-1 do 
 ?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>;
-<? 		for j=i,subDim-1 do
+<? 		for j=i,sDim-1 do
 ?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL->s<?=i?><?=j?> * (ESq + BSq) <?
 			?>- 2. * (<?
 				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
