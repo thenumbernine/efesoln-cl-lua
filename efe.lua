@@ -490,9 +490,9 @@ function EFESolver:initBuffers()
 	self.dPhi_dgPrims = self:buffer{name='dPhi_dgPrims', type='gPrim_t'}
 	
 	self.tex = require 'gl.tex3d'{
-		width = tonumber(self.size.x),
-		height = tonumber(self.size.y),
-		depth = tonumber(self.size.z),
+		width = tonumber(self.domain.size.x),
+		height = tonumber(self.domain.size.y),
+		depth = tonumber(self.domain.size.z),
 		internalFormat = gl.GL_RGBA32F,
 		format = gl.GL_RGBA,
 		type = gl.GL_FLOAT,
@@ -502,8 +502,8 @@ function EFESolver:initBuffers()
 	}
 
 	-- TODO finishme
-	self:clalloc(self.volume * ffi.sizeof'real', 'reduceBuf', 'real')
-	self:clalloc(self.volume * ffi.sizeof'real' / self.localSize1d, 'reduceSwapBuf', 'real')
+	self:clalloc(self.domain.volume * ffi.sizeof'real', 'reduceBuf', 'real')
+	self:clalloc(self.domain.volume * ffi.sizeof'real' / self.domain.localSize1d.x, 'reduceSwapBuf', 'real')
 	self.reduceResultPtr = ffi.new('real[1]', 0)
 
 	-- used for downloading visualization data
@@ -512,7 +512,7 @@ function EFESolver:initBuffers()
 	if self.useGLSharing then
 		self.texCLMem = require 'cl.imagegl'{context=self.ctx, tex=self.tex, write=true}
 	else
-		self.texCPUBuf = ffi.new('float[?]', self.volume)
+		self.texCPUBuf = ffi.new('float[?]', self.domain.volume)
 	end
 end
 
@@ -520,10 +520,10 @@ function EFESolver:compileTemplates(code)
 	return template(code, {
 		clnumber = clnumber,
 		sym = sym,
-		dim = self.dim,	-- the grid dimension
+		dim = self.domain.dim,
+		size = self.domain.size,
 		stDim = self.stDim,
 		sDim = self.sDim,
-		size = self.size,
 		xmin = self.xmin,
 		xmax = self.xmax,
 		solver = self,
@@ -648,7 +648,7 @@ function EFESolver:update()
 	-- TODO now that we have dPhi/dg_ab
 	-- trace along g_ab - alpha * dPhi/dg_ab
 	-- to find what alpha gives us minimal error
---	self.cmds:enqueueCopyBuffer{src=self.gPrims.buf, dst=self.gPrimsCopy.buf, size=ffi.sizeof'gPrim_t' * self.volume}
+--	self.cmds:enqueueCopyBuffer{src=self.gPrims.buf, dst=self.gPrimsCopy.buf, size=ffi.sizeof'gPrim_t' * self.domain.volume}
 
 	--[[ update g_ab and refresh gPrims from this
 	self:clcall(update_gLLs)
@@ -704,17 +704,17 @@ function EFESolver:updateTex()
 -- because they exist in 1e-40 and what not
 
 	-- now copy from cl buffer to gl buffer
-	self.cmds:enqueueReadBuffer{buffer=self.texCLBuf.buf, block=true, size=ffi.sizeof'float' * self.volume, ptr=self.texCPUBuf}
+	self.cmds:enqueueReadBuffer{buffer=self.texCLBuf.buf, block=true, size=ffi.sizeof'float' * self.domain.volume, ptr=self.texCPUBuf}
 
 	local min, max = self.texCPUBuf[0], self.texCPUBuf[0]
-	for i=1,self.volume-1 do
+	for i=1,self.domain.volume-1 do
 		local x = self.texCPUBuf[i]
 		min = math.min(min, x) 
 		max = math.max(max, x) 
 	end
 	self.app.minValue = min
 	self.app.maxValue = max
-	for i=1,self.volume-1 do
+	for i=1,self.domain.volume-1 do
 		self.texCPUBuf[i] = (self.texCPUBuf[i] - min) / (max - min)
 	end
 
