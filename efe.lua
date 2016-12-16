@@ -490,6 +490,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	
 	local CLConjResSolver = class(require 'LinearSolvers.cl.conjres')
 
+	-- cache buffers
 	function CLConjResSolver:newBuffer(name)
 		self.conjResBuffers = self.conjResBuffers or {}
 		if not self.conjResBuffers[name] then

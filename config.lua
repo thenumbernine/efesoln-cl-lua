@@ -16,6 +16,6 @@ return {
 	
 	outputFilename = 'out.txt',
 
-	solver = 'Newton',
-	--solver = 'ConjRes',
+	--solver = 'Newton',
+	solver = 'ConjRes',
 }

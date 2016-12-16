@@ -36,7 +36,12 @@ Now I'm allowing update to alpha, beta, gamma separately, and testing it with al
 What happens is alpha varies greatly around the matter boundary (like it should), but then the large alphas get larger and small gets smaller, and the coordinates grow too much.
 Maybe I should restrict alpha and det gamma to unit volumes?  Or only converge the linearized metric, leaving the background?
 
-Now I've messed with manually adjusting the line search.  Starting at flat space, I can get it converging down towards 1e-6, but this is still nothing compared to initialization in stellar Schwarzschild, which is 1e-40.
-However, starting at stellar Schwarzschild and converging to a minimia causes it to soon diverge.
+Now, using Newton method, I've messed with manually adjusting the line search.  Starting at flat space, wiggling the gradient back and forth, I can get it converging down towards 1e-6, but this is still nothing compared to initialization in stellar Schwarzschild, which is 1e-40.
+It appears to be converging to a local minima formed by the discretized spatial differentiation calculations used by the curvature.
+This is probably due to the fact that my Newton descent is currently implemented based on the continuous variables and not the discretized.
+The alphas at the matter boundary are extremizing, but staying zero elsewhere where the matter gradient is zero.
+For this reason, for example, the gradient of the 1st kind Christoffel tensors is equal to zero rather than with respect to the difference of the left and right metrics.
+Therefore, if the discrete gradient was used, the alpha values might get propogated outward from the matter boundary. 
+Starting at stellar Schwarzschild and converging to a minimia causes it to soon diverge.
 
 ![](https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
