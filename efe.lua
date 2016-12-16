@@ -483,7 +483,18 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	-- consider x = alpha, beta^i, gamma_ij
 	-- b = 8 pi T_ab (and ignore the fact that it is based on x as well)
 	-- linearize: G x = b
-	self.conjResSolver = require 'LinearSolvers.cl.conjres'{
+	
+	local CLConjResSolver = class(require 'LinearSolvers.cl.conjres')
+
+	function CLConjResSolver:newBuffer(name)
+		self.conjResBuffers = self.conjResBuffers or {}
+		if not self.conjResBuffers[name] then
+			self.conjResBuffers[name] = CLConjResSolver.super.newBuffer(self, name)
+		end
+		return self.conjResBuffers[name]
+	end
+
+	self.conjResSolver = CLConjResSolver{
 		env = self,
 		A = function(y,x)
 			-- treat 'x' as the gPrims
@@ -503,7 +514,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 			self.calc_EinsteinLLs()
 			
 			-- fix the kernel arg state changes
-			self.calc_gLLs_and_gUUs.kernel:setArg(2, self.gPrims)
+			self.calc_gLLs_and_gUUs.kernel:setArg(2, self.gPrims.buf)
 		end,
 		-- TODO if alpha, beta, or gamma are disabled then this can be a rectangular solver 
 		x = self.gPrims,
