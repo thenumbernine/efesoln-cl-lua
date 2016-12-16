@@ -210,15 +210,14 @@ constant const int sDim = <?=sDim?>;
 constant real3 xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
 constant real3 xmax = _real3(<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>);
 constant real3 dx = _real3(<?=
-tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
-tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
-tonumber(xmax.x - xmin.x) / tonumber(size.x)?>);
+	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
+	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
+	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>);
 
 constant real3 inv_dx = _real3(<?=
-tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
-tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
-tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
-
+	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
+	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
+	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
 
 #define getX(i) _real3( \
 	xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),	\

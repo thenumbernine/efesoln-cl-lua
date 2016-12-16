@@ -324,7 +324,16 @@ function EFESolver:init(args)
 		size = {self.config.size, self.config.size, self.config.size},
 		verbose = true,
 	})
-	
+
+	-- parameters:
+
+	self.xmin = vec3d(-1,-1,-1) * self.body.radius * self.config.bodyRadii
+	self.xmax = vec3d(1,1,1) * self.body.radius * self.config.bodyRadii
+
+	-- append efe.cl to the environment code
+	self.code = self.code .. '\n' 
+		.. self:compileTemplates(file['efe.cl'])
+
 	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
 
 	self.initCondPtr = ffi.new('int[1]', 
@@ -338,11 +347,6 @@ function EFESolver:init(args)
 	self.convergeAlpha = ffi.new('bool[1]', true)
 	self.convergeBeta = ffi.new('bool[1]', false)
 	self.convergeGamma = ffi.new('bool[1]', false)	-- TODO option for converging a scalar gamma vs a matrix gamma
-
-	-- parameters:
-
-	self.xmin = vec3d(-1,-1,-1) * self.body.radius * self.config.bodyRadii
-	self.xmax = vec3d(1,1,1) * self.body.radius * self.config.bodyRadii
 
 	local function makeDiv(field)
 		return template([[
@@ -522,7 +526,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		b = self._8piTLLs,
 		type = 'real',
 		size = self.domain.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
-		errorCallback = function(err,iter)
+		errorCallback = function(err, iter)
 			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
 			assert(err == err)
 		end,
@@ -604,7 +608,6 @@ function EFESolver:refreshKernels()
 	print'preprocessing code...'
 
 	local code = self:compileTemplates(table{
-		file['efe.cl'],
 		file['calcVars.cl'],
 		file['gradientDescent.cl'],
 	}:concat'\n')
@@ -651,9 +654,6 @@ function EFESolver:refreshInitCond()
 	local initCond = self.initConds[self.initCondPtr[0]]
 	self.init_gPrims = self:kernel{
 		argsOut = {self.gPrims},
-		header = self:compileTemplates(table{
-			file['efe.cl'],
-		}:concat'\n'),
 		body = [[
 	real3 x = getX(i);
 	real r = real3_len(x);
@@ -676,9 +676,6 @@ function EFESolver:refreshDisplayVarKernel()
 	self.updateDisplayVarKernel = self:kernel(table(
 		displayVar, {
 			name = 'display_'..tostring(displayVar):sub(10),
-			header = self:compileTemplates(table{
-				file['efe.cl'],
-			}:concat'\n'),
 			body = template(displayVar.body, {
 				sDim = self.sDim,
 				sym = sym,
