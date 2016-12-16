@@ -619,7 +619,7 @@ function EFESolver:refreshKernels()
 		-- don't provide an actual buffer here
 		-- the conjResSolver will provide its own
 		argsOut = {{name='EinsteinLLs', type='sym4', buf=true}},
-		argsIn = {gLLs, gUUs, GammaULLs},
+		argsIn = {self.gLLs, self.gUUs, self.GammaULLs},
 	}
 
 	print'compiling code...'
