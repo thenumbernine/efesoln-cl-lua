@@ -36,4 +36,7 @@ Now I'm allowing update to alpha, beta, gamma separately, and testing it with al
 What happens is alpha varies greatly around the matter boundary (like it should), but then the large alphas get larger and small gets smaller, and the coordinates grow too much.
 Maybe I should restrict alpha and det gamma to unit volumes?  Or only converge the linearized metric, leaving the background?
 
+Now I've messed with manually adjusting the line search.  Starting at flat space, I can get it converging down towards 1e-6, but this is still nothing compared to initialization in stellar Schwarzschild, which is 1e-40.
+However, starting at stellar Schwarzschild and converging to a minimia causes it to soon diverge.
+
 ![](https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
