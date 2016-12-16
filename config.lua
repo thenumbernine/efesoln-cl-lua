@@ -1,7 +1,8 @@
 return {
 	size = 64,
 	
-	updateAlpha = 1e+30,
+	-- line trace amount
+	updateAlpha = 1,
 	
 	body = 'Earth',
 	--body = 'Sun',
@@ -15,6 +16,6 @@ return {
 	
 	outputFilename = 'out.txt',
 
-	--solver = 'Newton',
-	solver = 'ConjRes',
+	solver = 'Newton',
+	--solver = 'ConjRes',
 }

@@ -9,8 +9,6 @@ local CLEnv = require 'cl.obj.env'
 local clnumber = require 'cl.obj.number'
 -- parameters:
 
-local config = require 'config'
-
 -- helper for indexing symmetric matrices
 local function sym(i,j)
 	if i <= j then return i..j else return j..i end
@@ -305,12 +303,12 @@ EFESolver.updateMethods = {'Newton', 'ConjRes'}
 
 function EFESolver:init(args)
 	self.app = args.app
-	self.config = args.config
+	local config = args.config
 	
 	self.stDim = 4 		-- spacetime dim
 	self.sDim = 3		-- space dim
 	
-	self.body = bodies[self.config.body]
+	self.body = bodies[config.body]
 
 	-- CLEnv:init calls CLEnv:getTypeCode()
 	-- which (in EFESolver:getTypeCode) includes efe.h
@@ -321,24 +319,24 @@ function EFESolver:init(args)
 	--  (and all subsequently influenced kernels / buffers need to be recompiled/allocated)
 	EFESolver.super.init(self, {
 		-- TODO rename to 'gridSize' ?
-		size = {self.config.size, self.config.size, self.config.size},
+		size = {config.size, config.size, config.size},
 		verbose = true,
 	})
 
 	-- parameters:
 
-	self.xmin = vec3d(-1,-1,-1) * self.body.radius * self.config.bodyRadii
-	self.xmax = vec3d(1,1,1) * self.body.radius * self.config.bodyRadii
+	self.xmin = vec3d(-1,-1,-1) * self.body.radius * config.bodyRadii
+	self.xmax = vec3d(1,1,1) * self.body.radius * config.bodyRadii
 
 	-- append efe.cl to the environment code
 	self.code = self.code .. '\n' 
 		.. self:compileTemplates(file['efe.cl'])
 
-	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
+	self.updateAlpha = config.updateAlpha
 
 	self.initCondPtr = ffi.new('int[1]', 
 		self.initConds:find(nil, function(initCond)
-			return initCond.name == self.config.initCond
+			return initCond.name == config.initCond
 		end) or 1)
 
 	-- what do we want to converge
@@ -479,6 +477,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	self.displayVarNames = table.map(self.displayVars, function(displayVar) return displayVar.name end)
 
 	self.updateMethod = ffi.new('int[1]', (table.find(self.updateMethods, config.solver) or 1)-1)
+	self.useLineSearch = not not config.useLineSearch
 
 	self:initBuffers()	
 	self:refreshKernels()
@@ -528,10 +527,12 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		size = self.domain.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
 			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
-			assert(err == err)
 		end,
 		maxiter = self.domain.volume * 10,
 	}
+
+	-- I'm going to use the conjResSolver.dot
+	-- for the norms of my Newton descent
 
 	self:resetState()
 end
@@ -546,9 +547,7 @@ end
 
 function EFESolver:initBuffers()
 	self.TPrims = self:buffer{name='TPrims', type='TPrim_t'}
-	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'} 
-	-- I was thinking of doing a line trace with the Newton solver
-	-- self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
+	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
 	self.gLLs = self:buffer{name='gLLs', type='sym4'}
 	self.gUUs = self:buffer{name='gUUs', type='sym4'}
 	self.GammaULLs = self:buffer{name='GammaULLs', type='tensor_4sym4'}
@@ -556,6 +555,9 @@ function EFESolver:initBuffers()
 	-- used by updateNewton:
 	self.EFEs = self:buffer{name='EFEs', type='sym4'}
 	self.dPhi_dgPrims = self:buffer{name='dPhi_dgPrims', type='gPrim_t'}
+	
+	-- used by updateNewton's line trace
+	 self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
 
 	-- used by updateConjRes:
 	self._8piTLLs = self:buffer{name='_8piTLLs', type='sym4'}
@@ -696,6 +698,7 @@ function EFESolver:resetState()
 	self.init_TPrims()
 
 	self:updateAux()
+	self:updateTex()
 
 	self.iteration = 0
 end
@@ -727,19 +730,75 @@ function EFESolver:updateNewton()
 	-- here's the newton update method
 	self.calc_dPhi_dgPrims()
 
-	-- TODO now that we have dPhi/dg_ab
+	-- now that we have dPhi/dg_ab
 	-- trace along g_ab - alpha * dPhi/dg_ab
 	-- to find what alpha gives us minimal error
---	self.cmds:enqueueCopyBuffer{src=self.gPrims.buf, dst=self.gPrimsCopy.buf, size=ffi.sizeof'gPrim_t' * self.domain.volume}
 
-	--[[ update g_ab and refresh gPrims from this
-	self:clcall(update_gLLs)
-	self:clcall(calc_gPrims_from_gLLs)
-	--]]
-	-- [[ or update gPrims directly from dPhi/dg_ab 
-	self.update_gPrims.kernel:setArg(2, self.updateAlpha)
-	self.update_gPrims()
-	--]]
+	if self.useLineSearch then	-- do bisect line search
+		-- store a backup.  TODO env:copy, and have ConjGrad:copy reference it.	
+		self.conjResSolver.args.copy(self.gPrimsCopy, self.gPrims)
+
+		local lineSearchMaxIter = 100
+		local alphaPtr = ffi.new'real[1]'
+		local function residualAtAlpha(alpha)
+			self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
+			alphaPtr[0] = alpha	
+			self.update_gPrims.kernel:setArg(2, alphaPtr)
+			self.update_gPrims()
+			self:updateAux()	-- calcs from gPrims on down to EFE
+			local residual = self.conjResSolver.args.dot(self.EFEs, self.EFEs) 
+print(string.format('alpha=%.16e residual=%.16e', alpha, residual))
+			return residual
+		end
+		local function bisect(alphaL, alphaR)
+			local residualL = residualAtAlpha(alphaL)
+			local residualR = residualAtAlpha(alphaR)
+			for i=0,lineSearchMaxIter do
+				local alphaMid = .5 * (alphaL + alphaR)
+				local residualMid = residualAtAlpha(alphaMid)
+				if residualMid > residualL and residualMid > residualR then break end
+				if residualMid < residualL and residualMid < residualR then
+					if residualL <= residualR then
+						alphaR, residualR  = alphaMid, residualMid
+					else
+						alphaL, residualL = alphaMid, residualMid
+					end
+				elseif residualMid < residualL then
+					alphaL, residualL = alphaMid, residualMid
+				else
+					alphaR, residualR = alphaMid, residualMid
+				end
+			end
+			if residualL < residualR then
+				return alphaL, residualL
+			else
+				return alphaR, residualR
+			end
+		end
+		
+		local alphaFwd, residualFwd = bisect(0, self.updateAlpha)
+print(string.format('fwd alpha=%.16e residual=%.16e', alphaFwd, residualFwd))
+		local alphaRev, residualRev = bisect(0, -self.updateAlpha)	
+print(string.format('rev alpha=%.16e residual=%.16e', alphaRev, residualRev))
+
+		self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
+		local alpha, residual
+		if residualFwd < residualRev then
+			alpha = alphaFwd
+			residual = residualFwd
+		else
+			alpha = alphaRev
+			residual = residualRev
+		end
+print(string.format('using alpha=%.16e residual=%.16e', alpha, residualRev))
+		alphaPtr[0] = alpha
+		self.update_gPrims.kernel:setArg(2, alphaPtr)
+		self.update_gPrims()
+	else	-- no line search
+		-- update gPrims from dPhi/dg_ab 
+		self.update_gPrims.kernel:setArg(2, ffi.new('real[1]', self.updateAlpha))
+		self.update_gPrims()
+	end
 
 	--[[
 	then there's the krylov solver treat-it-as-a-linear-system method
@@ -751,6 +810,8 @@ function EFESolver:updateNewton()
 	--]]
 
 	self:updateAux()
+print('residual', self.conjResSolver.args.dot(self.EFEs, self.EFEs))
+	self:updateTex()
 end
 
 function EFESolver:updateConjRes()
@@ -772,9 +833,6 @@ function EFESolver:updateAux()
 	end
 
 	self.calc_EFEs()
-
-	-- and update the display buffer
-	self:updateTex()
 end
 
 function EFESolver:updateTex()

@@ -410,12 +410,17 @@ function App:updateGUI()
 	-- InputFloat doesn't allow formats
 	-- SliderFloat allows formats but doesn't allow text-editing
 	-- hmm...
-	local buf = ffi.new('char[256]', ('%e'):format(self.solver.updateAlpha[0]))
+	local buf = ffi.new('char[256]', ('%e'):format(self.solver.updateAlpha))
 	if ig.igInputText('step scale', buf, ffi.sizeof(buf)) then
 		local f = tonumber(ffi.string(buf, ffi.sizeof(buf)))
 		if f then
-			self.solver.updateAlpha[0] = f
+			self.solver.updateAlpha = f
 		end
+	end
+
+	local bool = ffi.new('bool[1]', self.solver.useLineSearch)
+	if ig.igCheckbox('line search', bool) then
+		self.solver.useLineSearch = bool[0]
 	end
 
 	if ig.igButton(self.updateMethod and 'Stop' or 'Start') then

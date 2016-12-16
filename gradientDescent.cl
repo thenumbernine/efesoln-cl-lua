@@ -284,12 +284,27 @@ if solver.convergeGamma[0] then
 <?		end
 	end
 end ?>
+
+	//scale up our gradient?
+	//scale by c^4 / G ~ 1e+44
+	// which is the units of conversion 
+	//c^4/G * G_ab = 8 pi T_ab
+	dPhi_dgPrim->alpha *= c*c*c*c/G;
+<? for i=0,sDim-1 do
+?>	dPhi_dgPrim->betaU.s<?=i?> *= c*c*c*c/G;
+<? end
+for i=0,sDim-1 do
+	for j=i,sDim-1 do
+?>	dPhi_dgPrim->gammaLL.s<?=i..j?> *= c*c*c*c/G;
+<?	end
+end
+?>
 }
 
 kernel void update_gPrims(
 	global gPrim_t* gPrims,
 	global const gPrim_t* dPhi_dgPrims,
-	float updateAlpha
+	real updateAlpha
 ) {
 	INIT_KERNEL();
 	global gPrim_t* gPrim = gPrims + index;
@@ -297,18 +312,18 @@ kernel void update_gPrims(
 
 <? 
 if solver.convergeAlpha[0] then
-?>	gPrim->alpha -= (real)updateAlpha * dPhi_dgPrim->alpha;
+?>	gPrim->alpha -= updateAlpha * dPhi_dgPrim->alpha;
 <?
 end
 if solver.convergeBeta[0] then
 	for m=0,sDim-1 do
-?>	gPrim->betaU.s<?=m?> -= (real)updateAlpha * dPhi_dgPrim->betaU.s<?=m?>;
+?>	gPrim->betaU.s<?=m?> -= updateAlpha * dPhi_dgPrim->betaU.s<?=m?>;
 <? 	end 
 end
 if solver.convergeGamma[0] then
 	for m=0,sDim-1 do
 		for n=m,sDim-1 do
-?>	gPrim->gammaLL.s<?=m..n?> -= (real)updateAlpha * dPhi_dgPrim->gammaLL.s<?=m..n?>;
+?>	gPrim->gammaLL.s<?=m..n?> -= updateAlpha * dPhi_dgPrim->gammaLL.s<?=m..n?>;
 <?		end
 	end
 end
