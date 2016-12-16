@@ -243,9 +243,17 @@ kernel void calc_EinsteinLLs(
 	EinsteinLLs[index] = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 }
 
+kernel void calc_8piTLLs(
+	global sym4* _8piTLLs,
+	global const TPrim_t* TPrims,
+	global const sym4* gLLs
+) {
+	INIT_KERNEL();
+	_8piTLLs[index] = calc_8piTLL(gLLs+index, TPrims+index);
+}
+
 kernel void calc_EFEs(
 	global sym4* EFEs,
-	global const gPrim_t* gPrims,
 	global const TPrim_t* TPrims,
 	global const sym4* gLLs,
 	global const sym4* gUUs,

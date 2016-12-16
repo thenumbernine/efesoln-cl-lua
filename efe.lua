@@ -479,6 +479,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	self:initBuffers()	
 	self:refreshKernels()
 
+
 	-- EFE: G_ab(g_ab) = 8 pi T_ab(g_ab)
 	-- consider x = alpha, beta^i, gamma_ij
 	-- b = 8 pi T_ab (and ignore the fact that it is based on x as well)
@@ -523,6 +524,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		size = self.domain.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err,iter)
 			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
+			assert(err == err)
 		end,
 		maxiter = self.domain.volume * 10,
 	}
@@ -620,7 +622,7 @@ function EFESolver:refreshKernels()
 	end
 	
 	-- used by updateNewton:
-	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.gPrims, self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
+	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
 	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
 	self.update_gPrims = program:kernel{name='update_gPrims', argsOut={self.gPrims}, argsIn={self.dPhi_dgPrims}}
 
@@ -632,6 +634,7 @@ function EFESolver:refreshKernels()
 		argsOut = {{name='EinsteinLLs', type='sym4', buf=true}},
 		argsIn = {self.gLLs, self.gUUs, self.GammaULLs},
 	}
+	self.calc_8piTLLs = program:kernel{name='calc_8piTLLs', argsOut={self._8piTLLs}, argsIn={self.TPrims, self.gLLs}}
 
 	print'compiling code...'
 	program:compile()
@@ -754,7 +757,8 @@ function EFESolver:updateNewton()
 end
 
 function EFESolver:updateConjRes()
-	self.conjResSolver()
+	self.calc_8piTLLs()		-- update the b vector
+	self.conjResSolver()	-- solve x in A x = b
 end
 
 function EFESolver:updateAux()
