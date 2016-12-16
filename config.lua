@@ -14,4 +14,7 @@ return {
 	--initCond = 'stellar Kerr-Newman',
 	
 	outputFilename = 'out.txt',
+
+	--solver = 'Newton',
+	solver = 'ConjRes',
 }

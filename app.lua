@@ -425,7 +425,9 @@ function App:updateGUI()
 	if ig.igButton'Step' then
 		self.updateMethod = 'step'
 	end
-	
+
+	ig.igCombo('solver', self.solver.updateMethod, self.solver.updateMethods)
+
 	ig.igSeparator()
 	ig.igText'initial conditions:'
 	for i,initCond in ipairs(self.solver.initConds) do

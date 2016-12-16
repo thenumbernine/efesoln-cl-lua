@@ -301,22 +301,31 @@ end
 	return {name=k, code=v}
 end)
 
+EFESolver.updateMethods = {'Newton', 'ConjRes'}
+
 function EFESolver:init(args)
 	self.app = args.app
 	self.config = args.config
 	
-	CLEnv.init(self, {
+	self.stDim = 4 		-- spacetime dim
+	self.sDim = 3		-- space dim
+	
+	self.body = bodies[self.config.body]
+
+	-- CLEnv:init calls CLEnv:getTypeCode()
+	-- which (in EFESolver:getTypeCode) includes efe.h
+	-- which depends on the body
+	-- so if the body is changed.
+	--  the ffi.cdef needs to be updated
+	--  and self.code needs to be updated
+	--  (and all subsequently influenced kernels / buffers need to be recompiled/allocated)
+	EFESolver.super.init(self, {
 		-- TODO rename to 'gridSize' ?
 		size = {self.config.size, self.config.size, self.config.size},
 		verbose = true,
 	})
 	
-	self.stDim = 4 		-- spacetime dim
-	self.sDim = 3		-- space dim
-
 	self.updateAlpha = ffi.new('float[1]', self.config.updateAlpha)
-	
-	self.body = bodies[self.config.body]
 
 	self.initCondPtr = ffi.new('int[1]', 
 		self.initConds:find(nil, function(initCond)
@@ -334,15 +343,6 @@ function EFESolver:init(args)
 
 	self.xmin = vec3d(-1,-1,-1) * self.body.radius * self.config.bodyRadii
 	self.xmax = vec3d(1,1,1) * self.body.radius * self.config.bodyRadii
-
-	-- update this every time body changes
-	self.typeCode = template(file['efe.h'], {
-		solver = self,
-	})
-
-	-- luajit the types so I can see the sizeof (I hope OpenCL agrees with padding)
-
-	ffi.cdef(self.typeCode)
 
 	local function makeDiv(field)
 		return template([[
@@ -474,21 +474,75 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	)
 	self.displayVarNames = table.map(self.displayVars, function(displayVar) return displayVar.name end)
 
+	self.updateMethod = ffi.new('int[1]', (table.find(self.updateMethods, config.solver) or 1)-1)
+
 	self:initBuffers()	
 	self:refreshKernels()
+
+	-- EFE: G_ab(g_ab) = 8 pi T_ab(g_ab)
+	-- consider x = alpha, beta^i, gamma_ij
+	-- b = 8 pi T_ab (and ignore the fact that it is based on x as well)
+	-- linearize: G x = b
+	self.conjResSolver = require 'LinearSolvers.cl.conjres'{
+		env = self,
+		A = function(y,x)
+			-- treat 'x' as the gPrims
+			-- change any kernels bound to gPrims to x instead
+			self.calc_gLLs_and_gUUs.kernel:setArg(2, x)
+		
+			-- TODO the EFE's don't need to be updated in this call
+			-- they only need to be updated for ...
+			-- * the Newton gradient descent solver
+			-- * the display kernels
+			-- so I say move calc_EFEs() to updateNewton, and code the EFE's directly into the display kernels that use them
+			--  (because more often than not we're not watching the EFE constraints themselves)
+			self:updateAux()
+			
+			-- bind our output to 'y'
+			self.calc_EinsteinLLs.kernel:setArg(0, y)
+			self.calc_EinsteinLLs()
+			
+			-- fix the kernel arg state changes
+			self.calc_gLLs_and_gUUs.kernel:setArg(2, self.gPrims)
+		end,
+		-- TODO if alpha, beta, or gamma are disabled then this can be a rectangular solver 
+		x = self.gPrims,
+		b = self._8piTLLs,
+		type = 'real',
+		size = self.domain.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
+		errorCallback = function(err,iter)
+			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
+		end,
+		maxiter = self.domain.volume * 10,
+	}
+
 	self:resetState()
+end
+
+function EFESolver:getTypeCode()
+	-- update this every time body changes
+	return EFESolver.super.getTypeCode(self)
+	.. template(file['efe.h'], {
+		solver = self,
+	})
 end
 
 function EFESolver:initBuffers()
 	self.TPrims = self:buffer{name='TPrims', type='TPrim_t'}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'} 
---	self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
+	-- I was thinking of doing a line trace with the Newton solver
+	-- self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
 	self.gLLs = self:buffer{name='gLLs', type='sym4'}
 	self.gUUs = self:buffer{name='gUUs', type='sym4'}
 	self.GammaULLs = self:buffer{name='GammaULLs', type='tensor_4sym4'}
+	
+	-- used by updateNewton:
 	self.EFEs = self:buffer{name='EFEs', type='sym4'}
 	self.dPhi_dgPrims = self:buffer{name='dPhi_dgPrims', type='gPrim_t'}
-	
+
+	-- used by updateConjRes:
+	self._8piTLLs = self:buffer{name='_8piTLLs', type='sym4'}
+
 	self.tex = require 'gl.tex3d'{
 		width = tonumber(self.domain.size.x),
 		height = tonumber(self.domain.size.y),
@@ -537,7 +591,6 @@ function EFESolver:refreshKernels()
 	print'preprocessing code...'
 
 	local code = self:compileTemplates(table{
-		self.typeCode,
 		file['efe.cl'],
 		file['calcVars.cl'],
 		file['gradientDescent.cl'],
@@ -554,11 +607,20 @@ function EFESolver:refreshKernels()
 	if self.useFourPotential then
 		self.solveAL = program:kernel{name='solveAL', argsOut={self.TPrims}}
 	end
-	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.gPrims, self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
-
-	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
 	
+	-- used by updateNewton:
+	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.gPrims, self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
+	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
 	self.update_gPrims = program:kernel{name='update_gPrims', argsOut={self.gPrims}, argsIn={self.dPhi_dgPrims}}
+
+	-- used by updateConjRes
+	self.calc_EinsteinLLs = program:kernel{
+		name = 'calc_EinsteinLLs',
+		-- don't provide an actual buffer here
+		-- the conjResSolver will provide its own
+		argsOut = {{name='EinsteinLLs', type='sym4', buf=true}},
+		argsIn = {gLLs, gUUs, GammaULLs},
+	}
 
 	print'compiling code...'
 	program:compile()
@@ -576,7 +638,6 @@ function EFESolver:refreshInitCond()
 	self.init_gPrims = self:kernel{
 		argsOut = {self.gPrims},
 		header = self:compileTemplates(table{
-			self.typeCode,
 			file['efe.cl'],
 		}:concat'\n'),
 		body = [[
@@ -602,7 +663,6 @@ function EFESolver:refreshDisplayVarKernel()
 		displayVar, {
 			name = 'display_'..tostring(displayVar):sub(10),
 			header = self:compileTemplates(table{
-				self.typeCode,
 				file['efe.cl'],
 			}:concat'\n'),
 			body = template(displayVar.body, {
@@ -630,6 +690,17 @@ function EFESolver:resetState()
 end
 
 function EFESolver:update()
+	local updateMethod = self.updateMethods[self.updateMethod[0]+1]
+	if updateMethod == 'Newton' then
+		self:updateNewton()
+	elseif updateMethod == 'ConjRes' then
+		self:updateConjRes()
+	end
+	
+	self.iteration = self.iteration + 1
+end
+
+function EFESolver:updateNewton()
 	--[[
 	iteration:
 
@@ -668,10 +739,11 @@ function EFESolver:update()
 	how about conj grad? ... in OpenCL ... 
 	--]]
 
-
 	self:updateAux()
-	
-	self.iteration = self.iteration + 1
+end
+
+function EFESolver:updateConjRes()
+	self.conjResSolver()
 end
 
 function EFESolver:updateAux()

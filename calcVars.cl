@@ -229,6 +229,20 @@ kernel void solveAL(
 }
 <? end ?>
 
+//used by linearized solvers of G x = 8 pi T
+// where G is the (non)linear function G_ab
+// T is T_ab (which is also a function of x but don't tell)
+// and x is gPrims
+kernel void calc_EinsteinLLs(
+	global sym4* EinsteinLLs,
+	global const sym4* gLLs,
+	global const sym4* gUUs,
+	global const tensor_4sym4* GammaULLs
+) {
+	INIT_KERNEL();
+	EinsteinLLs[index] = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+}
+
 kernel void calc_EFEs(
 	global sym4* EFEs,
 	global const gPrim_t* gPrims,
