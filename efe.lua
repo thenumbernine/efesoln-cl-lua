@@ -353,12 +353,12 @@ function EFESolver:init(args)
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
-		global const TPrim_t* TPrim_prev = TPrims + indexL;
+		global const <?=TPrim_t?>* TPrim_prev = TPrims + indexL;
 		
 		int4 iR = i;
 		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
-		global const TPrim_t* TPrim_next = TPrims + indexR;
+		global const <?=TPrim_t?>* TPrim_next = TPrims + indexR;
 		
 		div += (TPrim_next-><?=field?>.s<?=i?> - TPrim_prev-><?=field?>.s<?=i?>) * .5 * inv_dx.s<?=i?>;
 	}<? end ?>
@@ -367,6 +367,7 @@ function EFESolver:init(args)
 ]], {
 	field = field,
 	dim = self.dim,
+	TPrim_t = self.TPrim_t,
 })
 	end
 
@@ -538,16 +539,35 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	self:resetState()
 end
 
+--[[
+this is called by CLEnv:init to get the initial set of cdef'd code
+it is called right after self.real is set to float or double
+therefore if self.real changes, a whole lot of other stuff will have to change too
+
+Aside from that, in efesoln, some structs are populated based on the following:
+	solver.body
+	solver.useFourPotential
+If either of these change, the structs have to change as well.
+Luckily all those are in TPrim_t
+so I'll just template out the name.
+--]]
 function EFESolver:getTypeCode()
+	self.TPrim_t = 'TPrim_'..self.body.useMatter
+				..'_'..self.body.useVel
+				..'_'..self.body.useEM
+				..'_'..self.body.useFourPotential
+				..'_t'
+	
 	-- update this every time body changes
 	return EFESolver.super.getTypeCode(self)..'\n'
 	..template(file['efe.h'], {
 		solver = self,
+		TPrim_t = self.TPrim_t,
 	})
 end
 
 function EFESolver:initBuffers()
-	self.TPrims = self:buffer{name='TPrims', type='TPrim_t'}
+	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
 	self.gLLs = self:buffer{name='gLLs', type='sym4'}
 	self.gUUs = self:buffer{name='gUUs', type='sym4'}
@@ -603,6 +623,7 @@ function EFESolver:compileTemplates(code)
 		solver = self,
 		c = c,
 		G = G,
+		TPrim_t = self.TPrim_t,
 	})
 end
 

@@ -1,13 +1,13 @@
 // init
 
 kernel void init_TPrims(
-	global TPrim_t* TPrims
+	global <?=TPrim_t?>* TPrims
 ) {
 	initKernel();
 	
-	global TPrim_t* TPrim = TPrims + index;
+	global <?=TPrim_t?>* TPrim = TPrims + index;
 	
-	*TPrim = (TPrim_t){
+	*TPrim = (<?=TPrim_t?>){
 <? if solver.body.useMatter then ?>
 		.rho = 0,
 		.eInt = 0,
@@ -186,7 +186,7 @@ which means subtract out the potential (in curved space)
 */
 <? if solver.useFourPotential then ?>
 kernel void solveAL(
-	global TPrim_t* TPrims
+	global <?=TPrim_t?>* TPrims
 ) {
 	initKernel();
 
@@ -195,7 +195,7 @@ kernel void solveAL(
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
-		global TPrim_t* TPrim_prev = TPrims + indexL;
+		global <?=TPrim_t?>* TPrim_prev = TPrims + indexL;
 
 		skewSum = real4_add(
 			skewSum,
@@ -207,7 +207,7 @@ kernel void solveAL(
 		int4 iR = i;
 		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
-		global TPrim_t* TPrim_next = TPrims + indexR;
+		global <?=TPrim_t?>* TPrim_next = TPrims + indexR;
 
 		skewSum = real4_add(
 			skewSum,
@@ -223,7 +223,7 @@ kernel void solveAL(
 <? end ?>
 	);
 
-	global TPrim_t* TPrim = TPrims + index;
+	global <?=TPrim_t?>* TPrim = TPrims + index;
 
 	TPrim->AL = real4_sub(TPrim->AL, skewSum) / diag;
 }
@@ -245,7 +245,7 @@ kernel void calc_EinsteinLLs(
 
 kernel void calc_8piTLLs(
 	global sym4* _8piTLLs,
-	global const TPrim_t* TPrims,
+	global const <?=TPrim_t?>* TPrims,
 	global const sym4* gLLs
 ) {
 	initKernel();
@@ -254,7 +254,7 @@ kernel void calc_8piTLLs(
 
 kernel void calc_EFEs(
 	global sym4* EFEs,
-	global const TPrim_t* TPrims,
+	global const <?=TPrim_t?>* TPrims,
 	global const sym4* gLLs,
 	global const sym4* gUUs,
 	global const tensor_4sym4* GammaULLs

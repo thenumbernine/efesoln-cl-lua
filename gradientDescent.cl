@@ -2,7 +2,7 @@
 
 kernel void calc_dPhi_dgPrims(
 	global gPrim_t* dPhi_dgPrims,
-	global const TPrim_t* TPrims,
+	global const <?=TPrim_t?>* TPrims,
 	global const gPrim_t* gPrims,
 	global const sym4* gLLs,
 	global const sym4* gUUs,
@@ -149,7 +149,7 @@ end ?>
 <? end 
 ?>	};
 
-	global const TPrim_t* TPrim = TPrims + index;
+	global const <?=TPrim_t?>* TPrim = TPrims + index;
 
 	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
 <? for a=0,stDim-1 do

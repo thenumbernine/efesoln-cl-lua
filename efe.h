@@ -60,4 +60,4 @@ end ?>
 	real3 E, B;	//upper, spatial
 	<? end ?>
 <? end ?>
-} TPrim_t;
+} <?=TPrim_t?>;

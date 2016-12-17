@@ -300,7 +300,7 @@ end ?>
 
 sym4 calc_8piTLL(
 	global const sym4* gLL,
-	global const TPrim_t* TPrim
+	global const <?=TPrim_t?>* TPrim
 ) {
 	sym4 _8piTLL = sym4_zero;
 
