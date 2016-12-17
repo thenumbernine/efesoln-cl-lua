@@ -9,7 +9,7 @@ kernel void calc_dPhi_dgPrims(
 	global const tensor_4sym4* GammaULLs,
 	global const sym4* EFEs
 ) {
-	INIT_KERNEL();
+	initKernel();
 	
 	global const sym4* gLL = gLLs + index;
 	global const sym4* gUU = gUUs + index;
@@ -306,7 +306,7 @@ kernel void update_gPrims(
 	global const gPrim_t* dPhi_dgPrims,
 	real updateAlpha
 ) {
-	INIT_KERNEL();
+	initKernel();
 	global gPrim_t* gPrim = gPrims + index;
 	global const gPrim_t* dPhi_dgPrim = dPhi_dgPrims + index;
 

@@ -3,7 +3,7 @@
 kernel void init_TPrims(
 	global TPrim_t* TPrims
 ) {
-	INIT_KERNEL();
+	initKernel();
 	
 	global TPrim_t* TPrim = TPrims + index;
 	
@@ -36,7 +36,7 @@ kernel void calc_gLLs_and_gUUs(
 	global sym4* gUUs,
 	const global gPrim_t* gPrims
 ) {
-	INIT_KERNEL();
+	initKernel();
 
 	global const gPrim_t* gPrim = gPrims + index;
 
@@ -71,7 +71,7 @@ kernel void calc_GammaULLs(
 	const global sym4* gLLs,
 	const global sym4* gUUs
 ) {
-	INIT_KERNEL();
+	initKernel();
 
 	//here's where the finite difference stuff comes in ...
 	tensor_4sym4 dgLLL;
@@ -188,7 +188,7 @@ which means subtract out the potential (in curved space)
 kernel void solveAL(
 	global TPrim_t* TPrims
 ) {
-	INIT_KERNEL();
+	initKernel();
 
 	real4 skewSum = real4_zero;
 	<? for i=0,dim-1 do ?>{
@@ -239,7 +239,7 @@ kernel void calc_EinsteinLLs(
 	global const sym4* gUUs,
 	global const tensor_4sym4* GammaULLs
 ) {
-	INIT_KERNEL();
+	initKernel();
 	EinsteinLLs[index] = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 }
 
@@ -248,7 +248,7 @@ kernel void calc_8piTLLs(
 	global const TPrim_t* TPrims,
 	global const sym4* gLLs
 ) {
-	INIT_KERNEL();
+	initKernel();
 	_8piTLLs[index] = calc_8piTLL(gLLs+index, TPrims+index);
 }
 
@@ -259,7 +259,7 @@ kernel void calc_EFEs(
 	global const sym4* gUUs,
 	global const tensor_4sym4* GammaULLs
 ) {
-	INIT_KERNEL();
+	initKernel();
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	sym4 _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);
 	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);

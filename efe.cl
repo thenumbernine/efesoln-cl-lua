@@ -228,7 +228,7 @@ void calc_dGammaLULL(
 	tensor_44sym4* dGammaLULL,
 	global const tensor_4sym4* GammaULLs
 ) {
-	INIT_KERNEL();
+	initKernel();
 	dGammaLULL->s0 = tensor_4sym4_zero;
 	<? for i=0,dim-1 do ?>{
 		int4 iL = i;

@@ -540,8 +540,8 @@ end
 
 function EFESolver:getTypeCode()
 	-- update this every time body changes
-	return EFESolver.super.getTypeCode(self)
-	.. template(file['efe.h'], {
+	return EFESolver.super.getTypeCode(self)..'\n'
+	..template(file['efe.h'], {
 		solver = self,
 	})
 end

@@ -28,6 +28,8 @@ Which means I'm skipping the C++.  Hooray!
 
 https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/efe.html
 
+### Progress
+
 For the spherical body problem it is converging slowly (1e-30) in flat space initial conditions,
 but once it starts to develop surface features it converges very quickly.
 I'm thinking I should use a line search to fix this.  Maybe Hessian as well, but that'd be complex, so I'll put it off until my automatic symbolic generation (which depends on me simplifying TensorRef * TensorRef in my symmath-lua)
@@ -38,10 +40,21 @@ Maybe I should restrict alpha and det gamma to unit volumes?  Or only converge t
 
 Now, using Newton method, I've messed with manually adjusting the line search.  Starting at flat space, wiggling the gradient back and forth, I can get it converging down towards 1e-6, but this is still nothing compared to initialization in stellar Schwarzschild, which is 1e-40.
 It appears to be converging to a local minima formed by the discretized spatial differentiation calculations used by the curvature.
-This is probably due to the fact that my Newton descent is currently implemented based on the continuous variables and not the discretized.
-The alphas at the matter boundary are extremizing, but staying zero elsewhere where the matter gradient is zero.
-For this reason, for example, the gradient of the 1st kind Christoffel tensors is equal to zero rather than with respect to the difference of the left and right metrics.
-Therefore, if the discrete gradient was used, the alpha values might get propogated outward from the matter boundary. 
-Starting at stellar Schwarzschild and converging to a minimia causes it to soon diverge.
+Starting at stellar Schwarzschild and converging to a minimia causes it to soon diverge as well.
+Taking smaller steps shows that stepping in either direction along the gradient quickly walks out of the valley containing the minima.
+
+This is probably due to the fact that my Newton descent is currently implemented based on the gradient of the continuous Einstein field equation, not the discretized.
+The alpha values at the matter boundary are extremizing, but staying zero elsewhere where the matter gradient is zero.
+This is probably because the gradient of the 1st kind Christoffel symbols is equal to zero for the continuous equation,
+whereas the gradient of the discrete is equal to the difference of the left and right metrics.
+If the discrete gradient was used, the alpha values might get propogated outward from the matter boundary. 
+
+### TODO:
+
+* find out why the conjugate residual solver is stopping after one iteration
+* implement GMRES in OpenCL
+* implement JFNK in OpenCL
+* reduce allocations for solvers that aren't being used
+* upon changing bodies, make sure the ffi.cdef code and headers are properly refreshing 
 
 ![](https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
