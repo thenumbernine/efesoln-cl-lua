@@ -49,18 +49,18 @@ $ = -\frac{1}{2 \sqrt{-g}} g g^{fe} [abcd]$<br>
 $ = \frac{1}{2} \sqrt{-g} g^{fe} [abcd]$<br>
 <br>
 
-<b>Metric derivative, Discretized:</b><br>
+<b>Metric derivative, discretized:</b><br>
 1st order:<br>
-$\frac{\partial}{\partial x^j} g_{ab}(x^i) \approx \frac{\partial g_{ab}(x^i)}{\partial x^j} = \frac{g_{ab}(x^i + \Delta \hat{x}^j) - g_{ab}(x^i - \Delta \hat{x}^j)}{2 \Delta}$<br>
+$\frac{\partial}{\partial x} g_{ab}(x) \approx \frac{\partial g_{ab}(x)}{\partial x} = \frac{g_{ab}(x + \Delta \hat{x}^j) - g_{ab}(x - \Delta \hat{x}^j)}{2 \Delta}$<br>
 <br>
 
 Derivative wrt metric:<br>
-$\frac{\partial}{\partial g_{ef}(x^i)} \frac{\partial g_{ab}(x^i)}{\partial x^j} = 0$<br>
-$\frac{\partial}{\partial g_{ef}(x^i + \Delta \hat{x}^j)} \frac{\partial g_{ab}(x^i)}{\partial x^j} = \frac{1}{2} \delta^e_a \delta^f_b$<br>
-$\frac{\partial}{\partial g_{ef}(x^i - \Delta \hat{x}^j)} \frac{\partial g_{ab}(x^i)}{\partial x^j} = -\frac{1}{2} \delta^e_a \delta^f_b$<br>
+$\frac{\partial}{\partial g_{ef}(x)} \frac{\partial g_{ab}(x)}{\partial x} = 0$<br>
+$\frac{\partial}{\partial g_{ef}(x + \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} = \frac{1}{2} \delta^e_a \delta^f_b$<br>
+$\frac{\partial}{\partial g_{ef}(x - \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} = -\frac{1}{2} \delta^e_a \delta^f_b$<br>
 <br>
 
-For 1st order spatial derivatives, $\frac{\partial}{\partial x^j} g_{ab}(x^i)$ references cells 1 cell away.<br>
+For 1st order spatial derivatives, $\frac{\partial}{\partial x} g_{ab}(x)$ references cells 1 cell away.<br>
 <br>
 
 <b>Christoffel symbols of the first kind:</b><br>
@@ -84,7 +84,7 @@ $= \frac{1}{2} (
 $= 0$<br>
 <br>
 
-For 1st order spatial derivatives, $\Gamma_{abc}(x^i)$ references cells 1 cell away.<br>
+For 1st order spatial derivatives, $\Gamma_{abc}(x)$ references cells 1 cell away.<br>
 <br>
 
 Useful identity:<br>
@@ -96,20 +96,26 @@ so $\frac{\partial}{\partial x^c} g_{ab} = 2 \Gamma_{(ab)c}$<br>
 <br>
 
 Discretized:<br>
-$\Gamma_{abc}(x^i) = \frac{1}{2} \left(
-	\frac{g_{ab}(x^i + \Delta \hat{x}^c) - g_{ab}(x^i - \Delta \hat{x}^c)}{2 \Delta}
-	+ \frac{g_{ac}(x^i + \Delta \hat{x}^b) - g_{ac}(x^i - \Delta \hat{x}^b)}{2 \Delta}
-	- \frac{g_{bc}(x^i + \Delta \hat{x}^a) - g_{bc}(x^i - \Delta \hat{x}^a)}{2 \Delta}
+$\Gamma_{abc}(x) 
+= \frac{1}{2} \left(
+	\frac{g_{ab}(x + \Delta \hat{x}^c) - g_{ab}(x - \Delta \hat{x}^c)}{2 \Delta}
+	+ \frac{g_{ac}(x + \Delta \hat{x}^b) - g_{ac}(x - \Delta \hat{x}^b)}{2 \Delta}
+	- \frac{g_{bc}(x + \Delta \hat{x}^a) - g_{bc}(x - \Delta \hat{x}^a)}{2 \Delta}
+\right)$<br>
+$= \frac{1}{4 \Delta} \left(
+	g_{ab}(x + \Delta \hat{x}^c) - g_{ab}(x - \Delta \hat{x}^c)
+	+ g_{ac}(x + \Delta \hat{x}^b) - g_{ac}(x - \Delta \hat{x}^b)
+	- g_{bc}(x + \Delta \hat{x}^a) + g_{bc}(x - \Delta \hat{x}^a)
 \right)$<br>
 <br>
 
-Derivatives:<br>
+Discretized derivatives:<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x)} = 0$<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x + \Delta \hat{x}^j)} = \frac{1}{4} (\delta^e_a \delta^f_b \delta^j_c + \delta^e_a \delta^f_c \delta^j_b - \delta^e_b \delta^f_c \delta^j_a)$<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x - \Delta \hat{x}^j)} = -\frac{1}{4} (\delta^e_a \delta^f_b \delta^j_c + \delta^e_a \delta^f_c \delta^j_b - \delta^e_b \delta^f_c \delta^j_a)$<br>
 <br>
 
-For 1st order spatial derivatives, $\frac{\partial}{\partial g_{ef}} \Gamma_{abc}(x^i)$ references cells 1 cell away.<br>
+For 1st order spatial derivatives, $\frac{\partial}{\partial g_{ef}} \Gamma_{abc}(x)$ references cells 1 cell away.<br>
 <br>
 
 <b>Christoffel symbols of the second kind:</b><br>
@@ -125,16 +131,16 @@ $ = -g^{ae} {\Gamma^f}_{bc}
 $ = -g^{ae} {\Gamma^f}_{bc}$<br>
 <br>
 
-Discretized:<br>
-$\frac{\partial}{\partial g_{ef}(x^i)} {\Gamma^a}_{bc}(x^i) = -g^{ae}(x^i) {\Gamma^f}_{bc}(x^i)$<br>
-$\frac{\partial}{\partial g_{ef}(x^i + \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x^i) 
-= g^{ad}(x^i) \frac{\partial}{\partial g_{ef}(x^i + \Delta \hat{x}^j)} \Gamma_{dbc}(x^i)$<br>
-$ = \frac{1}{4} g^{ad}(x^i) (\delta^e_d \delta^f_b \delta^j_c + \delta^e_d \delta^f_c \delta^j_b - \delta^e_b \delta^f_c \delta^j_d)$<br>
-$ = \frac{1}{4} (g^{ae}(x^i) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x^i) \delta^e_b \delta^f_c)$<br>
-$\frac{\partial}{\partial g_{ef}(x^i - \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x^i) 
-= -\frac{1}{4} (g^{ae}(x^i) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x^i) \delta^e_b \delta^f_c)$<br>
+Discretized derivatives:<br>
+$\frac{\partial}{\partial g_{ef}(x)} {\Gamma^a}_{bc}(x) = -g^{ae}(x) {\Gamma^f}_{bc}(x)$<br>
+$\frac{\partial}{\partial g_{ef}(x + \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x) 
+= g^{ad}(x) \frac{\partial}{\partial g_{ef}(x + \Delta \hat{x}^j)} \Gamma_{dbc}(x)$<br>
+$ = \frac{1}{4} g^{ad}(x) (\delta^e_d \delta^f_b \delta^j_c + \delta^e_d \delta^f_c \delta^j_b - \delta^e_b \delta^f_c \delta^j_d)$<br>
+$ = \frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
+$\frac{\partial}{\partial g_{ef}(x - \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x) 
+= -\frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
 <br>
-For 1st order spatial derivatives, $\frac{\partial}{\partial g_{ef}} {\Gamma^a}_{bc}(x^i)$ references cells 1 cell away.<br>
+For 1st order spatial derivatives, $\frac{\partial}{\partial g_{ef}} {\Gamma^a}_{bc}(x)$ references cells 1 cell away.<br>
 <br>
 
 <b>Riemann curvature:</b><br>
@@ -281,6 +287,62 @@ $ = 2 ( {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a}
 )$<br>
 getting rid of the $\frac{\partial}{\partial x^d} {\Gamma^a}_{bc}$...<br>
 $ = 2 {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a} - g^{ce} {R^f}_{acb}$<br>
+<br>
+
+Discretized:<br>
+$R_{ab}(x)
+= \frac{ {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)}{ 2 \Delta }
+	- \frac{ {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) - {\Gamma^c}_{ca}(x - \Delta \hat{x}^b)}{ 2 \Delta }
+	+ 2 {\Gamma^c}_{d[c} (x) {\Gamma^d}_{b]a} (x)
+$<br>
+$= \frac{1}{2 \Delta} \left( {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
+	- {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) + {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
+	+ 2 {\Gamma^c}_{d[c} (x) {\Gamma^d}_{b]a} (x)
+$<br>
+Here I could use the simplified version to directly replace the 2nd derivatives of $g_{ab}$ with finite second derivatives, but the math gets more messy.  I might do that later.
+Avoiding this causes the second derivative to use two separate samples from a 5-cell window rather than a 3-cell window.<br>
+<br>
+
+Discretized derivatives:<br>
+$\frac{\partial R_{ab}(x)}{\partial g_{ef}(x)} 
+= \frac{\partial}{\partial g_{ef}(x)} \frac{1}{2 \Delta} \left( {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
+	- {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) + {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
+	+ {\Gamma^c}_{dc} (x) {\Gamma^d}_{ab} (x)
+	- {\Gamma^c}_{db} (x) {\Gamma^d}_{ac} (x)
+$<br>
+$= \frac{1}{2 \Delta} \left( 
+	\frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) 
+	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
+	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) 
+	+ \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
+	+ \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{dc} (x) {\Gamma^d}_{ab} (x)
+	+ {\Gamma^c}_{dc} (x) \frac{\partial}{\partial g_{ef}(x)} {\Gamma^d}_{ab} (x)
+	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{db} (x) {\Gamma^d}_{ac} (x)
+	- {\Gamma^c}_{db} (x) \frac{\partial}{\partial g_{ef}(x)} {\Gamma^d}_{ac} (x)
+$<br>
+$= \frac{1}{2 \Delta} \left( 
+	(
+		\frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) 
+		= 	
+		-\frac{1}{4} (g^{ce} (x + \Delta \hat{x}^c) (\delta^f_b \delta^c_a + \delta^f_a \delta^c_b) 
+			- g^{cc} (x + \Delta \hat{x}^c) (\delta^e_b \delta^f_a)
+	)
+	
+	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
+	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) 
+	+ \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
+	+ \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{dc} (x) {\Gamma^d}_{ab} (x)
+	+ {\Gamma^c}_{dc} (x) \frac{\partial}{\partial g_{ef}(x)} {\Gamma^d}_{ab} (x)
+	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{db} (x) {\Gamma^d}_{ac} (x)
+	- {\Gamma^c}_{db} (x) \frac{\partial}{\partial g_{ef}(x)} {\Gamma^d}_{ac} (x)
+$<br>
+<br>
+
+$\frac{\partial}{\partial g_{ef}(x)} {\Gamma^a}_{bc}(x) = -g^{ae}(x) {\Gamma^f}_{bc}(x)$<br>
+$\frac{\partial}{\partial g_{ef}(x + \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x) 
+= \frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
+$\frac{\partial}{\partial g_{ef}(x - \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x) 
+= -\frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
 <br>
 
 <b>Gaussian curvature:</b><br>
@@ -444,7 +506,7 @@ $ = (G_{ab} - 8 \pi T_{ab}) \left(
 <br>
 
 Discretized:<br>
-$\Phi = \frac{1}{2} \underset{a,b,i}\Sigma (G_{ab}(x^i) - 8 \pi T_{ab}(x^i))^2$<br>
+$\Phi = \frac{1}{2} \underset{a,b,x^i}\Sigma (G_{ab}(x^i) - 8 \pi T_{ab}(x^i))^2$<br>
 <br>
 
 Derivatives of discretized $\Phi$:<br>

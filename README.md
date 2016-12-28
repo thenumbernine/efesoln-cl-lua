@@ -1,3 +1,5 @@
+![](https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
+
 ## Newton descent across the Einstein Field Equation constraints
 
 solve the metric using the norm of G_ab = 8 pi T_ab
@@ -57,4 +59,3 @@ If the discrete gradient was used, the alpha values might get propogated outward
 * reduce allocations for solvers that aren't being used
 * upon changing bodies, make sure the ffi.cdef code and headers are properly refreshing 
 
-![](https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
