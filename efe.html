@@ -96,19 +96,39 @@ so $\frac{\partial}{\partial x^c} g_{ab} = 2 \Gamma_{(ab)c}$<br>
 <br>
 
 Discretized:<br>
-$\Gamma_{abc}(x) 
-= \frac{1}{2} \left(
-	\frac{g_{ab}(x + \Delta \hat{x}^c) - g_{ab}(x - \Delta \hat{x}^c)}{2 \Delta}
-	+ \frac{g_{ac}(x + \Delta \hat{x}^b) - g_{ac}(x - \Delta \hat{x}^b)}{2 \Delta}
-	- \frac{g_{bc}(x + \Delta \hat{x}^a) - g_{bc}(x - \Delta \hat{x}^a)}{2 \Delta}
-\right)$<br>
-$= \frac{1}{4 \Delta} \left(
-	g_{ab}(x + \Delta \hat{x}^c) - g_{ab}(x - \Delta \hat{x}^c)
-	+ g_{ac}(x + \Delta \hat{x}^b) - g_{ac}(x - \Delta \hat{x}^b)
-	- g_{bc}(x + \Delta \hat{x}^a) + g_{bc}(x - \Delta \hat{x}^a)
-\right)$<br>
+The spatial derivative sampling is only used when the indexes are spatial.  Otherwise, for time derivatives it falls back to $\frac{\partial}{\partial t}g_{uv}(x)$<br>
+$\Gamma_{ttt}(x) 
+	= \frac{1}{2} \frac{\partial}{\partial t} g_{tt}(x)$<br>
+$\Gamma_{itt}(x) 
+	= \frac{\partial}{\partial t} g_{it}(x) - \frac{1}{2} \frac{\partial}{\partial x^i} g_{tt}(x) 
+	\approx \frac{\partial}{\partial t} g_{ti}(x) - \frac{1}{4 \Delta} ( g_{tt}(x + \Delta \hat{x}^i) - g_{tt}(x - \Delta \hat{x}^i) )$<br>
+$\Gamma_{tit}(x) = \Gamma_{tti}(x) 
+	= \frac{1}{2} ( g_{ti,t}(x) + g_{tt,i}(x) - g_{it,t}(x)) 
+	= \frac{1}{2} g_{tt,i}(x) 
+	\approx \frac{1}{4 \Delta} ( g_{tt}(x + \Delta \hat{x}^i) - g_{tt}(x - \Delta \hat{x}^i)  )$<br>
+$\Gamma_{ijt}(x) = \Gamma_{itj}(x)
+	= \frac{1}{2} ( g_{ij,t}(x) + g_{it,j}(x) - g_{jt,i}(x) )
+	\approx \frac{1}{2} \frac{\partial}{\partial t} g_{ij}(x)
+		+ \frac{1}{4 \Delta} \left(
+			g_{ti}(x + \Delta \hat{x}^j) - g_{ti}(x - \Delta \hat{x}^j)
+			- g_{tj}(x + \Delta \hat{x}^i) + g_{tj}(x - \Delta \hat{x}^i)
+		\right)$<br>
+$\Gamma_{tij}(x) = \frac{1}{2} (g_{ti,j}(x) + g_{tj,i}(x) - g_{ij,t}(x))
+	\approx -\frac{1}{2} \frac{\partial}{\partial t} g_{ij}(x)
+		+ \frac{1}{4 \Delta} \left(
+			g_{ti}(x + \Delta \hat{x}^j) - g_{ti}(x - \Delta \hat{x}^j)
+			+ g_{tj}(x + \Delta \hat{x}^i) - g_{tj}(x - \Delta \hat{x}^i)
+		\right)$<br>
+$\Gamma_{ijk}(x) = \frac{1}{2} (g_{ij,k}(x) + g_{ik,j}(x) - g_{jk,i}(x))
+	\approx \frac{1}{4 \Delta} \left(
+		g_{ij}(x + \Delta\hat{x}^k) - g_{ij}(x - \Delta\hat{x}^k)
+		g_{ik}(x + \Delta\hat{x}^j) - g_{ik}(x - \Delta\hat{x}^j)
+		g_{jk}(x + \Delta\hat{x}^i) - g_{jk}(x - \Delta\hat{x}^i)
+	\right)$<br>
 <br>
 
+TODO decide from here on whether to work around the approx partial discretization spatial vs temporal, or to actually define each case.<br> 
+<br>
 Discretized derivatives:<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x)} = 0$<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x + \Delta \hat{x}^j)} = \frac{1}{4} (\delta^e_a \delta^f_b \delta^j_c + \delta^e_a \delta^f_c \delta^j_b - \delta^e_b \delta^f_c \delta^j_a)$<br>
@@ -139,6 +159,31 @@ $ = \frac{1}{4} g^{ad}(x) (\delta^e_d \delta^f_b \delta^j_c + \delta^e_d \delta^
 $ = \frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
 $\frac{\partial}{\partial g_{ef}(x - \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x) 
 = -\frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
+<br>
+so:<br>
+$\frac{\partial}{\partial g_{ef}(x)} {\Gamma^a}_{bc}(x) = -g^{ae}(x) {\Gamma^f}_{bc}(x)$<br>
+$\frac{\partial}{\partial g_{ef}(x)} {\Gamma^a}_{bc}(x - \Delta \hat{x}^j) 
+	= \frac{1}{4} (g^{ae}(x - \Delta \hat{x}^j) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x - \Delta \hat{x}^j) \delta^e_b \delta^f_c)$<br>
+$\frac{\partial}{\partial g_{ef}(x)} {\Gamma^a}_{bc}(x + \Delta \hat{x}^j) 
+	= -\frac{1}{4} (g^{ae}(x + \Delta \hat{x}^j) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x + \Delta \hat{x}^j) \delta^e_b \delta^f_c)$<br>
+<br>
+so, for contracting only the spatial terms of $c$:<br>
+$\frac{\partial}{\partial g_{ef}(x + \Delta \hat{x}^j)} {\Gamma^a}_{bj}(x) 
+ = \frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_j + \delta^f_j \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_j)$<br>
+$ = \frac{1}{4} (g^{ae}(x) (3 \delta^f_b + \delta^f_b) - g^{aj}(x) \delta^e_b \delta^f_j)$<br>
+$ = g^{ae}(x) \delta^f_b - \frac{1}{4} g^{af}(x) \delta^e_b$<br>
+$\frac{\partial}{\partial g_{ef}(x - \Delta \hat{x}^j)} {\Gamma^a}_{bj}(x) 
+= -\frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_j + \delta^f_j \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_j)$<br>
+$= -g^{ae}(x) \delta^f_b + \frac{1}{4} g^{af}(x) \delta^e_b$<br>
+<br>
+
+then the full discretization of ${\Gamma^a}_{bc,c}(x)$ is...<br> 
+${\Gamma^a}_{bt,t}(x) + {\Gamma^a}_{bj,j}(x)$<br>
+$={\Gamma^a}_{bt,t}(x) + \frac{1}{2 \Delta} (
+	{\Gamma^a}_{bj}(x + \Delta \hat{x}^j)
+	- {\Gamma^a}_{bj}(x - \Delta \hat{x}^j)
+)$<br>
+
 <br>
 For 1st order spatial derivatives, $\frac{\partial}{\partial g_{ef}} {\Gamma^a}_{bc}(x)$ references cells 1 cell away.<br>
 <br>
@@ -290,8 +335,59 @@ $ = 2 {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a} - g^{ce} {R^f}_{acb}$<br>
 <br>
 
 Discretized:<br>
-$R_{ab}(x)
-= \frac{ {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)}{ 2 \Delta }
+start with continuous definition:<br>
+$R_{ab}(x) = 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a}(x) + {\Gamma^c}_{d[c}(x) {\Gamma^d}_{b]a}(x) )$<br>
+$ = 
+	\frac{\partial}{\partial x^c} {\Gamma^c}_{ab}(x) 
+	- \frac{\partial}{\partial x^b} {\Gamma^c}_{ac}(x) 
+	+ {\Gamma^c}_{dc}(x) {\Gamma^d}_{ab}(x) 
+	- {\Gamma^c}_{db}(x) {\Gamma^d}_{ac}(x) 
+$<br>
+separate out time derivatives (because I'm only discretizing in space):<br>
+$= 
+	+ \frac{\partial}{\partial x^t} {\Gamma^t}_{ab}(x) 
+	+ \frac{\partial}{\partial x^k} {\Gamma^k}_{ab}(x) 
+	- \frac{\partial}{\partial x^b} {\Gamma^t}_{at}(x) 
+	- \frac{\partial}{\partial x^b} {\Gamma^k}_{ak}(x) 
+	+ {\Gamma^c}_{dc}(x) {\Gamma^d}_{ab}(x) 
+	- {\Gamma^c}_{db}(x) {\Gamma^d}_{ac}(x) 
+$<br>
+...but then shouldn't I also be separating out only the time derivatives of the discretized derivatives of the connection coefficients?...<br>
+...in fact, I never defined the time derivatives of the discretized derivatives of the connection coefficients.  This is the first they've come into play...<br>
+Since the indexes of the Ricci show up in the derivatives of the connections, I think I'll define them separately...<br>
+<br>
+$R_{tt}(x) = 
+	  \frac{\partial}{\partial x^t} {\Gamma^t}_{tt}(x) 
+	+ \frac{\partial}{\partial x^k} {\Gamma^k}_{tt}(x) 
+	- \frac{\partial}{\partial x^t} {\Gamma^t}_{tt}(x) 
+	- \frac{\partial}{\partial x^t} {\Gamma^k}_{tk}(x) 
+	+ {\Gamma^c}_{dc}(x) {\Gamma^d}_{tt}(x) 
+	- {\Gamma^c}_{dt}(x) {\Gamma^d}_{tc}(x) 
+$<br>
+$R_{it}(x) = R_{ti}(x) = 
+	  \frac{\partial}{\partial x^t} {\Gamma^t}_{ti}(x) 
+	+ \frac{\partial}{\partial x^k} {\Gamma^k}_{ti}(x) 
+	- \frac{\partial}{\partial x^i} {\Gamma^t}_{tt}(x) 
+	- \frac{\partial}{\partial x^i} {\Gamma^k}_{tk}(x) 
+	+ {\Gamma^c}_{dc}(x) {\Gamma^d}_{ti}(x) 
+	- {\Gamma^c}_{di}(x) {\Gamma^d}_{tc}(x) 
+$<br>
+$R_{ij}(x) = 
+	  \frac{\partial}{\partial x^t} {\Gamma^t}_{ij}(x) 
+	+ \frac{\partial}{\partial x^k} {\Gamma^k}_{ij}(x) 
+	- \frac{\partial}{\partial x^j} {\Gamma^t}_{it}(x) 
+	- \frac{\partial}{\partial x^j} {\Gamma^k}_{ik}(x) 
+	+ {\Gamma^c}_{dc}(x) {\Gamma^d}_{ij}(x) 
+	- {\Gamma^c}_{dj}(x) {\Gamma^d}_{ic}(x) 
+$<br>
+
+...<br>
+<br>
+
+$= 
+	\frac{\partial}{\partial x^t}{\Gamma^t}_{ab}(x)
+	+ \frac{ {\Gamma^j}_{ba}(x + \Delta \hat{x}^j) - {\Gamma^j}_{ba}(x - \Delta \hat{x}^j)}{ 2 \Delta }
+	- \frac{\partial}{\partial x^b} {\Gamma^t}_{at}(x) 
 	- \frac{ {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) - {\Gamma^c}_{ca}(x - \Delta \hat{x}^b)}{ 2 \Delta }
 	+ 2 {\Gamma^c}_{d[c} (x) {\Gamma^d}_{b]a} (x)
 $<br>
@@ -311,7 +407,7 @@ $\frac{\partial R_{ab}(x)}{\partial g_{ef}(x)}
 	- {\Gamma^c}_{db} (x) {\Gamma^d}_{ac} (x)
 $<br>
 $= \frac{1}{2 \Delta} \left( 
-	\frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) 
+	  \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) 
 	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
 	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) 
 	+ \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
@@ -320,29 +416,74 @@ $= \frac{1}{2 \Delta} \left(
 	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{db} (x) {\Gamma^d}_{ac} (x)
 	- {\Gamma^c}_{db} (x) \frac{\partial}{\partial g_{ef}(x)} {\Gamma^d}_{ac} (x)
 $<br>
-$= \frac{1}{2 \Delta} \left( 
-	(
-		\frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) 
-		= 	
-		-\frac{1}{4} (g^{ce} (x + \Delta \hat{x}^c) (\delta^f_b \delta^c_a + \delta^f_a \delta^c_b) 
-			- g^{cc} (x + \Delta \hat{x}^c) (\delta^e_b \delta^f_a)
+$= \frac{1}{2 \Delta} 
+	\left( 
+		(	-\frac{1}{4} (
+				g^{ce}(x + \Delta \hat{x}^c) (\delta^f_b \delta^c_a + \delta^f_a \delta^c_b) 
+				- g^{cc}(x + \Delta \hat{x}^c) \delta^e_b \delta^f_a
+			)
+		)
+		- (	
+			\frac{1}{4} (
+				g^{ce}(x - \Delta \hat{x}^c) (\delta^f_b \delta^c_a + \delta^f_a \delta^c_b) 
+				- g^{cc}(x - \Delta \hat{x}^c) \delta^e_b \delta^f_a
+			)
+		) - (
+			-\frac{1}{4} (
+				g^{ce}(x + \Delta \hat{x}^b) (\delta^f_c \delta^b_a + \delta^f_a \delta^b_c) 
+				- g^{cb}(x + \Delta \hat{x}^b) \delta^e_c \delta^f_a
+			)
+		) + (
+			\frac{1}{4} (
+				g^{ce}(x - \Delta \hat{x}^b) (\delta^f_c \delta^b_a + \delta^f_a \delta^b_c) 
+				- g^{cb}(x - \Delta \hat{x}^b) \delta^e_c \delta^f_a
+			)
+		)
+	\right)
+	+ {\Gamma^d}_{ab} (x) (
+		-g^{ce}(x) {\Gamma^f}_{dc}(x)
+	) 
+	+ {\Gamma^c}_{dc} (x) (
+		-g^{de}(x) {\Gamma^f}_{ab}(x)
 	)
-	
-	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
-	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) 
-	+ \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
-	+ \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{dc} (x) {\Gamma^d}_{ab} (x)
-	+ {\Gamma^c}_{dc} (x) \frac{\partial}{\partial g_{ef}(x)} {\Gamma^d}_{ab} (x)
-	- \frac{\partial}{\partial g_{ef}(x)} {\Gamma^c}_{db} (x) {\Gamma^d}_{ac} (x)
-	- {\Gamma^c}_{db} (x) \frac{\partial}{\partial g_{ef}(x)} {\Gamma^d}_{ac} (x)
+	- {\Gamma^d}_{ac} (x) (
+		-g^{ce}(x) {\Gamma^f}_{db}(x)
+	) 
+	- {\Gamma^c}_{db} (x) (
+		-g^{de}(x) {\Gamma^f}_{ac}(x)
+	)
 $<br>
-<br>
+$= \frac{1}{8 \Delta} 
+	\left( 
+		- g^{ce}(x + \Delta \hat{x}^c) (\delta^f_b \delta^c_a + \delta^f_a \delta^c_b) + g^{cc}(x + \Delta \hat{x}^c) \delta^e_b \delta^f_a
+		- g^{ce}(x - \Delta \hat{x}^c) (\delta^f_b \delta^c_a + \delta^f_a \delta^c_b) + g^{cc}(x - \Delta \hat{x}^c) \delta^e_b \delta^f_a
+		+ g^{ce}(x + \Delta \hat{x}^b) (\delta^f_c \delta^b_a + \delta^f_a \delta^b_c) - g^{cb}(x + \Delta \hat{x}^b) \delta^e_c \delta^f_a
+		+ g^{ce}(x - \Delta \hat{x}^b) (\delta^f_c \delta^b_a + \delta^f_a \delta^b_c) - g^{cb}(x - \Delta \hat{x}^b) \delta^e_c \delta^f_a
+	\right)
+	- {\Gamma^d}_{ab} (x) g^{ce}(x) {\Gamma^f}_{dc}(x) - {\Gamma^c}_{dc} (x) g^{de}(x) {\Gamma^f}_{ab}(x)
+	+ {\Gamma^d}_{ac} (x) g^{ce}(x) {\Gamma^f}_{db}(x) + {\Gamma^c}_{db} (x) g^{de}(x) {\Gamma^f}_{ac}(x)
+$<br>
+$= \frac{1}{8 \Delta} 
+	\left( 
+		- g^{ce}(x + \Delta \hat{x}^c) \delta^f_b \delta^c_a 
+		- g^{ce}(x + \Delta \hat{x}^c) \delta^f_a \delta^c_b
+		+ g^{cc}(x + \Delta \hat{x}^c) \delta^e_b \delta^f_a
+		- g^{ce}(x - \Delta \hat{x}^c) \delta^f_b \delta^c_a 
+		- g^{ce}(x - \Delta \hat{x}^c) \delta^f_a \delta^c_b
+		+ g^{cc}(x - \Delta \hat{x}^c) \delta^e_b \delta^f_a
+		+ g^{ce}(x + \Delta \hat{x}^b) \delta^f_c \delta^b_a 
+		+ g^{ce}(x + \Delta \hat{x}^b) \delta^f_a \delta^b_c
+		- g^{cb}(x + \Delta \hat{x}^b) \delta^e_c \delta^f_a
+		+ g^{ce}(x - \Delta \hat{x}^b) \delta^f_c \delta^b_a 
+		+ g^{ce}(x - \Delta \hat{x}^b) \delta^f_a \delta^b_c
+		- g^{cb}(x - \Delta \hat{x}^b) \delta^e_c \delta^f_a
+	\right)
+	- {\Gamma^d}_{ab} (x) g^{ce}(x) {\Gamma^f}_{dc}(x) 
+	- {\Gamma^c}_{dc} (x) g^{de}(x) {\Gamma^f}_{ab}(x)
+	+ {\Gamma^d}_{ac} (x) g^{ce}(x) {\Gamma^f}_{db}(x) 
+	+ {\Gamma^c}_{db} (x) g^{de}(x) {\Gamma^f}_{ac}(x)
+$<br>
 
-$\frac{\partial}{\partial g_{ef}(x)} {\Gamma^a}_{bc}(x) = -g^{ae}(x) {\Gamma^f}_{bc}(x)$<br>
-$\frac{\partial}{\partial g_{ef}(x + \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x) 
-= \frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
-$\frac{\partial}{\partial g_{ef}(x - \Delta \hat{x}^j)} {\Gamma^a}_{bc}(x) 
-= -\frac{1}{4} (g^{ae}(x) (\delta^f_b \delta^j_c + \delta^f_c \delta^j_b) - g^{aj}(x) \delta^e_b \delta^f_c)$<br>
 <br>
 
 <b>Gaussian curvature:</b><br>
@@ -512,7 +653,7 @@ $\Phi = \frac{1}{2} \underset{a,b,x^i}\Sigma (G_{ab}(x^i) - 8 \pi T_{ab}(x^i))^2
 Derivatives of discretized $\Phi$:<br>
 $\frac{\partial \Phi}{\partial g_{pq}(x^j)} 
 = \frac{\partial}{\partial g_{pq}(x^j)} \frac{1}{2} \underset{a,b,i}\Sigma (G_{ab} (x^i) - 8 \pi T_{ab}(x^i))^2$<br>
-$= \underset{a,b,i}\Sigma (G_{ab} (x^i) - 8 \pi T_{ab}(x^i)) ( \frac{\partial}{\partial g_{pq}(x^j)} G_{ab} (x^i) - 8 \pi \frac{\partial}{\partial g_{pq}(x^j)} T_{ab} (x^i))$<br>
+$= \underset{a,b,x^i}\Sigma (G_{ab} (x^i) - 8 \pi T_{ab}(x^i)) ( \frac{\partial}{\partial g_{pq}(x^j)} G_{ab} (x^i) - 8 \pi \frac{\partial}{\partial g_{pq}(x^j)} T_{ab} (x^i))$<br>
 <br>
 
 Derivatives of continuous $\Phi$ wrt $\alpha, \beta^i, \gamma_{ij}$:<br>

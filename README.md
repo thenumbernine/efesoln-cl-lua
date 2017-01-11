@@ -57,5 +57,5 @@ If the discrete gradient was used, the alpha values might get propogated outward
 * implement GMRES in OpenCL
 * implement JFNK in OpenCL
 * reduce allocations for solvers that aren't being used
-* upon changing bodies, make sure the ffi.cdef code and headers are properly refreshing 
+* upon changing bodies, make sure the ffi.cdef code and headers are properly refreshing
 
