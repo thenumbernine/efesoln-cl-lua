@@ -489,7 +489,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	-- b = 8 pi T_ab (and ignore the fact that it is based on x as well)
 	-- linearize: G x = b
 	
-	local CLConjResSolver = class(require 'LinearSolvers.cl.conjres')
+	local CLConjResSolver = class(require 'solver.cl.conjres')
 
 	-- cache buffers
 	function CLConjResSolver:newBuffer(name)
