@@ -505,7 +505,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		A = function(y,x)
 			-- treat 'x' as the gPrims
 			-- change any kernels bound to gPrims to x instead
-			self.calc_gLLs_and_gUUs.kernel:setArg(2, x)
+			self.calc_gLLs_and_gUUs.obj:setArg(2, x)
 		
 			-- TODO the EFE's don't need to be updated in this call
 			-- they only need to be updated for ...
@@ -516,21 +516,21 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 			self:updateAux()
 			
 			-- bind our output to 'y'
-			self.calc_EinsteinLLs.kernel:setArg(0, y)
+			self.calc_EinsteinLLs.obj:setArg(0, y)
 			self.calc_EinsteinLLs()
 			
 			-- fix the kernel arg state changes
-			self.calc_gLLs_and_gUUs.kernel:setArg(2, self.gPrims.buf)
+			self.calc_gLLs_and_gUUs.obj:setArg(2, self.gPrims.obj)
 		end,
 		-- TODO if alpha, beta, or gamma are disabled then this can be a rectangular solver 
 		x = self.gPrims,
 		b = self._8piTLLs,
 		type = 'real',
-		size = self.domain.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
+		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
 			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
 		end,
-		maxiter = self.domain.volume * 10,
+		maxiter = self.base.volume * 10,
 	}
 
 	-- I'm going to use the conjResSolver.dot
@@ -584,9 +584,9 @@ function EFESolver:initBuffers()
 	self._8piTLLs = self:buffer{name='_8piTLLs', type='sym4'}
 
 	self.tex = require 'gl.tex3d'{
-		width = tonumber(self.domain.size.x),
-		height = tonumber(self.domain.size.y),
-		depth = tonumber(self.domain.size.z),
+		width = tonumber(self.base.size.x),
+		height = tonumber(self.base.size.y),
+		depth = tonumber(self.base.size.z),
 		internalFormat = gl.GL_RGBA32F,
 		format = gl.GL_RGBA,
 		type = gl.GL_FLOAT,
@@ -596,8 +596,8 @@ function EFESolver:initBuffers()
 	}
 
 	-- TODO finishme
-	self:clalloc(self.domain.volume * ffi.sizeof'real', 'reduceBuf', 'real')
-	self:clalloc(self.domain.volume * ffi.sizeof'real' / self.domain.localSize1d.x, 'reduceSwapBuf', 'real')
+	self:clalloc(self.base.volume * ffi.sizeof'real', 'reduceBuf', 'real')
+	self:clalloc(self.base.volume * ffi.sizeof'real' / self.base.localSize1d.x, 'reduceSwapBuf', 'real')
 	self.reduceResultPtr = ffi.new('real[1]', 0)
 
 	-- used for downloading visualization data
@@ -606,7 +606,7 @@ function EFESolver:initBuffers()
 	if self.useGLSharing then
 		self.texCLMem = require 'cl.imagegl'{context=self.ctx, tex=self.tex, write=true}
 	else
-		self.texCPUBuf = ffi.new('float[?]', self.domain.volume)
+		self.texCPUBuf = ffi.new('float[?]', self.base.volume)
 	end
 end
 
@@ -614,8 +614,8 @@ function EFESolver:compileTemplates(code)
 	return template(code, {
 		clnumber = clnumber,
 		sym = sym,
-		dim = self.domain.dim,
-		size = self.domain.size,
+		dim = self.base.dim,
+		size = self.base.size,
 		stDim = self.stDim,
 		sDim = self.sDim,
 		xmin = self.xmin,
@@ -658,7 +658,7 @@ function EFESolver:refreshKernels()
 		name = 'calc_EinsteinLLs',
 		-- don't provide an actual buffer here
 		-- the conjResSolver will provide its own
-		argsOut = {{name='EinsteinLLs', type='sym4', buf=true}},
+		argsOut = {{name='EinsteinLLs', type='sym4', obj=true}},
 		argsIn = {self.gLLs, self.gUUs, self.GammaULLs},
 	}
 	self.calc_8piTLLs = program:kernel{name='calc_8piTLLs', argsOut={self._8piTLLs}, argsIn={self.TPrims, self.gLLs}}
@@ -765,7 +765,7 @@ function EFESolver:updateNewton()
 		local function residualAtAlpha(alpha)
 			self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
 			alphaPtr[0] = alpha	
-			self.update_gPrims.kernel:setArg(2, alphaPtr)
+			self.update_gPrims.obj:setArg(2, alphaPtr)
 			self.update_gPrims()
 			self:updateAux()	-- calcs from gPrims on down to EFE
 			local residual = self.conjResSolver.args.dot(self.EFEs, self.EFEs) 
@@ -814,11 +814,11 @@ print(string.format('rev alpha=%.16e residual=%.16e', alphaRev, residualRev))
 		end
 print(string.format('using alpha=%.16e residual=%.16e', alpha, residualRev))
 		alphaPtr[0] = alpha
-		self.update_gPrims.kernel:setArg(2, alphaPtr)
+		self.update_gPrims.obj:setArg(2, alphaPtr)
 		self.update_gPrims()
 	else	-- no line search
 		-- update gPrims from dPhi/dg_ab 
-		self.update_gPrims.kernel:setArg(2, ffi.new('real[1]', self.updateAlpha))
+		self.update_gPrims.obj:setArg(2, ffi.new('real[1]', self.updateAlpha))
 		self.update_gPrims()
 	end
 
@@ -868,17 +868,17 @@ function EFESolver:updateTex()
 -- because they exist in 1e-40 and what not
 
 	-- now copy from cl buffer to gl buffer
-	self.cmds:enqueueReadBuffer{buffer=self.texCLBuf.buf, block=true, size=ffi.sizeof'float' * self.domain.volume, ptr=self.texCPUBuf}
+	self.cmds:enqueueReadBuffer{buffer=self.texCLBuf.obj, block=true, size=ffi.sizeof'float' * self.base.volume, ptr=self.texCPUBuf}
 
 	local min, max = self.texCPUBuf[0], self.texCPUBuf[0]
-	for i=1,self.domain.volume-1 do
+	for i=1,self.base.volume-1 do
 		local x = self.texCPUBuf[i]
 		min = math.min(min, x) 
 		max = math.max(max, x) 
 	end
 	self.app.minValue = min
 	self.app.maxValue = max
-	for i=1,self.domain.volume-1 do
+	for i=1,self.base.volume-1 do
 		self.texCPUBuf[i] = (self.texCPUBuf[i] - min) / (max - min)
 	end
 
