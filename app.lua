@@ -143,18 +143,10 @@ void main() {
 }
 ]],
 		uniforms = {
-			'volTex',
-			'hsvTex',
-			'normal',
-			'alpha',
-			'alphaGamma',
-			'clipEnabled'
+			volTex = 0,
+			hsvTex = 1,
 		},
 	}
-	volumeShader:use()
-	gl.glUniform1i(volumeShader.uniforms.volTex, 0)
-	gl.glUniform1i(volumeShader.uniforms.hsvTex, 1)
-	volumeShader:useNone()
 
 	glreport'here'
 
@@ -272,9 +264,9 @@ function App:update()
 	volumeShader:use()
 	self.solver.tex:bind(0)
 	hsvTex:bind(1)
-	gl.glUniform1f(volumeShader.uniforms.alpha, alpha[0])
-	gl.glUniform1f(volumeShader.uniforms.alphaGamma, alphaGamma[0])
-	gl.glUniform1iv(volumeShader.uniforms.clipEnabled, 4, 
+	gl.glUniform1f(volumeShader.uniforms.alpha.loc, alpha[0])
+	gl.glUniform1f(volumeShader.uniforms.alphaGamma.loc, alphaGamma[0])
+	gl.glUniform1iv(volumeShader.uniforms['clipEnabled[0]'].loc, 4, 
 		ffi.new('int[4]', clipInfos:map(function(info) return info.enabled[0] end)))
 
 	gl.glEnable(gl.GL_TEXTURE_GEN_S)
@@ -312,7 +304,7 @@ function App:update()
 	else
 		jmin, jmax, jdir = n, 0, -1
 	end
-	gl.glUniform3f(volumeShader.uniforms.normal, fwddir==1 and jdir or 0, fwddir==2 and jdir or 0, fwddir==3 and jdir or 0)
+	gl.glUniform3f(volumeShader.uniforms.normal.loc, fwddir==1 and jdir or 0, fwddir==2 and jdir or 0, fwddir==3 and jdir or 0)
 	
 	gl.glBegin(gl.GL_QUADS)
 	for j=jmin,jmax,jdir do

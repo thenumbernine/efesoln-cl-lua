@@ -299,7 +299,7 @@ end
 	return {name=k, code=v}
 end)
 
-EFESolver.updateMethods = {'Newton', 'ConjRes'}
+EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes'}
 
 function EFESolver:init(args)
 	self.app = args.app
@@ -529,11 +529,56 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
 			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
+			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
 		end,
 		maxiter = self.base.volume * 10,
 	}
 
-	-- I'm going to use the conjResSolver.dot
+	local CLGMResSolver = class(require 'solver.cl.gmres')
+
+	-- cache buffers
+	function CLGMResSolver:newBuffer(name)
+		self.gmresBuffers = self.gmresBuffers or {}
+		if not self.gmresBuffers[name] then
+			self.gmresBuffers[name] = CLGMResSolver.super.newBuffer(self, name)
+		end
+		return self.gmresBuffers[name]
+	end
+
+	self.gmresSolver = CLGMResSolver{
+		env = self,
+		A = function(y,x)
+			-- treat 'x' as the gPrims
+			-- change any kernels bound to gPrims to x instead
+			self.calc_gLLs_and_gUUs.obj:setArg(2, x)
+		
+			-- TODO the EFE's don't need to be updated in this call
+			-- they only need to be updated for ...
+			-- * the Newton gradient descent solver
+			-- * the display kernels
+			-- so I say move calc_EFEs() to updateNewton, and code the EFE's directly into the display kernels that use them
+			--  (because more often than not we're not watching the EFE constraints themselves)
+			self:updateAux()
+			
+			-- bind our output to 'y'
+			self.calc_EinsteinLLs.obj:setArg(0, y)
+			self.calc_EinsteinLLs()
+			
+			-- fix the kernel arg state changes
+			self.calc_gLLs_and_gUUs.obj:setArg(2, self.gPrims.obj)
+		end,
+		-- TODO if alpha, beta, or gamma are disabled then this can be a rectangular solver 
+		x = self.gPrims,
+		b = self._8piTLLs,
+		type = 'real',
+		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
+		errorCallback = function(err, iter)
+			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
+			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+		end,
+		maxiter = self.base.volume * 10,
+	}
+	-- I'm going to use the gmresSolver.dot
 	-- for the norms of my Newton descent
 
 	self:resetState()
@@ -580,7 +625,7 @@ function EFESolver:initBuffers()
 	-- used by updateNewton's line trace
 	 self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
 
-	-- used by updateConjRes:
+	-- used by updateConjRes and updateGMRes:
 	self._8piTLLs = self:buffer{name='_8piTLLs', type='sym4'}
 
 	self.tex = require 'gl.tex3d'{
@@ -653,7 +698,7 @@ function EFESolver:refreshKernels()
 	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
 	self.update_gPrims = program:kernel{name='update_gPrims', argsOut={self.gPrims}, argsIn={self.dPhi_dgPrims}}
 
-	-- used by updateConjRes
+	-- used by updateConjRes and updateGMRes
 	self.calc_EinsteinLLs = program:kernel{
 		name = 'calc_EinsteinLLs',
 		-- don't provide an actual buffer here
@@ -731,6 +776,8 @@ function EFESolver:update()
 		self:updateNewton()
 	elseif updateMethod == 'ConjRes' then
 		self:updateConjRes()
+	elseif updateMethod == 'GMRes' then
+		self:updateGMRes()
 	end
 	
 	self.iteration = self.iteration + 1
@@ -839,6 +886,11 @@ end
 function EFESolver:updateConjRes()
 	self.calc_8piTLLs()		-- update the b vector
 	self.conjResSolver()	-- solve x in A x = b
+end
+
+function EFESolver:updateGMRes()
+	self.calc_8piTLLs()		-- update the b vector
+	self.gmresSolver()	-- solve x in A x = b
 end
 
 function EFESolver:updateAux()
