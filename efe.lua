@@ -299,7 +299,7 @@ end
 	return {name=k, code=v}
 end)
 
-EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes'}
+EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes', 'JFNK'}
 
 function EFESolver:init(args)
 	self.app = args.app
@@ -528,7 +528,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		type = 'real',
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
-			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
+			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
 			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
 		end,
 		maxiter = self.base.volume * 10,
@@ -573,13 +573,48 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		type = 'real',
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
-			io.stderr:write(tostring(err)..'\t'..tostring(iter)..'\n')
+			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
 			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
 		end,
 		maxiter = self.base.volume * 10,
 	}
 	-- I'm going to use the gmresSolver.dot
 	-- for the norms of my Newton descent
+	
+	local CLJFNKSolver = class(require 'solver.cl.jfnk')
+
+	function CLJFNKSolver:newBuffer(name)
+		self.jfnkBuffers = self.jfnkBuffers or {}
+		if not self.jfnkBuffers[name] then
+			self.jfnkBuffers[name] = CLJFNKSolver.super.newBuffer(self, name)
+		end
+		return self.jfnkBuffers[name]
+	end
+
+	self.jfnkSolver = CLJFNKSolver{
+		env = self,
+		f = function(y,x)
+			-- solve for zero EFE_ab = G_ab - 8 pi T_ab
+			self.calc_gLLs_and_gUUs.obj:setArg(2, x)	-- input arg
+			self.calc_EFEs.obj:setArg(1, y)
+			
+			-- calc_EFEs
+			self:updateAux()
+			
+			-- fix the kernel arg state changes
+			self.calc_gLLs_and_gUUs.obj:setArg(2, self.gPrims.obj)
+			self.calc_EFEs.obj:setArg(1, self.EFEs.obj)
+		end,
+		x = self.gPrims,
+		b = self.EFEs,
+		type = 'real',
+		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
+		errorCallback = function(err, iter)
+			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
+			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+		end,
+		maxiter = self.base.volume * 10,
+	}
 
 	self:resetState()
 end
@@ -778,6 +813,8 @@ function EFESolver:update()
 		self:updateConjRes()
 	elseif updateMethod == 'GMRes' then
 		self:updateGMRes()
+	elseif updateMethod == 'JFNK' then
+		self:updateJFNK()
 	end
 	
 	self.iteration = self.iteration + 1
@@ -891,6 +928,12 @@ end
 function EFESolver:updateGMRes()
 	self.calc_8piTLLs()		-- update the b vector
 	self.gmresSolver()	-- solve x in A x = b
+end
+
+-- minimize alpha, beta, gamma
+function EFESolver:updateJFNK()
+	self.calc_EFEs()
+	self.jfnkSolver()
 end
 
 function EFESolver:updateAux()

@@ -16,7 +16,8 @@ return {
 	
 	outputFilename = 'out.txt',
 
-	solver = 'Newton',	-- newton applied to coninuous equations (not as accurate as newton applied to discrete equations)
+	--solver = 'Newton',	-- newton applied to coninuous equations (not as accurate as newton applied to discrete equations, which I'm working on...)
 	--solver = 'ConjRes',
 	--solver = 'GMRes',
+	solver = 'JFNK',
 }

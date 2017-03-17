@@ -54,7 +54,6 @@ If the discrete gradient was used, the alpha values might get propogated outward
 ### TODO:
 
 * find out why the conjugate residual solver is stopping after one iteration
-* add GMRES and JFNK solvers
 * reduce allocations for solvers that aren't being used
 * upon changing bodies, make sure the ffi.cdef code and headers are properly refreshing
 
