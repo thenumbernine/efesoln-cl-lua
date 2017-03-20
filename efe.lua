@@ -580,10 +580,12 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	}
 	-- I'm going to use the gmresSolver.dot
 	-- for the norms of my Newton descent
+	-- also TODO reuse the same dot with conjres, gmres, and jfnk
 	
 	local CLJFNKSolver = class(require 'solver.cl.jfnk')
 
 	function CLJFNKSolver:newBuffer(name)
+assert(type(name)=='string')	
 		self.jfnkBuffers = self.jfnkBuffers or {}
 		if not self.jfnkBuffers[name] then
 			self.jfnkBuffers[name] = CLJFNKSolver.super.newBuffer(self, name)
@@ -591,29 +593,117 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		return self.jfnkBuffers[name]
 	end
 
+	local gmresErrFile = io.open('gmres_err.txt', 'w')
+	local jfnkErrFile = io.open('jfnk_err.txt', 'w')
+	local jfnkIter
 	self.jfnkSolver = CLJFNKSolver{
 		env = self,
 		f = function(y,x)
+			
 			-- solve for zero EFE_ab = G_ab - 8 pi T_ab
 			self.calc_gLLs_and_gUUs.obj:setArg(2, x)	-- input arg
-			self.calc_EFEs.obj:setArg(1, y)
+			self.calc_EFEs.obj:setArg(0, y)
+--[[
+local tmp = ffi.new('real[?]', self.base.volume * 40)	-- 40 is the largest structure size
+x:toCPU(tmp)
+print'jfnk prims (x):'
+for i=0,self.base.volume-1 do
+	for j=0,9 do
+		io.write(' ',tmp[j+10*i])
+	end
+	print()
+end
+--]]
 			
 			-- calc_EFEs
 			self:updateAux()
+
+			-- the EFE is on the order of G/c^4 ~ 7e-47 so scale it up
+			--self.jfnkSolver.args.scale(y, y, c^4 / G)
+
+--[[
+self.gLLs:toCPU(tmp)
+print'gLLs:'
+for i=0,self.base.volume-1 do
+	for j=0,9 do
+		io.write(' ',tmp[j+10*i])
+	end
+	print()
+end
+self.gUUs:toCPU(tmp)
+print'gUUs:'
+for i=0,self.base.volume-1 do
+	for j=0,9 do
+		io.write(' ',tmp[j+10*i])
+	end
+	print()
+end
+print'GammaULLs:'
+self.GammaULLs:toCPU(tmp)
+for i=0,self.base.volume-1 do
+	for j=0,39 do
+		io.write(' ',tmp[j+40*i])
+	end
+	print()
+end
+
+-- this is done on the GPU, but for debugging:
+self.calc_8piTLLs()
+print'8piTLLs:'
+self._8piTLLs:toCPU(tmp)
+for i=0,self.base.volume-1 do
+	for j=0,9 do
+		io.write(' ',tmp[j+10*i])
+	end
+	print()
+end
+-- so if 8piTLLs has values then why doesn't EFEs?
+--self.calc_EinsteinLLs.obj:setArg(0, y)
+--self.calc_EinsteinLLs()
+--print'EinsteinLLs:'
+--self.EinsteinLLs:toCPU(tmp)
+--for i=0,self.base.volume-1 do
+--	for j=0,9 do
+--		io.write(' ',tmp[j+10*i])
+--	end
+--	print()
+--end
+print'EFEs(y):'
+y:toCPU(tmp)
+for i=0,self.base.volume-1 do
+	for j=0,9 do
+		io.write(' ',tmp[j+10*i])
+	end
+	print()
+end
+--]]
 			
 			-- fix the kernel arg state changes
 			self.calc_gLLs_and_gUUs.obj:setArg(2, self.gPrims.obj)
-			self.calc_EFEs.obj:setArg(1, self.EFEs.obj)
+			self.calc_EFEs.obj:setArg(0, self.EFEs.obj)
 		end,
 		x = self.gPrims,
-		b = self.EFEs,
 		type = 'real',
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
-			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
+			io.stderr:write('jfnk err='..tostring(err)..', iter='..tostring(iter)..'\n')
 			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+			jfnkIter = iter
+			jfnkErrFile:write(iter,'\t',err,'\n')
+			jfnkErrFile:flush()
+			gmresErrFile:write'\n'
+			gmresErrFile:flush()
 		end,
-		maxiter = self.base.volume * 10,
+		gmres = {
+			errorCallback = function(err, iter)
+				io.stderr:write('gmres err='..tostring(err)..', iter='..tostring(iter)..'\n')
+				assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+				gmresErrFile:write(jfnkIter,'\t',iter,'\t',err,'\n')
+				gmresErrFile:flush()
+			end,	
+		},
+		maxiter = 10,--self.base.volume * 10,
+		epsilon = 1e-51,	-- efe error is G/c^4 ~ 6.67e-47
 	}
 
 	self:resetState()
@@ -727,9 +817,11 @@ function EFESolver:refreshKernels()
 	if self.useFourPotential then
 		self.solveAL = program:kernel{name='solveAL', argsOut={self.TPrims}}
 	end
+
+	-- used by updateNewton and updateJFNK:
+	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
 	
 	-- used by updateNewton:
-	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
 	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
 	self.update_gPrims = program:kernel{name='update_gPrims', argsOut={self.gPrims}, argsIn={self.dPhi_dgPrims}}
 

@@ -1,5 +1,6 @@
 return {
-	size = 64,
+	--size = 64,
+	size = 8,
 	
 	-- line trace amount
 	updateAlpha = 1,
