@@ -230,7 +230,7 @@ void calc_dGammaLULL(
 ) {
 	initKernel();
 	dGammaLULL->s0 = tensor_4sym4_zero;
-	<? for i=0,dim-1 do ?>{
+	<? for i=0,sDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);

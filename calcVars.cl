@@ -22,7 +22,7 @@ if solver.body.useEM then ?>
 <? end ?>
 	};
 
-<?=solver.body.init?>
+<?=solver.body.init and solver.body.init or ''?>
 
 <? if solver.useFourPotential then ?>
 	TPrim->AL = real4_scale(TPrim->JU, -1);
@@ -76,7 +76,7 @@ kernel void calc_GammaULLs(
 	//here's where the finite difference stuff comes in ...
 	tensor_4sym4 dgLLL;
 	dgLLL.s0 = sym4_zero;
-	<? for i=0,dim-1 do ?>{
+	<? for i=0,sDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
@@ -191,7 +191,7 @@ kernel void solveAL(
 	initKernel();
 
 	real4 skewSum = real4_zero;
-	<? for i=0,dim-1 do ?>{
+	<? for i=0,sDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);

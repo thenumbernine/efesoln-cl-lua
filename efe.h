@@ -60,4 +60,7 @@ end ?>
 	real3 E, B;	//upper, spatial
 	<? end ?>
 <? end ?>
+<? if not solver.body.useMatter and not solver.body.useEM then ?>
+	char cantBeEmpty;
+<? end ?>
 } <?=TPrim_t?>;

@@ -51,9 +51,10 @@ This is probably because the gradient of the 1st kind Christoffel symbols is equ
 whereas the gradient of the discrete is equal to the difference of the left and right metrics.
 If the discrete gradient was used, the alpha values might get propogated outward from the matter boundary. 
 
+I've added Conjugate Residual, GMRES, and JFNK solvers now. Convergence with these is still ugly.
+
 ### TODO:
 
-* find out why the conjugate residual solver is stopping after one iteration
 * reduce allocations for solvers that aren't being used
 * upon changing bodies, make sure the ffi.cdef code and headers are properly refreshing
 

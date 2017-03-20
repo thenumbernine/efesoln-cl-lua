@@ -4,10 +4,12 @@ return {
 	
 	-- line trace amount
 	updateAlpha = 1,
-	
-	body = 'Earth',
+
+	body = 'vacuum',
+	--body = 'Earth',
 	--body = 'Sun',
-	--body = 'EM Field',
+	--body = 'EM ring',
+	--body = 'EM line',
 	
 	bodyRadii = 2,
 	

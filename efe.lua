@@ -51,9 +51,9 @@ function SphericalBody:init(args)
 ]], {self=self})
 end
 
-local EMFieldBody = class()
+local EMRing = class()
 
-function EMFieldBody:init(args)
+function EMRing:init(args)
 	self.radius = args.radius
 	
 	self.useMatter = false
@@ -105,6 +105,9 @@ end
 -- body parameters:
 
 local bodies = {
+	vacuum = {
+		radius = 1,
+	},
 	Earth = SphericalBody{
 		radius = 6.37101e+6,	-- m
 		mass = 5.9736e+24 * G / c / c,	-- m
@@ -113,8 +116,16 @@ local bodies = {
 		radius = 6.960e+8,	-- m
 		mass = 1.9891e+30 * G / c / c,	-- m
 	},
-	['EM Field'] = EMFieldBody{
+	['EM ring'] = EMRing{
 		radius = 2,
+	},
+	['EM line'] = {
+		useEM = true,
+		radius = 2,
+		init = [[
+	TPrim->E = _real3(1,0,0);
+	TPrim->B = _real3(0,1,0);
+]],
 	},
 }
 
@@ -349,7 +360,7 @@ function EFESolver:init(args)
 	local function makeDiv(field)
 		return template([[
 	real div = 0.;
-	<? for i=0,dim-1 do ?>{
+	<? for i=0,sDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
@@ -366,7 +377,7 @@ function EFESolver:init(args)
 	texCLBuf[index] = div;
 ]], {
 	field = field,
-	dim = self.dim,
+	sDim = self.sDim,
 	TPrim_t = self.TPrim_t,
 })
 	end
@@ -593,8 +604,8 @@ assert(type(name)=='string')
 		return self.jfnkBuffers[name]
 	end
 
-	local gmresErrFile = io.open('gmres_err.txt', 'w')
-	local jfnkErrFile = io.open('jfnk_err.txt', 'w')
+	--local gmresErrFile = io.open('gmres_err.txt', 'w')
+	--local jfnkErrFile = io.open('jfnk_err.txt', 'w')
 	local jfnkIter
 	self.jfnkSolver = CLJFNKSolver{
 		env = self,
@@ -603,81 +614,10 @@ assert(type(name)=='string')
 			-- solve for zero EFE_ab = G_ab - 8 pi T_ab
 			self.calc_gLLs_and_gUUs.obj:setArg(2, x)	-- input arg
 			self.calc_EFEs.obj:setArg(0, y)
---[[
-local tmp = ffi.new('real[?]', self.base.volume * 40)	-- 40 is the largest structure size
-x:toCPU(tmp)
-print'jfnk prims (x):'
-for i=0,self.base.volume-1 do
-	for j=0,9 do
-		io.write(' ',tmp[j+10*i])
-	end
-	print()
-end
---]]
-			
+		
 			-- calc_EFEs
 			self:updateAux()
-
-			-- the EFE is on the order of G/c^4 ~ 7e-47 so scale it up
-			--self.jfnkSolver.args.scale(y, y, c^4 / G)
-
---[[
-self.gLLs:toCPU(tmp)
-print'gLLs:'
-for i=0,self.base.volume-1 do
-	for j=0,9 do
-		io.write(' ',tmp[j+10*i])
-	end
-	print()
-end
-self.gUUs:toCPU(tmp)
-print'gUUs:'
-for i=0,self.base.volume-1 do
-	for j=0,9 do
-		io.write(' ',tmp[j+10*i])
-	end
-	print()
-end
-print'GammaULLs:'
-self.GammaULLs:toCPU(tmp)
-for i=0,self.base.volume-1 do
-	for j=0,39 do
-		io.write(' ',tmp[j+40*i])
-	end
-	print()
-end
-
--- this is done on the GPU, but for debugging:
-self.calc_8piTLLs()
-print'8piTLLs:'
-self._8piTLLs:toCPU(tmp)
-for i=0,self.base.volume-1 do
-	for j=0,9 do
-		io.write(' ',tmp[j+10*i])
-	end
-	print()
-end
--- so if 8piTLLs has values then why doesn't EFEs?
---self.calc_EinsteinLLs.obj:setArg(0, y)
---self.calc_EinsteinLLs()
---print'EinsteinLLs:'
---self.EinsteinLLs:toCPU(tmp)
---for i=0,self.base.volume-1 do
---	for j=0,9 do
---		io.write(' ',tmp[j+10*i])
---	end
---	print()
---end
-print'EFEs(y):'
-y:toCPU(tmp)
-for i=0,self.base.volume-1 do
-	for j=0,9 do
-		io.write(' ',tmp[j+10*i])
-	end
-	print()
-end
---]]
-			
+	
 			-- fix the kernel arg state changes
 			self.calc_gLLs_and_gUUs.obj:setArg(2, self.gPrims.obj)
 			self.calc_EFEs.obj:setArg(0, self.EFEs.obj)
@@ -686,24 +626,37 @@ end
 		type = 'real',
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
-			io.stderr:write('jfnk err='..tostring(err)..', iter='..tostring(iter)..'\n')
+			--io.stderr:write('jfnk err='..tostring(err)..', iter='..tostring(iter)..'\n')
 			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
 			jfnkIter = iter
-			jfnkErrFile:write(iter,'\t',err,'\n')
-			jfnkErrFile:flush()
-			gmresErrFile:write'\n'
-			gmresErrFile:flush()
+			if jfnkErrFile then
+				jfnkErrFile:write(iter,'\t',err,'\n')
+				jfnkErrFile:flush()
+			end
+			if gmresErrFile then
+				gmresErrFile:write'\n'
+				gmresErrFile:flush()
+			end
 		end,
 		gmres = {
+			MInv = function(y,x)
+				-- the EFE is on the order of G/c^4 ~ 7e-47 so scale it up
+				self.jfnkSolver.args.scale(y, x, c^4 / G)
+				-- C++ version also scales by 1e-3
+				-- and, for converging alpha only, scales by another c^2
+			end,
 			errorCallback = function(err, iter)
-				io.stderr:write('gmres err='..tostring(err)..', iter='..tostring(iter)..'\n')
+				--io.stderr:write('gmres err='..tostring(err)..', iter='..tostring(iter)..'\n')
 				assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
-				gmresErrFile:write(jfnkIter,'\t',iter,'\t',err,'\n')
-				gmresErrFile:flush()
-			end,	
+				if gmresErrFile then
+					gmresErrFile:write(jfnkIter,'\t',iter,'\t',err,'\n')
+					gmresErrFile:flush()
+				end
+			end,
 		},
 		maxiter = 10,--self.base.volume * 10,
-		epsilon = 1e-51,	-- efe error is G/c^4 ~ 6.67e-47
+		jfnkEpsilon = 1e-6,
+		epsilon = 1e-48,	-- efe error is G/c^4 ~ 6.67e-47
 	}
 
 	self:resetState()
@@ -784,7 +737,8 @@ function EFESolver:compileTemplates(code)
 	return template(code, {
 		clnumber = clnumber,
 		sym = sym,
-		dim = self.base.dim,
+		sDim = self.base.sDim,
+		stDim = self.base.stDim,
 		size = self.base.size,
 		stDim = self.stDim,
 		sDim = self.sDim,
