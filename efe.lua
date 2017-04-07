@@ -627,7 +627,7 @@ assert(type(name)=='string')
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
 			--io.stderr:write('jfnk err='..tostring(err)..', iter='..tostring(iter)..'\n')
-			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+			assert(math.isfinite(err), "JFNK got a non-finite error! "..tostring(err))
 			jfnkIter = iter
 			if jfnkErrFile then
 				jfnkErrFile:write(iter,'\t',err,'\n')
@@ -647,14 +647,14 @@ assert(type(name)=='string')
 			end,
 			errorCallback = function(err, iter)
 				--io.stderr:write('gmres err='..tostring(err)..', iter='..tostring(iter)..'\n')
-				assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+				assert(math.isfinite(err), "GMRES got a non-finite error! "..tostring(err))
 				if gmresErrFile then
 					gmresErrFile:write(jfnkIter,'\t',iter,'\t',err,'\n')
 					gmresErrFile:flush()
 				end
 			end,
 		},
-		maxiter = 10,--self.base.volume * 10,
+		maxiter = 1,--self.base.volume * 10,
 		jfnkEpsilon = 1e-6,
 		epsilon = 1e-48,	-- efe error is G/c^4 ~ 6.67e-47
 	}
