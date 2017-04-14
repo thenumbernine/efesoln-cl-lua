@@ -147,7 +147,7 @@ local battery_voltage = 1.5 * V_in_m	-- m^0
 print('battery_voltage',battery_voltage)  
 local wire_current = battery_voltage / wire_resistance	-- amps = C / s = m / m = m^0, likewise volts = m^0, ohms = m^0, so amps = volts / ohms = m^0
 print('wire_current',wire_current)  
-local current_velocity = 1	-- doesn't matter if lambda = 0.  units of m/s = m^0
+--local current_velocity = 1	-- doesn't matter if lambda = 0.  units of m/s = m^0
 -- so ... inside the wire we know q=0 by Kirchoff's law
 -- what about J = sigma E? doesn't that mean E = J rho, for rho = resistivity?
 local wire_charge_density = 0	-- C / m^3 = m^-2

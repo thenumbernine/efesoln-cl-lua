@@ -10,6 +10,7 @@ return {
 	--body = 'Sun',
 	--body = 'EM ring',
 	body = 'EM line',
+	--body = 'EM constant',
 	
 	bodyRadii = 2,
 	

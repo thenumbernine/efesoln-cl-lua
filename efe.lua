@@ -102,6 +102,96 @@ function EMRing:init(args)
 ]], {self=self})
 end
 
+local EMLine = class()
+
+function EMLine:init(args)
+	self.radius = args.radius
+	
+	self.useMatter = false
+	self.useVel = false
+	self.useEM = true
+	
+	-- from cpu-test/grem.lua
+	local s_in_m = 1 / c
+	local kg_in_m = G / c^2
+	local ke = 8.9875517873681764e+9
+	local C_in_m = math.sqrt(ke * G) / c^2	-- m
+	local N_in_m = kg_in_m / s_in_m^2	-- m^0
+	local V_in_m = N_in_m / C_in_m	-- m^0
+	local Ohm_in_m = kg_in_m / (s_in_m * C_in_m^2)	-- m^0
+	local mu0 = 4 * math.pi	-- m^0
+	local eps0 = 1 / mu0	-- m^0
+	local e_const = 6.2415093414e+18
+	local e_in_m = C_in_m / e_const
+	local h_in_m = 1.61622938e-35
+	local alpha_const = (e_in_m/h_in_m)^2
+	-- source: http://hyperphysics.phy-astr.gsu.edu/hbase/electric/resis.html
+	local wire_resistivities = table{	-- at 20' Celsius, in ohm m
+		aluminum = 2.65e-8,
+		copper = 1.724e-8,
+		iron = 9.71e-8,
+		nichrome = 1e-6,
+		gold = 2.24e-8,
+		silver = 1.59e-8,
+		platinum = 1.06e-7,
+		tungsten = 5.65e-8,
+	}:map(function(v) return v * Ohm_in_m end)	-- ohm m => m^0
+	local in_in_m = .0254 
+	local wire_diameters = table{	-- starts in inches
+		electrical_range = .1019,
+		household_circuit = .0808,
+		switch_leads = .0640,
+	}:map(function(v) return v * in_in_m end)	-- in => m 
+	local wire_radius = .5 * wire_diameters.electrical_range	-- m
+	local wire_cross_section_area = math.pi * wire_radius^2	-- m^2
+	local wire_length = 12 * in_in_m	-- m
+	local wire_resistivity = wire_resistivities.gold
+	local wire_resistance = wire_resistivity * wire_length / wire_cross_section_area	-- m^0
+	local battery_voltage = 1.5 * V_in_m	-- m^0
+	local wire_current = battery_voltage / wire_resistance	-- amps = C / s = m / m = m^0, likewise volts = m^0, ohms = m^0, so amps = volts / ohms = m^0
+	local wire_charge_density = 0	-- C / m^3 = m^-2
+	local wire_charge_density_per_length = wire_charge_density * wire_cross_section_area	-- m^-2 * m^2 = m^0
+	local wire_surface_charge_density = 0
+	-- https://physics.stackexchange.com/questions/291779/electric-field-outside-wire-with-stationary-current?rq=1 
+	local rEr = wire_surface_charge_density * wire_radius / math.sqrt(eps0)	-- m^0 * m / m = m^0
+	local Ez = wire_current * wire_resistivity * math.sqrt(eps0)	-- m^0
+	-- http://www.ifi.unicamp.br/~assis/Found-Phys-V29-p729-753(1999).pdf
+	local rBt = math.sqrt(mu0) * wire_current / (2 * math.pi)	-- m^-1
+	local rBz = 0
+
+	self.init = template([[
+	const real radius = <?=self.radius?>;
+	
+	real3 x = getX(i);
+	
+	real r2Sq = x.x*x.x + x.y*x.y;
+	real r2 = sqrt(r2Sq);		//r in polar coordinates	
+
+	const real Er = <?=clnumber(rEr)?> / r2;
+	const real Ez = <?=clnumber(Ez)?>;
+
+	TPrim->E.x = x.x/r2 * Er;
+	TPrim->E.y = x.y/r2 * Er;
+	TPrim->E.z = Ez;
+
+	const real Bt = <?=clnumber(rBt)?> / r2;
+	const real Bz = <?=clnumber(Bz)?>;
+
+	TPrim->B.x = -x.y/r2 * Bt;
+	TPrim->B.y = x.x/r2 * Bt;
+	TPrim->B.z = Bz;
+
+]], {
+		self = self,
+		clnumber = clnumber,
+		rEr = rEr,
+		Ez = Ez,
+		rBt = rBt,
+		Bz = Bz,
+	})
+end
+
+
 -- body parameters:
 
 local bodies = {
@@ -119,7 +209,10 @@ local bodies = {
 	['EM ring'] = EMRing{
 		radius = 2,
 	},
-	['EM line'] = {
+	['EM line'] = EMLine{
+		radius = 2,
+	},
+	['EM constant'] = {
 		useEM = true,
 		radius = 2,
 		init = [[
