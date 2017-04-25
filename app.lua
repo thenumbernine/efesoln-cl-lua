@@ -5,7 +5,7 @@ this should be a stand-alone tool
 require 'ext'
 local bit = require 'bit'
 local ffi = require 'ffi'
-local gl = require 'ffi.OpenGL'
+local gl = require 'gl'
 local sdl = require 'ffi.sdl'
 local ig = require 'ffi.imgui'
 local ImGuiApp = require 'imguiapp'

@@ -4,7 +4,7 @@ local class = require 'ext.class'
 local table = require 'ext.table'
 local template = require 'template'
 local vec3d = require 'ffi.vec.vec3d'
-local gl = require 'ffi.OpenGL'
+local gl = require 'gl'
 local CLEnv = require 'cl.obj.env'
 local clnumber = require 'cl.obj.number'
 -- parameters:
