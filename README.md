@@ -53,6 +53,13 @@ If the discrete gradient was used, the alpha values might get propogated outward
 
 I've added Conjugate Residual, GMRES, and JFNK solvers now. Convergence with these is still ugly.
 
+~
+
+The problem with this whole technique is that coordinates and geometry are separate things.
+There's a number of coordinates that represent the same geometry (with the same curvature).
+That's probably why the metric tensor solved values are diverging.
+TODO constrain it somehow.
+
 ### TODO:
 
 * reduce allocations for solvers that aren't being used
