@@ -28,7 +28,7 @@ Which means I'm skipping the C++.  Hooray!
 
 ### Math work is here:
 
-https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/efe.html
+[Math](https://htmlpreview.github.io/?https://github.com/thenumbernine/efesoln-cl-lua/blob/master/efe.html)
 
 ### Progress
 
