@@ -374,11 +374,11 @@ function App:updateGUI()
 	ig.igSliderFloat('gamma', alphaGamma, 0, 1000, '%.3e', 10)
 	ig.igRadioButton("rotate camera", rotateClip, 0)
 	for i,clipInfo in ipairs(clipInfos) do
-		ig.igPushIdStr('clip '..i)
+		ig.igPushIDStr('clip '..i)
 		ig.igCheckbox('clip', clipInfo.enabled)
 		ig.igSameLine()
 		ig.igRadioButton('rotate', rotateClip, i)
-		ig.igPopId()
+		ig.igPopID()
 	end
 	--ig.igCheckbox('show gradient trace', showGradTrace)
 	--ig.igCheckbox('show curl trace', showCurlTrace)

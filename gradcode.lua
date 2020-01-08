@@ -18,7 +18,7 @@ printbr(EFE_def)
 local Ricci_def = R'_ab':eq(R'^c_acb')
 printbr(Ricci_def)
 
-EFE_def = EFE_def:subst(Ricci_def, Ricci_def:reindex{pqr='abc'})
+EFE_def = EFE_def:subst(Ricci_def, Ricci_def:reindex{abc='pqr'})
 printbr(EFE_def)
 
 local Riemann_def = R'^a_bcd':eq(Gamma'^a_bd,c' - Gamma'^a_bc,d' + Gamma'^a_uc' * Gamma'^u_bd' - Gamma'^a_ud' * Gamma'^u_bc')
@@ -33,8 +33,8 @@ Riemann_def = Riemann_def
 printbr(Riemann_def)
 
 EFE_def = EFE_def:subst(
-	Riemann_def:reindex{cacb='abcd'},
-	Riemann_def:reindex{rprq='abcd'}
+	Riemann_def:reindex{abcd='cacb'},
+	Riemann_def:reindex{abcd='rprq'}
 )()
 printbr(EFE_def)
 
@@ -177,11 +177,11 @@ end)()
 printbr'(note now opq are spatial)'
 printbr'split into time+space:'
 
-local EFE_tt_def = EFE_def:reindex{tt='ab'}()
+local EFE_tt_def = EFE_def:reindex{ab='tt'}()
 printbr(EFE_tt_def)
 
-local EFE_ti_def = EFE_def:reindex{ti='ab'}()
+local EFE_ti_def = EFE_def:reindex{ab='ti'}()
 printbr(EFE_ti_def)
 
-local EFE_ij_def = EFE_def:reindex{ij='ab'}()
+local EFE_ij_def = EFE_def:reindex{ab='ij'}()
 printbr(EFE_ij_def)

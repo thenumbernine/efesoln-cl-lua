@@ -6,10 +6,10 @@ return {
 	updateAlpha = 1,
 
 	--body = 'vacuum',
-	--body = 'Earth',
+	body = 'Earth',
 	--body = 'Sun',
 	--body = 'EM ring',
-	body = 'EM line',
+	--body = 'EM line',
 	--body = 'EM constant',
 	
 	bodyRadii = 2,
