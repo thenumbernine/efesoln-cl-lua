@@ -14,17 +14,18 @@ Which means I'm skipping the C++.  Hooray!
 2. provide initial metric primitivies
 3. solve the quadratic function G_ab = 8 pi T_ab, where G_ab is derived from the metric prims, and T_ab is derived from the stress-energy (and metric) prims
 
-### Requires:
+### Dependencies:
 
-* luajit
 * malkia's ufo
+* luajit
 * cimgui
 * lua-ext
 * lua-vec
 * lua-cl
-* my ffi bindings (which include my ffi vector classes)
+* lua-ffi-bindings
 * template-lua
 * symmath-lua
+* vec-ffi-lua
 
 ### Math work is here:
 
