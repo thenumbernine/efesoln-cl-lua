@@ -251,7 +251,7 @@ function App:update()
 	gl.glRotated(-aa[4], aa[1], aa[2], aa[3])
 
 	for i,clipInfo in ipairs(clipInfos) do
-		gl.glClipPlane(gl.GL_CLIP_PLANE0+i-1, vec4d(clipInfo.plane:unpack()):ptr())
+		gl.glClipPlane(gl.GL_CLIP_PLANE0+i-1, vec4d(clipInfo.plane:unpack()).s)
 -- intel/ubuntu was having trouble when the clip plane included the viewport
 -- so I moved the clipping code to the shader
 --		if clipInfo.enabled[0] then 
@@ -275,9 +275,9 @@ function App:update()
 	gl.glTexGeni(gl.GL_S, gl.GL_TEXTURE_GEN_MODE, gl.GL_OBJECT_LINEAR)
 	gl.glTexGeni(gl.GL_T, gl.GL_TEXTURE_GEN_MODE, gl.GL_OBJECT_LINEAR)
 	gl.glTexGeni(gl.GL_R, gl.GL_TEXTURE_GEN_MODE, gl.GL_OBJECT_LINEAR)
-	gl.glTexGendv(gl.GL_S, gl.GL_OBJECT_PLANE, vec4d(1,0,0,0):ptr())
-	gl.glTexGendv(gl.GL_T, gl.GL_OBJECT_PLANE, vec4d(0,1,0,0):ptr())
-	gl.glTexGendv(gl.GL_R, gl.GL_OBJECT_PLANE, vec4d(0,0,1,0):ptr())
+	gl.glTexGendv(gl.GL_S, gl.GL_OBJECT_PLANE, vec4d(1,0,0,0).s)
+	gl.glTexGendv(gl.GL_T, gl.GL_OBJECT_PLANE, vec4d(0,1,0,0).s)
+	gl.glTexGendv(gl.GL_R, gl.GL_OBJECT_PLANE, vec4d(0,0,1,0).s)
 
 	gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 	gl.glEnable(gl.GL_BLEND)
