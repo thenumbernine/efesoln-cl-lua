@@ -1102,7 +1102,7 @@ function EFESolver:updateTex()
 -- because they exist in 1e-40 and what not
 
 	-- now copy from cl buffer to gl buffer
-	self.cmds:enqueueReadBuffer{buffer=self.texCLBuf.obj, block=true, size=ffi.sizeof'float' * self.base.volume, ptr=self.texCPUBuf}
+	self.cmds[1]:enqueueReadBuffer{buffer=self.texCLBuf.obj, block=true, size=ffi.sizeof'float' * self.base.volume, ptr=self.texCPUBuf}
 
 	local min, max = self.texCPUBuf[0], self.texCPUBuf[0]
 	for i=1,self.base.volume-1 do
