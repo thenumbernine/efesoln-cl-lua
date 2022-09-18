@@ -439,17 +439,15 @@ function EFESolver:init(args)
 
 	self.updateAlpha = config.updateAlpha
 
-	self.initCondPtr = ffi.new('int[1]', 
-		self.initConds:find(nil, function(initCond)
-			return initCond.name == config.initCond
-		end) or 1)
+	self.initCond = self.initConds:find(nil, function(initCond)
+		return initCond.name == config.initCond
+	end) or 1
 
 	-- what do we want to converge
 	-- upon changing these, regenerate the gradientDescent.cl kernels
-	-- TODO just use primitives 
-	self.convergeAlpha = ffi.new('bool[1]', true)
-	self.convergeBeta = ffi.new('bool[1]', false)
-	self.convergeGamma = ffi.new('bool[1]', false)	-- TODO option for converging a scalar gamma vs a matrix gamma
+	self.convergeAlpha = true
+	self.convergeBeta = false
+	self.convergeGamma = false	-- TODO option for converging a scalar gamma vs a matrix gamma
 
 	local function makeDiv(field)
 		return template([[
@@ -582,7 +580,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	)
 	self.displayVarNames = table.map(self.displayVars, function(displayVar) return displayVar.name end)
 
-	self.updateMethod = ffi.new('int[1]', (table.find(self.updateMethods, config.solver) or 1)-1)
+	self.updateMethod = table.find(self.updateMethods, config.solver) or 1
 	self.useLineSearch = not not config.useLineSearch
 
 	self:initBuffers()	
@@ -890,12 +888,12 @@ function EFESolver:refreshKernels()
 
 	self:refreshInitCond()
 
-	self.displayVarPtr = ffi.new('int[1]', 0)
+	self.displayVar = 1
 	self:refreshDisplayVarKernel()
 end
 
 function EFESolver:refreshInitCond()
-	local initCond = self.initConds[self.initCondPtr[0]]
+	local initCond = self.initConds[self.initCond]
 	self.init_gPrims = self:kernel{
 		argsOut = {self.gPrims},
 		body = [[
@@ -916,7 +914,7 @@ function EFESolver:refreshInitCond()
 end
 
 function EFESolver:refreshDisplayVarKernel()
-	local displayVar = self.displayVars[self.displayVarPtr[0]+1]
+	local displayVar = self.displayVars[self.displayVar]
 	self.updateDisplayVarKernel = self:kernel(table(
 		displayVar, {
 			name = 'display_'..tostring(displayVar):sub(10),
@@ -946,7 +944,7 @@ function EFESolver:resetState()
 end
 
 function EFESolver:update()
-	local updateMethod = self.updateMethods[self.updateMethod[0]+1]
+	local updateMethod = self.updateMethods[self.updateMethod]
 	if updateMethod == 'Newton' then
 		self:updateNewton()
 	elseif updateMethod == 'ConjRes' then

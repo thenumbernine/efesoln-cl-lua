@@ -7,7 +7,7 @@ local bit = require 'bit'
 local ffi = require 'ffi'
 local gl = require 'gl'
 local sdl = require 'ffi.sdl'
-local ig = require 'ffi.imgui'
+local ig = require 'imgui'
 local ImGuiApp = require 'imguiapp'
 local Mouse = require 'glapp.mouse'
 local quat = require 'vec.quat'
@@ -29,22 +29,21 @@ local viewDist = 2
 local hsvTex
 local volumeShader
 
-local clipEnabled = ffi.new('bool[1]', true)
-local rotateClip = ffi.new('int[1]', 0)
+rotateClip = 0
 
 local clipInfos = range(4):map(function(i)
 	local plane = vec4(0,0,0,0)
 	plane[math.min(i,3)] = -1
 	return {
-		enabled = ffi.new('bool[1]', i==3),
+		enabled = i==3,
 		plane = plane,
 	}
 end)
 
-local alpha = ffi.new('float[1]', 1.5e-1)
-local alphaGamma = ffi.new('float[1]', 1)
-local showGradTrace = ffi.new('bool[1]', false)
-local showCurlTrace = ffi.new('bool[1]', false)
+alpha = 1.5e-1
+alphaGamma = 1
+showGradTrace = false
+showCurlTrace = false
 
 
 local App = class(ImGuiApp)
@@ -91,7 +90,6 @@ function App:initGL()
 	local data = ffi.new('unsigned char[?]', hsvWidth*4)
 	gl.glGetTexImage(gl.GL_TEXTURE_1D, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data)
 	hsvTex:unbind()
-	hsvTex:delete()
 	hsvTex = Tex2D{
 		internalFormat = gl.GL_RGBA,
 		width = hsvWidth,
@@ -173,10 +171,10 @@ function App:event(event, eventPtr)
 			rightShiftDown = event.type == sdl.SDL_KEYDOWN
 		elseif canHandleKeyboard and event.type == sdl.SDL_KEYDOWN then
 			if event.key.keysym.sym == sdl.SDLK_UP then
-				self.solver.displayVarPtr[0] = math.max(0, self.solver.displayVarPtr[0] - 1)
+				self.solver.displayVar = math.max(0, self.solver.displayVar - 1)
 				self.solver:refreshDisplayVarKernel()
 			elseif event.key.keysym.sym == sdl.SDLK_DOWN then
-				self.solver.displayVarPtr[0] = math.min(#self.solver.displayVars-1, self.solver.displayVarPtr[0] + 1)
+				self.solver.displayVar = math.min(#self.solver.displayVars-1, self.solver.displayVar + 1)
 				self.solver:refreshDisplayVarKernel()
 			elseif event.key.keysym.sym == sdl.SDLK_SPACE then
 				self.updateMethod = not self.updateMethod
@@ -209,10 +207,10 @@ function App:update()
 	end
 	if mouse.leftDragging then
 		if leftShiftDown or rightShiftDown then
-			if rotateClip[0] == 0 then
+			if rotateClip == 0 then
 				viewDist = viewDist * math.exp(10 * mouse.deltaPos.y)
 			else
-				local clipPlane = clipInfos[rotateClip[0]].plane
+				local clipPlane = clipInfos[rotateClip].plane
 				clipPlane[4] = clipPlane[4] - mouse.deltaPos.y
 			end
 		else
@@ -220,10 +218,10 @@ function App:update()
 			if magn > 0 then
 				local normDelta = mouse.deltaPos / magn
 				local r = quat():fromAngleAxis(-normDelta.y, normDelta.x, 0, -magn)
-				if rotateClip[0] == 0 then
+				if rotateClip == 0 then
 					viewAngle = (viewAngle * r):normalize()
 				else
-					local clipPlane = clipInfos[rotateClip[0]].plane
+					local clipPlane = clipInfos[rotateClip].plane
 					local clipNormal = (viewAngle * r * viewAngle:conjugate()):conjugate():rotate(vec3(clipPlane:unpack()))
 					for i=1,3 do
 						clipPlane[i] = clipNormal[i]
@@ -254,7 +252,7 @@ function App:update()
 		gl.glClipPlane(gl.GL_CLIP_PLANE0+i-1, vec4d(clipInfo.plane:unpack()).s)
 -- intel/ubuntu was having trouble when the clip plane included the viewport
 -- so I moved the clipping code to the shader
---		if clipInfo.enabled[0] then 
+--		if clipInfo.enabled then 
 --			gl.glEnable(gl.GL_CLIP_PLANE0+i-1)
 --		end
 	end
@@ -264,10 +262,10 @@ function App:update()
 	volumeShader:use()
 	self.solver.tex:bind(0)
 	hsvTex:bind(1)
-	gl.glUniform1f(volumeShader.uniforms.alpha.loc, alpha[0])
-	gl.glUniform1f(volumeShader.uniforms.alphaGamma.loc, alphaGamma[0])
+	gl.glUniform1f(volumeShader.uniforms.alpha.loc, alpha)
+	gl.glUniform1f(volumeShader.uniforms.alphaGamma.loc, alphaGamma)
 	gl.glUniform1iv(volumeShader.uniforms['clipEnabled[0]'].loc, 4, 
-		ffi.new('int[4]', clipInfos:map(function(info) return info.enabled[0] end)))
+		ffi.new('int[4]', clipInfos:map(function(info) return info.enabled end)))
 
 	gl.glEnable(gl.GL_TEXTURE_GEN_S)
 	gl.glEnable(gl.GL_TEXTURE_GEN_T)
@@ -346,7 +344,7 @@ end
 function App:updateGUI()
 	ig.igText('iteration: '..self.solver.iteration)
 	
-	if ig.igCombo('display', self.solver.displayVarPtr, self.solver.displayVarNames) then
+	if ig.luatableCombo('display', self.solver, 'displayVar', self.solver.displayVarNames) then
 		self.solver:refreshDisplayVarKernel()
 	end
 	ig.igText(('%.3e to %.3e'):format(self.minValue, self.maxValue))
@@ -370,50 +368,41 @@ function App:updateGUI()
 	end
 
 	ig.igText'transparency:'
-	ig.igSliderFloat('alpha', alpha, 0, 1, '%.3e', 10)
-	ig.igSliderFloat('gamma', alphaGamma, 0, 1000, '%.3e', 10)
-	ig.igRadioButton("rotate camera", rotateClip, 0)
+	ig.luatableSliderFloat('alpha', _G, 'alpha', 0, 1)--, '%.3e', 10)
+	ig.luatableSliderFloat('gamma', _G, 'alphaGamma', 0, 1000)--, '%.3e', 10)
+	ig.luatableRadioButton("rotate camera", _G, 'rotateClip', 0)
 	for i,clipInfo in ipairs(clipInfos) do
-		ig.igPushIDStr('clip '..i)
-		ig.igCheckbox('clip', clipInfo.enabled)
+		ig.igPushID_Str('clip '..i)
+		ig.luatableCheckbox('clip', clipInfo, 'enabled')
 		ig.igSameLine()
-		ig.igRadioButton('rotate', rotateClip, i)
+		ig.luatableRadioButton('rotate', _G, 'rotateClip', i)
 		ig.igPopID()
 	end
-	--ig.igCheckbox('show gradient trace', showGradTrace)
-	--ig.igCheckbox('show curl trace', showCurlTrace)
+	--ig.luatableCheckbox('show gradient trace', _G, 'showGradTrace')
+	--ig.luatableCheckbox('show curl trace', _G, 'showCurlTrace')
 
 	ig.igSeparator()
 	ig.igText'simulation:'
 		
-	if ig.igCheckbox('converge alpha', self.solver.convergeAlpha) then
-		print('alpha', self.solver.convergeAlpha[0])
+	if ig.luatableCheckbox('converge alpha', self.solver, 'convergeAlpha') then
+		print('alpha', self.solver.convergeAlpha)
 		self.solver:refreshKernels()
 	end
-	if ig.igCheckbox('converge beta', self.solver.convergeBeta) then
-		print('beta', self.solver.convergeBeta[0])
+	if ig.luatableCheckbox('converge beta', self.solver, 'convergeBeta') then
+		print('beta', self.solver.convergeBeta)
 		self.solver:refreshKernels()
 	end
-	if ig.igCheckbox('converge gamma', self.solver.convergeGamma) then
-		print('gamma', self.solver.convergeGamma[0])
+	if ig.luatableCheckbox('converge gamma', self.solver, 'convergeGamma') then
+		print('gamma', self.solver.convergeGamma)
 		self.solver:refreshKernels()
 	end
 
 	-- InputFloat doesn't allow formats
 	-- SliderFloat allows formats but doesn't allow text-editing
 	-- hmm...
-	local buf = ffi.new('char[256]', ('%e'):format(self.solver.updateAlpha))
-	if ig.igInputText('step scale', buf, ffi.sizeof(buf)) then
-		local f = tonumber(ffi.string(buf, ffi.sizeof(buf)))
-		if f then
-			self.solver.updateAlpha = f
-		end
-	end
+	ig.luatableInputFloatAsText('step scale', self.solver, 'updateAlpha')
 
-	local bool = ffi.new('bool[1]', self.solver.useLineSearch)
-	if ig.igCheckbox('line search', bool) then
-		self.solver.useLineSearch = bool[0]
-	end
+	ig.luatableCheckbox('line search', self.solver, 'useLineSearch')
 
 	if ig.igButton(self.updateMethod and 'Stop' or 'Start') then
 		self.updateMethod = not self.updateMethod
@@ -423,12 +412,12 @@ function App:updateGUI()
 		self.updateMethod = 'step'
 	end
 
-	ig.igCombo('solver', self.solver.updateMethod, self.solver.updateMethods)
+	ig.luatableCombo('solver', self.solver, 'updateMethod', self.solver.updateMethods)
 
 	ig.igSeparator()
 	ig.igText'initial conditions:'
 	for i,initCond in ipairs(self.solver.initConds) do
-		if ig.igRadioButton(initCond.name, self.solver.initCondPtr, i) then
+		if ig.luatableRadioButton(initCond.name, self.solver, 'initCond', i) then
 			self.solver:refreshInitCond()
 		end
 	end
