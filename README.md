@@ -1,8 +1,12 @@
 ![](https://cdn.rawgit.com/thenumbernine/efesoln-cl-lua/master/images/pic.png)
 
+[![Donate via Stripe](https://img.shields.io/badge/Donate-Stripe-green.svg)](https://buy.stripe.com/00gbJZ0OdcNs9zi288)<br>
+[![Donate via Bitcoin](https://img.shields.io/badge/Donate-Bitcoin-green.svg)](bitcoin:37fsp7qQKU8XoHZGRQvVzQVP8FrEJ73cSJ)<br>
+[![Donate via Paypal](https://img.shields.io/badge/Donate-Paypal-green.svg)](https://buy.stripe.com/00gbJZ0OdcNs9zi288)
+
 ## Newton descent across the Einstein Field Equation constraints
 
-solve the metric using the norm of G_ab = 8 pi T_ab
+Solve the metric using the norm of $G\_{ab} = 8 \pi T\_{ab}$.
 This is gonna be like my EinsteinFieldEquationSolution project, but using OpenCL
 And now I'm going to do the legwork and finish the math to calculate the gradient descent directly, rather than numerically approximating it.
 And I'm adding lots of metaprogramming, which means Lua markup, which is more difficult to write out in C++.
@@ -10,9 +14,9 @@ Which means I'm skipping the C++.  Hooray!
 
 ### How it works:
 
-1. provide initial stress-energy conditions, in terms of primitives (not T_ab, because that depends on g_ab)
+1. provide initial stress-energy conditions, in terms of primitives (not $T\_{ab}$, because that depends on $g\_{ab}$)
 2. provide initial metric primitivies
-3. solve the quadratic function G_ab = 8 pi T_ab, where G_ab is derived from the metric prims, and T_ab is derived from the stress-energy (and metric) prims
+3. solve the quadratic function $G\_{ab} = 8 \pi T\_{ab}$, where $G\_{ab}$ is derived from the metric prims, and $T\_{ab}$ is derived from the stress-energy (and metric) prims.
 
 ### Dependencies:
 
