@@ -113,7 +113,7 @@ local TensorRef = require 'symmath.tensor.TensorRef'
 local TensorIndex = require 'symmath.tensor.TensorIndex'
 -- replace Gamma^a_bc with g^ad Gamma_dbc
 EFE_def = EFE_def:map(function(expr)
-	if TensorRef.is(expr)
+	if TensorRef:isa(expr)
 	and expr[1] == Gamma
 	then
 		local a,b,c = table.unpack(expr, 2)	-- upper, lower, lower 
@@ -135,7 +135,7 @@ EFE_def = EFE_def:map(function(expr)
 end)()
 -- replace g^ab_,c with g^ae g_ef,c g^fb
 EFE_def = EFE_def:map(function(expr)
-	if TensorRef.is(expr)
+	if TensorRef:isa(expr)
 	and expr[1] == g
 	and #expr == 4
 	then
@@ -155,7 +155,7 @@ printbr(EFE_def)
 -- replace Gamma_abc with 1/2 (g_ab,c + g_ac,b - g_bc,a)
 -- ... this is getting not enough memory ...
 EFE_def = EFE_def:map(function(expr)
-	if TensorRef.is(expr)
+	if TensorRef:isa(expr)
 	and expr[1] == Gamma
 	then
 		local a,b,c = table.unpack(expr, 2)
