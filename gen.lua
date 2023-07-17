@@ -62,8 +62,8 @@ diffgeom:print(function(s)
 	output:insert(tostring(s)..'<br>\n')
 end)
 
-local file = require 'ext.file'
-file'efe_gen.html':write(
+local path = require 'ext.path'
+path'efe_gen.html':write(
 	MathJax.header
 	..output:concat'\n'
 	..MathJax.footer

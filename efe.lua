@@ -2,7 +2,7 @@
 local ffi = require 'ffi'
 local class = require 'ext.class'
 local table = require 'ext.table'
-local file = require 'ext.file'
+local path = require 'ext.path'
 local template = require 'template'
 local vec3d = require 'vec-ffi.vec3d'
 local gl = require 'gl'
@@ -435,7 +435,7 @@ function EFESolver:init(args)
 
 	-- append efe.cl to the environment code
 	self.code = self.code .. '\n' 
-		.. self:compileTemplates(file'efe.cl':read())
+		.. self:compileTemplates(path'efe.cl':read())
 
 	self.updateAlpha = config.updateAlpha
 
@@ -775,7 +775,7 @@ function EFESolver:getTypeCode()
 	
 	-- update this every time body changes
 	return EFESolver.super.getTypeCode(self)..'\n'
-	..template(file'efe.h':read(), {
+	..template(path'efe.h':read(), {
 		solver = self,
 		TPrim_t = self.TPrim_t,
 	})
@@ -848,8 +848,8 @@ function EFESolver:refreshKernels()
 	print'preprocessing code...'
 
 	local code = self:compileTemplates(table{
-		file'calcVars.cl':read(),
-		file'gradientDescent.cl':read(),
+		path'calcVars.cl':read(),
+		path'gradientDescent.cl':read(),
 	}:concat'\n')
 
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
