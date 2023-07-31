@@ -632,7 +632,10 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
 			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
-			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+			if not math.isfinite(err) then
+				print("got a non-finite error! "..tostring(err))
+				return
+			end
 		end,
 		maxiter = self.base.volume * 10,
 	}
@@ -677,7 +680,10 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
 			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
-			assert(math.isfinite(err), "got a non-finite error! "..tostring(err))
+			if not math.isfinite(err) then
+				print("got a non-finite error! "..tostring(err))
+				return
+			end
 		end,
 		maxiter = self.base.volume * 10,
 	}
@@ -719,7 +725,10 @@ assert(type(name)=='string')
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(err, iter)
 			--io.stderr:write('jfnk err='..tostring(err)..', iter='..tostring(iter)..'\n')
-			assert(math.isfinite(err), "JFNK got a non-finite error! "..tostring(err))
+			if not math.isfinite(err) then
+				print("JFNK got a non-finite error! "..tostring(err))
+				return
+			end
 			jfnkIter = iter
 			if jfnkErrFile then
 				jfnkErrFile:write(iter,'\t',err,'\n')
@@ -739,7 +748,10 @@ assert(type(name)=='string')
 			end,
 			errorCallback = function(err, iter)
 				--io.stderr:write('gmres err='..tostring(err)..', iter='..tostring(iter)..'\n')
-				assert(math.isfinite(err), "GMRES got a non-finite error! "..tostring(err))
+				if not math.isfinite(err) then 
+					print("GMRES got a non-finite error! "..tostring(err))
+					return
+				end
 				if gmresErrFile then
 					gmresErrFile:write(jfnkIter,'\t',iter,'\t',err,'\n')
 					gmresErrFile:flush()

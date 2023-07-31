@@ -6,7 +6,7 @@ require 'ext'
 local bit = require 'bit'
 local ffi = require 'ffi'
 local gl = require 'gl'
-local sdl = require 'ffi.sdl'
+local sdl = require 'ffi.req' 'sdl'
 local ig = require 'imgui'
 local ImGuiApp = require 'imguiapp'
 local Mouse = require 'glapp.mouse'
@@ -25,7 +25,7 @@ local EFESolver = require 'efe'
 local mouse = Mouse()
 local viewAngle = quat()
 local viewDist = 2
-	
+
 local hsvTex
 local volumeShader
 
@@ -131,12 +131,12 @@ void main() {
 
 	float value = texture3D(volTex, pos).r;
 	vec4 voxelColor = vec4(texture2D(hsvTex, vec2(value, .5)).rgb, pow(alpha, alphaGamma));
-	
+
 	//calculate normal in screen coordinates
 	vec4 n = gl_ModelViewProjectionMatrix * vec4(normal, 0.);
 	//determine length of line through slice at its angle
 	voxelColor.a /= -n.w;
-	
+
 	gl_FragColor = vec4(voxelColor.rgb, voxelColor.a * alpha);
 }
 ]],
@@ -152,12 +152,12 @@ void main() {
 end
 
 local leftShiftDown
-local rightShiftDown 
+local rightShiftDown
 function App:event(event, eventPtr)
 	App.super.event(self, event, eventPtr)
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
 	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
-	
+
 	if event.type == sdl.SDL_MOUSEBUTTONDOWN then
 		if event.button.button == sdl.SDL_BUTTON_WHEELUP then
 			orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
@@ -193,16 +193,16 @@ App.updateMethod = nil
 
 function App:update()
 	if self.updateMethod then
-		if self.updateMethod == 'step' then 
+		if self.updateMethod == 'step' then
 			print('performing single step...')
-			self.updateMethod = nil 
+			self.updateMethod = nil
 		end
-		
+
 		self.solver:update()
 	end
 
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
-	if canHandleMouse then 
+	if canHandleMouse then
 		mouse:update()
 	end
 	if mouse.leftDragging then
@@ -230,9 +230,9 @@ function App:update()
 			end
 		end
 	end
-	
+
 	gl.glClear(bit.bor(gl.GL_COLOR_BUFFER_BIT, gl.GL_DEPTH_BUFFER_BIT))
-	
+
 	gl.glMatrixMode(gl.GL_PROJECTION)
 	gl.glLoadIdentity()
 	local w, h = self:size()
@@ -242,7 +242,7 @@ function App:update()
 
 	gl.glMatrixMode(gl.GL_MODELVIEW)
 	gl.glLoadIdentity()
-	
+
 	gl.glTranslatef(0, 0, -viewDist)
 
 	local aa = viewAngle:toAngleAxis()
@@ -252,7 +252,7 @@ function App:update()
 		gl.glClipPlane(gl.GL_CLIP_PLANE0+i-1, vec4d(clipInfo.plane:unpack()).s)
 -- intel/ubuntu was having trouble when the clip plane included the viewport
 -- so I moved the clipping code to the shader
---		if clipInfo.enabled then 
+--		if clipInfo.enabled then
 --			gl.glEnable(gl.GL_CLIP_PLANE0+i-1)
 --		end
 	end
@@ -264,7 +264,7 @@ function App:update()
 	hsvTex:bind(1)
 	gl.glUniform1f(volumeShader.uniforms.alpha.loc, alpha)
 	gl.glUniform1f(volumeShader.uniforms.alphaGamma.loc, alphaGamma)
-	gl.glUniform1iv(volumeShader.uniforms['clipEnabled[0]'].loc, 4, 
+	gl.glUniform1iv(volumeShader.uniforms['clipEnabled[0]'].loc, 4,
 		ffi.new('int[4]', clipInfos:map(function(info) return info.enabled end)))
 
 	gl.glEnable(gl.GL_TEXTURE_GEN_S)
@@ -284,7 +284,7 @@ function App:update()
 	gl.glPointSize(2)
 	gl.glBegin(gl.GL_POINTS)
 	for _,pt in ipairs(self.pts) do
-		gl.glVertex3d( 
+		gl.glVertex3d(
 			(pt[1] - .5)/(self.max[1] + 1),
 			(pt[2] - .5)/(self.max[2] + 1),
 			(pt[3] - .5)/(self.max[3] + 1))
@@ -303,7 +303,7 @@ function App:update()
 		jmin, jmax, jdir = n, 0, -1
 	end
 	gl.glUniform3f(volumeShader.uniforms.normal.loc, fwddir==1 and jdir or 0, fwddir==2 and jdir or 0, fwddir==3 and jdir or 0)
-	
+
 	gl.glBegin(gl.GL_QUADS)
 	for j=jmin,jmax,jdir do
 		local f = j/n
@@ -319,7 +319,7 @@ function App:update()
 	end
 	gl.glEnd()
 	--]]
-	
+
 	gl.glDisable(gl.GL_BLEND)
 
 	gl.glDisable(gl.GL_TEXTURE_GEN_S)
@@ -343,17 +343,17 @@ end
 
 function App:updateGUI()
 	ig.igText('iteration: '..self.solver.iteration)
-	
+
 	if ig.luatableCombo('display', self.solver, 'displayVar', self.solver.displayVarNames) then
 		self.solver:refreshDisplayVarKernel()
 	end
 	ig.igText(('%.3e to %.3e'):format(self.minValue, self.maxValue))
-	
+
 	local gradImageSize = ig.ImVec2(128, 32)
 	ig.igImage(
 		ffi.cast('void*',ffi.cast('intptr_t',hsvTex.id)),
 		gradImageSize)
-	
+
 	local gradScreenPos = ig.igGetCursorScreenPos()
 	local mousePos = ig.igGetMousePos()
 	local cursorX = mousePos.x - gradScreenPos.x
@@ -383,7 +383,7 @@ function App:updateGUI()
 
 	ig.igSeparator()
 	ig.igText'simulation:'
-		
+
 	if ig.luatableCheckbox('converge alpha', self.solver, 'convergeAlpha') then
 		print('alpha', self.solver.convergeAlpha)
 		self.solver:refreshKernels()
@@ -421,7 +421,7 @@ function App:updateGUI()
 			self.solver:refreshInitCond()
 		end
 	end
-	
+
 	if ig.igButton'Reset' then
 		print'resetting...'
 		self.solver:resetState()
