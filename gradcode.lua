@@ -1,5 +1,5 @@
 #!/usr/bin/env luajit
-require 'ext'
+local table = require 'ext.table'
 require 'symmath'.setup{implicitVars=true}
 require 'symmath.tostring.MathJax'.setup{
 	title = 'generating my gradient descent code',

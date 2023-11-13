@@ -988,68 +988,68 @@ function EFESolver:updateNewton()
 	self.calc_dPhi_dgPrims()
 
 	-- now that we have ∂Φ/∂g_ab
-	-- trace along g_ab - α * ∂Φ/∂g_ab (line trace parameter α, not ADM α)
-	-- to find what α gives us minimal error
+	-- trace along g_ab - λ * ∂Φ/∂g_ab 
+	-- to find what λ gives us minimal residual
 
 	if self.useLineSearch then	-- do bisect line search
 		-- store a backup.  TODO env:copy, and have ConjGrad:copy reference it.	
 		self.conjResSolver.args.copy(self.gPrimsCopy, self.gPrims)
 
 		local lineSearchMaxIter = 100
-		local alphaPtr = ffi.new'real[1]'
-		local function residualAtAlpha(alpha)
+		local lambdaPtr = ffi.new'real[1]'
+		local function residualAtLambda(lambda)
 			self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
-			alphaPtr[0] = alpha	
-			self.update_gPrims.obj:setArg(2, alphaPtr)
+			lambdaPtr[0] = lambda	
+			self.update_gPrims.obj:setArg(2, lambdaPtr)
 			self.update_gPrims()
 			self:updateAux()	-- calcs from gPrims on down to EFE
 			local residual = self.conjResSolver.args.dot(self.EFEs, self.EFEs) 
-print(string.format('alpha=%.16e residual=%.16e', alpha, residual))
+print(string.format('lambda=%.16e residual=%.16e', lambda, residual))
 			return residual
 		end
-		local function bisect(alphaL, alphaR)
-			local residualL = residualAtAlpha(alphaL)
-			local residualR = residualAtAlpha(alphaR)
+		local function bisect(lambdaL, lambdaR)
+			local residualL = residualAtLambda(lambdaL)
+			local residualR = residualAtLambda(lambdaR)
 			for i=0,lineSearchMaxIter do
-				local alphaMid = .5 * (alphaL + alphaR)
-				local residualMid = residualAtAlpha(alphaMid)
+				local lambdaMid = .5 * (lambdaL + lambdaR)
+				local residualMid = residualAtLambda(lambdaMid)
 				if residualMid > residualL and residualMid > residualR then break end
 				if residualMid < residualL and residualMid < residualR then
 					if residualL <= residualR then
-						alphaR, residualR  = alphaMid, residualMid
+						lambdaR, residualR  = lambdaMid, residualMid
 					else
-						alphaL, residualL = alphaMid, residualMid
+						lambdaL, residualL = lambdaMid, residualMid
 					end
 				elseif residualMid < residualL then
-					alphaL, residualL = alphaMid, residualMid
+					lambdaL, residualL = lambdaMid, residualMid
 				else
-					alphaR, residualR = alphaMid, residualMid
+					lambdaR, residualR = lambdaMid, residualMid
 				end
 			end
 			if residualL < residualR then
-				return alphaL, residualL
+				return lambdaL, residualL
 			else
-				return alphaR, residualR
+				return lambdaR, residualR
 			end
 		end
 		
-		local alphaFwd, residualFwd = bisect(0, self.updateAlpha)
-print(string.format('fwd alpha=%.16e residual=%.16e', alphaFwd, residualFwd))
-		local alphaRev, residualRev = bisect(0, -self.updateAlpha)	
-print(string.format('rev alpha=%.16e residual=%.16e', alphaRev, residualRev))
+		local lambdaFwd, residualFwd = bisect(0, self.updateAlpha)
+print(string.format('fwd lambda=%.16e residual=%.16e', lambdaFwd, residualFwd))
+		local lambdaRev, residualRev = bisect(0, -self.updateAlpha)	
+print(string.format('rev lambda=%.16e residual=%.16e', lambdaRev, residualRev))
 
 		self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
-		local alpha, residual
+		local lambda, residual
 		if residualFwd < residualRev then
-			alpha = alphaFwd
+			lambda = lambdaFwd
 			residual = residualFwd
 		else
-			alpha = alphaRev
+			lambda = lambdaRev
 			residual = residualRev
 		end
-print(string.format('using alpha=%.16e residual=%.16e', alpha, residualRev))
-		alphaPtr[0] = alpha
-		self.update_gPrims.obj:setArg(2, alphaPtr)
+print(string.format('using lambda=%.16e residual=%.16e', lambda, residualRev))
+		lambdaPtr[0] = lambda
+		self.update_gPrims.obj:setArg(2, lambdaPtr)
 		self.update_gPrims()
 	else	-- no line search
 		-- update gPrims from dPhi/dg_ab 
