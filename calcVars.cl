@@ -264,5 +264,6 @@ kernel void calc_EFEs(
 	sym4 const gLL = gLLs[index];
 	sym4 const EinsteinLL = sym4_zero;//calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	sym4 const _8piTLL = calc_8piTLL(gLL, TPrim);	// getting nans
+	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
 	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
 }

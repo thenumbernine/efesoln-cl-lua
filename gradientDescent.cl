@@ -19,6 +19,7 @@ kernel void calc_dPhi_dgPrims(
 	tensor_44sym4 dGammaLULL;
 	calc_dGammaLULL(&dGammaLULL, GammaULLs);
 
+	//R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
 	tensor_44sym4 const RiemannULLL = (tensor_44sym4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (tensor_4sym4){
@@ -26,7 +27,8 @@ kernel void calc_dPhi_dgPrims(
 ?>			.s<?=b?> = (sym4){
 <? 		for c=0,stDim-1 do 
 			for d=c,stDim-1 do 
-?>				.s<?=c..d?> = dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
+?>				.s<?=c..d?> = 
+					  dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
 					- dGammaLULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?><?
 				for e=0,stDim-1 do ?>
 					+ GammaULL->s<?=a?>.s<?=sym(e,c)?> * GammaULL->s<?=e?>.s<?=sym(b,d)?>
@@ -40,6 +42,7 @@ kernel void calc_dPhi_dgPrims(
 <? end 
 ?>	};
 
+	//R_ab = R^c_acb
 	sym4 const RicciLL = (sym4){
 <? for a=0,stDim-1 do 
 	for b=a,stDim-1 do
@@ -51,6 +54,7 @@ kernel void calc_dPhi_dgPrims(
 end 
 ?>	};
 
+	//R^a_b = g^ac R_cb
 	real const RicciUL[4][4] = {
 <? for a=0,stDim-1 do 
 ?>		{
@@ -66,6 +70,7 @@ end
 <? end 
 ?>	};
 
+	//R^ab = R^a_c g^cb
 	sym4 const RicciUU = (sym4){
 <? for a=0,stDim-1 do
 	for b=a,stDim-1 do 
@@ -77,11 +82,13 @@ end
 end 
 ?>	};
 
+	//R = R^a_a
 	real const Gaussian = 0.<? 
 for a=0,stDim-1 do 
 ?> + RicciUL[<?=a?>][<?=a?>]<?
 end ?>;
 
+	//Γ^ab_c = Γ^a_dc g^db
 	real const GammaUUL[4][4][4] = {
 <? for a=0,stDim-1 do 
 ?>		{
@@ -99,18 +106,95 @@ end ?>;
 <? end 
 ?>	};
 
-	//dR_ab/dg_pq
+	/*
+	∂/∂g_pq g_ab = δ_a^p δ_b^q
+
+	∂/∂g_pq δ^a_b = 0
+	∂/∂g_pq (g^ac g_cb) = 0
+	∂/∂g_pq g^ac g_cb + g^ac ∂/∂g_pq g_cb = 0
+	∂/∂g_pq g^ac g_cb g^bd = -g^ac ∂/∂g_pq g_cb g^bd
+	∂/∂g_pq g^ad = -g^ac ∂/∂g_pq g_cb g^bd
+	∂/∂g_pq g^ad = -g^ac ∂_c^p ∂_b^q g^bd
+	∂/∂g_pq g^ad = -g^ap g^qd
+
+	∂/∂g_pq Γ^a_bc 
+	= 1/2 ∂/∂g_pq g^au (g_ub,c + g_uc,b - g_bc,u)
+	= 1/2 (∂/∂g_pq g^au) (g_ub,c + g_uc,b - g_bc,u)
+		+ 1/2 g^au (∂/∂g_pq g_ub,c + ∂/∂g_pq g_uc,b - ∂/∂g_pq g_bc,u)
+	= 1/2 (∂/∂g_pq g^au) (g_ub,c + g_uc,b - g_bc,u)
+		+ 1/2 g^au ((δ_u^p δ_b^q),c + (δ_u^p δ_c^q),b - (δ_b^p δ_c^q),u)
+	= -1/2 (g^ae ∂/∂g_pq g_ef g^fu) (g_ub,c + g_uc,b - g_bc,u)
+	= -1/2 g^ap g^qu (g_ub,c + g_uc,b - g_bc,u)
+	= -g^ap Γ^q_bc
+
+	∂/∂g_pq R_ab 
+	= ∂/∂g_pq R^c_acb
+	= ∂/∂g_pq (Γ^c_ab,c - Γ^c_ac,b + Γ^c_ec Γ^e_ab - Γ^c_eb Γ^e_ac)
+	= ∂/∂g_pq Γ^c_ab,c - ∂/∂g_pq Γ^c_ac,b 
+		+ ∂/∂g_pq Γ^c_ec Γ^e_ab 
+		+ Γ^c_ec ∂/∂g_pq Γ^e_ab 
+		- ∂/∂g_pq Γ^c_eb Γ^e_ac
+		- Γ^c_eb ∂/∂g_pq Γ^e_ac
+	= -(g^cp Γ^q_ab),c + (g^cp Γ^q_ac),b 
+		- g^cp Γ^q_ec Γ^e_ab 
+		- g^ep Γ^q_ab Γ^c_ec
+		+ g^cp Γ^q_eb Γ^e_ac
+		+ g^ep Γ^q_ac Γ^c_eb
+	= -g^cp_,c Γ^q_ab 
+		- g^cp Γ^q_ab,c
+		+ g^cp_,b Γ^q_ac 
+		+ g^cp Γ^q_ac,b
+		- Γ^e_ab Γ^qp_e
+		- Γ^q_ab Γ^cp_c
+		+ Γ^q_eb Γ^ep_a
+		+ Γ^q_ac Γ^cp_b
+	= -g^cp_,c Γ^q_ab 
+		+ g^cp_,b Γ^q_ac 
+		- Γ^q_ab Γ^cp_c
+		+ Γ^q_ac Γ^cp_b
+		
+		- g^cp Γ^q_ab,c
+		+ g^cp Γ^q_ac,b
+		- g^cp Γ^q_ec Γ^e_ab 
+		+ g^cp Γ^q_eb Γ^e_ac
+	= g^cu g_uv,c g^vp Γ^q_ab 
+		- g^cu g_uv,b g^vp Γ^q_ac 
+		- Γ^q_ab Γ^cp_c
+		+ Γ^q_ac Γ^cp_b
+		
+		- g^cp R^q_acb
+	
+	... using g_ab,c = Γ_acb + Γ_bca
+
+	= g^cu (Γ_ucv + Γ_vcu) g^vp Γ^q_ab 
+		- g^cu (Γ_ubv + Γ_vbu) g^vp Γ^q_ac 
+		- Γ^q_ab Γ^cp_c
+		+ Γ^q_ac Γ^cp_b
+		
+		- g^cp R^q_acb
+
+	= Γ^cp_c Γ^q_ab 
+		+ Γ^pc_c Γ^q_ab
+		- Γ^cp_b Γ^q_ac
+		- Γ^pc_b Γ^q_ac
+		- Γ^q_ab Γ^cp_c
+		+ Γ^q_ac Γ^cp_b
+		
+		- g^cp R^q_acb
+	
+	= Γ^pc_c Γ^q_ba - Γ^pc_b Γ^q_ca - g^cp R^q_acb
+	*/
 	tensor_sym4sym4 const dRicciLL_dgLL = (tensor_sym4sym4){
-<? for e=0,stDim-1 do 
-	for f=e,stDim-1 do
-?>		.s<?=e..f?> = (sym4){
+<? for p=0,stDim-1 do 
+	for q=p,stDim-1 do
+?>		.s<?=p..q?> = (sym4){
 <? 		for a=0,stDim-1 do
 			for b=a,stDim-1 do
 ?>			.s<?=a..b?> = 0.<?
 				for c=0,stDim-1 do ?> 
-				+ GammaUUL[<?=e?>][<?=c?>][<?=c?>] * GammaULL->s<?=f?>.s<?=sym(b,a)?>
-				- GammaUUL[<?=e?>][<?=c?>][<?=b?>] * GammaULL->s<?=f?>.s<?=sym(c,a)?>
-				- gUU->s<?=sym(c,e)?> * RiemannULLL.s<?=f?>.s<?=a?>.s<?=sym(c,b)?><? 
+				+ GammaUUL[<?=p?>][<?=c?>][<?=c?>] * GammaULL->s<?=q?>.s<?=sym(b,a)?>
+				- GammaUUL[<?=p?>][<?=c?>][<?=b?>] * GammaULL->s<?=q?>.s<?=sym(c,a)?>
+				- gUU->s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=sym(c,b)?><? 
 				end ?>,
 <? 			end
 		end 
@@ -119,28 +203,36 @@ end ?>;
 end 
 ?>	};
 
-	//g^cd dR_cd/dg_ef
+	//g^ab ∂/∂g_pq R_ab
 	sym4 const gUU_dRicciLL_dgLL = (sym4){
-<? for e=0,stDim-1 do 
-	for f=e,stDim-1 do 
-?>		.s<?=e..f?> = sym4_dot(*gUU, dRicciLL_dgLL.s<?=e..f?>),
+<? for p=0,stDim-1 do 
+	for q=p,stDim-1 do 
+?>		.s<?=p..q?> = sym4_dot(*gUU, dRicciLL_dgLL.s<?=p..q?>),
 <?	end
 end ?>
 	};
 
-	//dG_ab/dg_pq = tensor_sym4sym4.s[pq].s[ab]
+	/*
+	∂/∂g_pq G_ab = tensor_sym4sym4.s[pq].s[ab]
+	= ∂/∂g_pq (R_ab - 1/2 R g_ab)
+	= ∂/∂g_pq R_ab - 1/2 ∂/∂g_pq R g_ab - 1/2 R ∂/∂g_pq g_ab
+	= ∂/∂g_pq R_ab - 1/2 g_ab ∂/∂g_pq (R_uv g^uv) - 1/2 R δ_a^p δ_b^q
+	= ∂/∂g_pq R_ab - 1/2 g_ab (∂/∂g_pq R_uv g^uv + R_uv ∂/∂g_pq g^uv) - 1/2 R δ_a^p δ_b^q
+	= ∂/∂g_pq R_ab - 1/2 g_ab (g^uv ∂/∂g_pq R_uv - R_uv g^pu g^qv) - 1/2 R δ_a^p δ_b^q
+	= ∂/∂g_pq R_ab - 1/2 (R δ_a^p δ_b^q + g_ab (g^uv ∂/∂g_pq R_uv - R^pq))
+	*/
 	tensor_sym4sym4 const dEinsteinLL_dgLL = (tensor_sym4sym4){
-<? for e=0,stDim-1 do
-	for f=e,stDim-1 do 
-?>		.s<?=e..f?> = (sym4){
+<? for p=0,stDim-1 do
+	for q=p,stDim-1 do 
+?>		.s<?=p..q?> = (sym4){
 <? 		for a=0,stDim-1 do
 			for b=a,stDim-1 do 
-?>			.s<?=a..b?> = dRicciLL_dgLL.s<?=e..f?>.s<?=a..b?><?
+?>			.s<?=a..b?> = dRicciLL_dgLL.s<?=p..q?>.s<?=a..b?><?
 				?> - .5 * (<?
-				if e==a and f==b then ?>Gaussian<? else ?>0.<? end 
+				if p==a and q==b then ?>Gaussian<? else ?>0.<? end 
 				?> + gLL->s<?=a..b?> * (<?
-					?>gUU_dRicciLL_dgLL.s<?=e..f?><?
-					?> - RicciUU.s<?=e..f?><?
+					?>gUU_dRicciLL_dgLL.s<?=p..q?><?
+					?> - RicciUU.s<?=p..q?><?
 				?>)),
 <? 			end
 		end
@@ -149,7 +241,7 @@ end ?>
 <? end 
 ?>	};
 
-	global <?=TPrim_t?> const * const TPrim = TPrims + index;
+	<?=TPrim_t?> const TPrim = TPrims[index];
 
 	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
 <? for a=0,stDim-1 do
@@ -161,16 +253,16 @@ end
 
 <?
 if solver.body.useEM then ?>	
-	real4 const EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->E.s<?=i?> <? end ?>); 
+	real4 const EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim.E.s<?=i?> <? end ?>); 
 	real4 const EL = sym4_real4_mul(*gLL, EU);
 	real const ESq = dot(EL, EU);
 	
-	real4 const BU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->B.s<?=i?> <? end ?>); 
+	real4 const BU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim.B.s<?=i?> <? end ?>); 
 	real4 const BL = sym4_real4_mul(*gLL, BU);
 	real const BSq = dot(BL, BU);
 
 	real const sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
-	real3 const SL = real3_real_mul(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
+	real3 const SL = real3_real_mul(real3_cross(TPrim.E, TPrim.B), sqrt_det_g);
 
 <?
 	for e=0,stDim-1 do
@@ -179,7 +271,7 @@ if solver.body.useEM then ?>
 			if e==0 or f==0 then 
 				?>0<? 
 			else 
-				?>TPrim->E.s<?=e-1?> * TPrim->E.s<?=f-1?> + TPrim->B.s<?=e-1?> * TPrim->B.s<?=f-1?><? 
+				?>TPrim.E.s<?=e-1?> * TPrim.E.s<?=f-1?> + TPrim.B.s<?=e-1?> * TPrim.B.s<?=f-1?><? 
 			end
 			?>;
 <? 			for i=0,sDim-1 do 
@@ -191,7 +283,7 @@ if solver.body.useEM then ?>
 					if e==0 or f==0 then
 						?>0<?
 					else
-						?>TPrim->E.s<?=e-1?> * TPrim->E.s<?=f-1?> + TPrim->B.s<?=e-1?> * TPrim->B.s<?=f-1?><?
+						?>TPrim.E.s<?=e-1?> * TPrim.E.s<?=f-1?> + TPrim.B.s<?=e-1?> * TPrim.B.s<?=f-1?><?
 					end
 					?>) - 2. * (0.<?
 					if e==i+1 then ?>
@@ -213,7 +305,7 @@ end
 if solver.body.useMatter then
 	if solver.body.useVel then ?>//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
-	real4 const vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
+	real4 const vU = (real4)(0, TPrim.v.x, TPrim.v.y, TPrim.v.z);
 	real4 const vL = sym4_real4_mul(*gLL, vU);
 	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
@@ -231,8 +323,8 @@ if solver.body.useMatter then
 ?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=a..b?> += (0. <? 
 					if e==a then ?>+ uL.s<?=b?><? end 
 					if e==b then ?>+ uL.s<?=a?><? end 
-					?>) * uL.s<?=f?> * (TPrim->rho * (1. + TPrim->eInt) + TPrim->P)<?
-					if e==a and f==b then ?> + TPrim->P<? end ?>;
+					?>) * uL.s<?=f?> * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)<?
+					if e==a and f==b then ?> + TPrim.P<? end ?>;
 <?				end
 			end
 		end
@@ -255,15 +347,15 @@ end
 end ?>
 
 	global gPrim_t * const dPhi_dgPrim = dPhi_dgPrims + index;
-	global gPrim_t const * const gPrim = gPrims + index;
+	gPrim_t const gPrim = gPrims[index];
 
-	sym3 const gammaLL = gPrim->gammaLL;
-	real3 const betaU = gPrim->betaU;
+	sym3 const gammaLL = gPrim.gammaLL;
+	real3 const betaU = gPrim.betaU;
 	real3 const betaL = sym3_real3_mul(gammaLL, betaU);
 
 <?
 if solver.convergeAlpha then
-?>	dPhi_dgPrim->alpha = -2. * gPrim->alpha * dPhi_dgLL.s00;
+?>	dPhi_dgPrim->alpha = -2. * gPrim.alpha * dPhi_dgLL.s00;
 <?
 end
 if solver.convergeBeta then
@@ -308,22 +400,22 @@ kernel void update_gPrims(
 ) {
 	initKernel();
 	global gPrim_t * const gPrim = gPrims + index;
-	global gPrim_t const * const dPhi_dgPrim = dPhi_dgPrims + index;
+	gPrim_t const dPhi_dgPrim = dPhi_dgPrims[index];
 
 <? 
 if solver.convergeAlpha then
-?>	gPrim->alpha -= updateLambda * dPhi_dgPrim->alpha;
+?>	gPrim->alpha -= updateLambda * dPhi_dgPrim.alpha;
 <?
 end
 if solver.convergeBeta then
 	for m=0,sDim-1 do
-?>	gPrim->betaU.s<?=m?> -= updateLambda * dPhi_dgPrim->betaU.s<?=m?>;
+?>	gPrim->betaU.s<?=m?> -= updateLambda * dPhi_dgPrim.betaU.s<?=m?>;
 <? 	end 
 end
 if solver.convergeGamma then
 	for m=0,sDim-1 do
 		for n=m,sDim-1 do
-?>	gPrim->gammaLL.s<?=m..n?> -= updateLambda * dPhi_dgPrim->gammaLL.s<?=m..n?>;
+?>	gPrim->gammaLL.s<?=m..n?> -= updateLambda * dPhi_dgPrim.gammaLL.s<?=m..n?>;
 <?		end
 	end
 end

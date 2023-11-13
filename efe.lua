@@ -1193,6 +1193,44 @@ function EFESolver:update()
 		self:updateJFNK()
 	end
 
+--[[
+TODO here - gauge conditions
+first attempt -- harmonic slicing condition:
+d/dt α = (∂_t - L_β) α = -α^2 K^ij γ_ij
+α_,t - β^k α_,k = -α^2 K^ij γ_ij
+
+but K_ij isn't a state variable (or is it?)
+K_ab = -⟂ ∇_(a n_b)
+K_ab = -⟂ n_(b;a)
+K_ab = -⟂ (n_(b,a) - Γ^c_ba n_c)
+K_ab = -γ_a^u γ_b^v (n_(v,u) - Γ^c_vu n_c)
+... for γ_ab = g_ab + n_a n_b
+for distinct time coordinate: n_a = [-α, 0]
+so for distinct time coordinate:
+	K_ab = -γ_a^u γ_b^v (n_(v,u) - Γ^c_vu n_c)
+	K_ij = -α Γ^t_ij ... the 4D connection along the time coordinate
+	... if we keep going ...
+	K_ij = 
+	= -1/2 α g^tu (g_ui,j + g_uj,i - g_ij,u)
+	= -1/2 α g^tu (g_ui,j + g_uj,i - g_ij,u)
+	= -1/2 α (g^tt (g_ti,j + g_tj,i - g_ij,t) + g^tk (g_ki,j + g_kj,i - g_ij,k))
+	= -1/2 α (-1/α^2 (β_i,j + β_j,i - γ_ij,t) + β^k / α^2 (γ_ki,j + γ_kj,i - γ_ij,k))
+	= -1/2 (β^k γ_ki,j + β^k γ_kj,i - β^k γ_ij,k - β_i,j - β_j,i + γ_ij,t) / α
+	... using β_i,j = (β^k γ_ki)_,j = β^k_,j γ_ki + β^k γ_ki,j
+	= -1/2 (β^k γ_ki,j + β^k γ_kj,i - β^k γ_ij,k - β^k_,j γ_ki - β^k γ_ki,j - β^k_,i γ_kj - β^k γ_kj,i + γ_ij,t) / α
+	= -1/2 (- β^k γ_ij,k - β^k_,j γ_ki - β^k_,i γ_kj + γ_ij,t) / α
+
+substitute back into harmonic slicing condition:
+α_,t - β^k α_,k = -α^2 K^ij γ_ij
+α_,t - β^k α_,k = α^3 Γ^t_ij γ_ij
+	... as a constraint ...
+Φ = 1/2 |α_,t - β^k α_,k - α^3 Γ^t_ij γ_ij|^2
+
+	... then update?	
+	∂g_ab/∂t = -∂Φ/∂g_ab
+--]]
+print'TODO IMPLEMENT ME PLEASE'
+
 	self.iteration = self.iteration + 1
 end
 
@@ -1201,7 +1239,7 @@ function EFESolver:updateNewton()
 	iteration:
 
 	∂g_ab/∂t = -∂Φ/∂g_ab
-	for Φ = 1/2 Σ_ab (G_ab - 8 π T_ab)^2
+	for Φ = 1/2 Sum_ab (G_ab - 8 π T_ab)^2
 
 	two approaches:
 	1) do this per g_ab, so you only need to allocate as big as you would for solving the constraints themselves
