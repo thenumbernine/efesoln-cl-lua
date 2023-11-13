@@ -262,11 +262,11 @@ end ?>
 	real3 betaL = sym3_real3_mul(gammaLL, betaU);
 
 <?
-if solver.convergeAlpha[0] then
+if solver.convergeAlpha then
 ?>	dPhi_dgPrim->alpha = -2. * gPrim->alpha * dPhi_dgLL.s00;
 <?
 end
-if solver.convergeBeta[0] then
+if solver.convergeBeta then
 	for m=0,sDim-1 do
 ?>	dPhi_dgPrim->betaU.s<?=m?> = 2. * (dPhi_dgLL.s00 * betaL.s<?=m?>
 <?		for n=0,sDim-1 do ?>
@@ -274,7 +274,7 @@ if solver.convergeBeta[0] then
 <? 		end ?>);
 <?	end
 end
-if solver.convergeGamma[0] then
+if solver.convergeGamma then
 	for m=0,sDim-1 do
 		for n=m,sDim-1 do
 ?>	dPhi_dgPrim->gammaLL.s<?=m..n?> = 
@@ -311,16 +311,16 @@ kernel void update_gPrims(
 	global const gPrim_t* dPhi_dgPrim = dPhi_dgPrims + index;
 
 <? 
-if solver.convergeAlpha[0] then
+if solver.convergeAlpha then
 ?>	gPrim->alpha -= updateAlpha * dPhi_dgPrim->alpha;
 <?
 end
-if solver.convergeBeta[0] then
+if solver.convergeBeta then
 	for m=0,sDim-1 do
 ?>	gPrim->betaU.s<?=m?> -= updateAlpha * dPhi_dgPrim->betaU.s<?=m?>;
 <? 	end 
 end
-if solver.convergeGamma[0] then
+if solver.convergeGamma then
 	for m=0,sDim-1 do
 		for n=m,sDim-1 do
 ?>	gPrim->gammaLL.s<?=m..n?> -= updateAlpha * dPhi_dgPrim->gammaLL.s<?=m..n?>;

@@ -2,9 +2,10 @@
 --[[
 this should be a stand-alone tool
 --]]
-require 'ext'
 local bit = require 'bit'
 local ffi = require 'ffi'
+local table = require 'ext.table'
+local range = require 'ext.range'
 local gl = require 'gl'
 local sdl = require 'ffi.req' 'sdl'
 local ig = require 'imgui'
@@ -31,7 +32,7 @@ local volumeShader
 
 rotateClip = 0
 
-local clipInfos = range(4):map(function(i)
+local clipInfos = range(4):mapi(function(i)
 	local plane = vec4(0,0,0,0)
 	plane[math.min(i,3)] = -1
 	return {
@@ -46,7 +47,7 @@ showGradTrace = false
 showCurlTrace = false
 
 
-local App = class(ImGuiApp)
+local App = ImGuiApp:subclass()
 
 App.title = 'Einstein Field Equation Solver'
 
@@ -81,7 +82,7 @@ function App:initGL()
 			vec3(254,96,50),
 			vec3(255,188,46),
 			vec3(255,255,55),
-		}:map(function(c,i)
+		}:mapi(function(c,i)
 			return table(c/255):append{1}
 		end),
 --]]
@@ -266,7 +267,7 @@ function App:update()
 	gl.glUniform1f(volumeShader.uniforms.alpha.loc, alpha)
 	gl.glUniform1f(volumeShader.uniforms.alphaGamma.loc, alphaGamma)
 	gl.glUniform1iv(volumeShader.uniforms['clipEnabled[0]'].loc, 4,
-		ffi.new('int[4]', clipInfos:map(function(info) return info.enabled end)))
+		ffi.new('int[4]', clipInfos:mapi(function(info) return info.enabled end)))
 
 	gl.glEnable(gl.GL_TEXTURE_GEN_S)
 	gl.glEnable(gl.GL_TEXTURE_GEN_T)
@@ -295,7 +296,7 @@ function App:update()
 	-- [[ slices
 	local n = 255
 	local fwd = -viewAngle:zAxis()
-	local fwddir = select(2, table(fwd):map(math.abs):sup())
+	local fwddir = select(2, table(fwd):mapi(math.abs):sup())
 	local quad = {{0,0},{1,0},{1,1},{0,1}}
 	local jmin, jmax, jdir
 	if fwd[fwddir] < 0 then

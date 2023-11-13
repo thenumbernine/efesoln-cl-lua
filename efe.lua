@@ -1,6 +1,7 @@
 #!/usr/bin/env luajit
 local ffi = require 'ffi'
 local class = require 'ext.class'
+local math = require 'ext.math'
 local table = require 'ext.table'
 local path = require 'ext.path'
 local template = require 'template'
@@ -73,7 +74,7 @@ function EMRing:init(args)
 	real theta = atan2(x.z, dr);		//angle around the small radius
 	real phi = atan2(x.x, x.y);			//angle around the big radius
 
-	//F^uv_;v = -4 pi J^u
+	//F^uv_;v = -4 π J^u
 	// means that the divergence of the EM is the 4-current 
 	//the divergence of the exterior of the 4-potential is the 4-current
 	//so if the 4-current is a Dirac delta function along the line in space where there is current
@@ -225,7 +226,7 @@ local bodies = {
 
 -- initial conditions:
 
-local EFESolver = class(CLEnv)
+local EFESolver = CLEnv:subclass()
 
 EFESolver.useFourPotential = false
 
@@ -587,12 +588,12 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	self:refreshKernels()
 
 
-	-- EFE: G_ab(g_ab) = 8 pi T_ab(g_ab)
-	-- consider x = alpha, beta^i, gamma_ij
-	-- b = 8 pi T_ab (and ignore the fact that it is based on x as well)
+	-- EFE: G_ab(g_ab) = 8 π T_ab(g_ab)
+	-- consider x = α, β^i, γ_ij
+	-- b = 8 π T_ab (and ignore the fact that it is based on x as well)
 	-- linearize: G x = b
 	
-	local CLConjResSolver = class(require 'solver.cl.conjres')
+	local CLConjResSolver = require 'solver.cl.conjres':subclass()
 
 	-- cache buffers
 	function CLConjResSolver:newBuffer(name)
@@ -630,17 +631,17 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		b = self._8piTLLs,
 		type = 'real',
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
-		errorCallback = function(err, iter)
-			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
-			if not math.isfinite(err) then
-				print("got a non-finite error! "..tostring(err))
+		errorCallback = function(residual, iter)
+			io.stderr:write('residual='..tostring(residual)..', iter='..tostring(iter)..'\n')
+			if not math.isfinite(residual) then
+				print("got a non-finite residual! "..tostring(residual))
 				return
 			end
 		end,
 		maxiter = self.base.volume * 10,
 	}
 
-	local CLGMResSolver = class(require 'solver.cl.gmres')
+	local CLGMResSolver = require 'solver.cl.gmres':subclass()
 
 	-- cache buffers
 	function CLGMResSolver:newBuffer(name)
@@ -678,10 +679,10 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 		b = self._8piTLLs,
 		type = 'real',
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
-		errorCallback = function(err, iter)
-			io.stderr:write('err='..tostring(err)..', iter='..tostring(iter)..'\n')
-			if not math.isfinite(err) then
-				print("got a non-finite error! "..tostring(err))
+		errorCallback = function(residual, iter)
+			io.stderr:write('residual='..tostring(residual)..', iter='..tostring(iter)..'\n')
+			if not math.isfinite(residual) then
+				print("got a non-finite residual! "..tostring(residual))
 				return
 			end
 		end,
@@ -691,7 +692,7 @@ end ?>) / (8. * M_PI) * c * c / G / 1000.;
 	-- for the norms of my Newton descent
 	-- also TODO reuse the same dot with conjres, gmres, and jfnk
 	
-	local CLJFNKSolver = class(require 'solver.cl.jfnk')
+	local CLJFNKSolver = require 'solver.cl.jfnk':subclass()
 
 	function CLJFNKSolver:newBuffer(name)
 assert(type(name)=='string')	
@@ -702,14 +703,14 @@ assert(type(name)=='string')
 		return self.jfnkBuffers[name]
 	end
 
-	--local gmresErrFile = io.open('gmres_err.txt', 'w')
-	--local jfnkErrFile = io.open('jfnk_err.txt', 'w')
+	local gmresResidualFile -- = io.open('gmres_err.txt', 'w')
+	local jfnkResidualFile -- = io.open('jfnk_err.txt', 'w')
 	local jfnkIter
 	self.jfnkSolver = CLJFNKSolver{
 		env = self,
 		f = function(y,x)
 			
-			-- solve for zero EFE_ab = G_ab - 8 pi T_ab
+			-- solve for zero EFE_ab = G_ab - 8 π T_ab
 			self.calc_gLLs_and_gUUs.obj:setArg(2, x)	-- input arg
 			self.calc_EFEs.obj:setArg(0, y)
 		
@@ -723,20 +724,20 @@ assert(type(name)=='string')
 		x = self.gPrims,
 		type = 'real',
 		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
-		errorCallback = function(err, iter)
-			--io.stderr:write('jfnk err='..tostring(err)..', iter='..tostring(iter)..'\n')
-			if not math.isfinite(err) then
-				print("JFNK got a non-finite error! "..tostring(err))
+		errorCallback = function(residual, iter)
+			--io.stderr:write('jfnk residual='..tostring(residual)..', iter='..tostring(iter)..'\n')
+			if not math.isfinite(residual) then
+				print("JFNK got a non-finite error! "..tostring(residual))
 				return
 			end
 			jfnkIter = iter
-			if jfnkErrFile then
-				jfnkErrFile:write(iter,'\t',err,'\n')
-				jfnkErrFile:flush()
+			if jfnkResidualFile then
+				jfnkResidualFile:write(iter,'\t',residual,'\n')
+				jfnkResidualFile:flush()
 			end
-			if gmresErrFile then
-				gmresErrFile:write'\n'
-				gmresErrFile:flush()
+			if gmresResidualFile then
+				gmresResidualFile:write'\n'
+				gmresResidualFile:flush()
 			end
 		end,
 		gmres = {
@@ -746,15 +747,15 @@ assert(type(name)=='string')
 				-- C++ version also scales by 1e-3
 				-- and, for converging alpha only, scales by another c^2
 			end,
-			errorCallback = function(err, iter)
-				--io.stderr:write('gmres err='..tostring(err)..', iter='..tostring(iter)..'\n')
-				if not math.isfinite(err) then 
-					print("GMRES got a non-finite error! "..tostring(err))
+			errorCallback = function(residual, iter)
+				--io.stderr:write('gmres residual='..tostring(residual)..', iter='..tostring(iter)..'\n')
+				if not math.isfinite(residual) then 
+					print("GMRES got a non-finite error! "..tostring(residual))
 					return
 				end
-				if gmresErrFile then
-					gmresErrFile:write(jfnkIter,'\t',iter,'\t',err,'\n')
-					gmresErrFile:flush()
+				if gmresResidualFile then
+					gmresResidualFile:write(jfnkIter,'\t',iter,'\t',residual,'\n')
+					gmresResidualFile:flush()
 				end
 			end,
 		},
@@ -779,10 +780,10 @@ Luckily all those are in TPrim_t
 so I'll just template out the name.
 --]]
 function EFESolver:getTypeCode()
-	self.TPrim_t = 'TPrim_'..self.body.useMatter
-				..'_'..self.body.useVel
-				..'_'..self.body.useEM
-				..'_'..self.body.useFourPotential
+	self.TPrim_t = 'TPrim_'..tostring(self.body.useMatter)
+				..'_'..tostring(self.body.useVel)
+				..'_'..tostring(self.body.useEM)
+				..'_'..tostring(self.body.useFourPotential)
 				..'_t'
 	
 	-- update this every time body changes
@@ -974,8 +975,8 @@ function EFESolver:updateNewton()
 	--[[
 	iteration:
 
-	dg_ab/dt = -dPhi/dg_ab
-	for Phi = 1/2 Sum_ab (G_ab - 8 pi T_ab)^2
+	∂g_ab/∂t = -∂Φ/∂g_ab
+	for Φ = 1/2 Σ_ab (G_ab - 8 π T_ab)^2
 
 	two approaches:
 	1) do this per g_ab, so you only need to allocate as big as you would for solving the constraints themselves
@@ -986,9 +987,9 @@ function EFESolver:updateNewton()
 	-- here's the newton update method
 	self.calc_dPhi_dgPrims()
 
-	-- now that we have dPhi/dg_ab
-	-- trace along g_ab - alpha * dPhi/dg_ab
-	-- to find what alpha gives us minimal error
+	-- now that we have ∂Φ/∂g_ab
+	-- trace along g_ab - α * ∂Φ/∂g_ab (line trace parameter α, not ADM α)
+	-- to find what α gives us minimal error
 
 	if self.useLineSearch then	-- do bisect line search
 		-- store a backup.  TODO env:copy, and have ConjGrad:copy reference it.	
@@ -1058,7 +1059,7 @@ print(string.format('using alpha=%.16e residual=%.16e', alpha, residualRev))
 
 	--[[
 	then there's the krylov solver treat-it-as-a-linear-system method
-	G_ab(gPrims) = 8 pi T_ab(also gPrims, but let's pretend not)
+	G_ab(gPrims) = 8 π T_ab(also gPrims, but let's pretend not)
 	A x = y
 	solve using Jacobi method ... means isolating the diagonal terms
 	solve using conjugate gradient / residual / bicgstab / gmres ...
