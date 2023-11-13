@@ -325,7 +325,10 @@ if solver.body.useEM then
 	real const BSq = dot(BL, BU);
 
 	real const sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
-	real3 const SL = real3_real_mul(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
+	real3 const SL = real3_real_mul(
+		real3_cross(TPrim->E, TPrim->B),
+		sqrt_det_g
+	);
 	
 	_8piTLL.s00 += ESq + BSq;
 <? 
@@ -355,7 +358,7 @@ if solver.body.useMatter then
 	end 
 ?>
 
-	//8 pi T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
+	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
 	sym4 const _8piT_matter_LL = sym4_real_mul(
 		sym4_add(
 			sym4_real_mul(
@@ -368,6 +371,10 @@ if solver.body.useMatter then
 			)
 		), 8. * M_PI);
 	_8piTLL = sym4_add(_8piTLL, _8piT_matter_LL);
+
+_8piTLL.s[0] = TPrim->rho;
+_8piTLL.s[1] = TPrim->P;
+_8piTLL.s[2] = TPrim->eInt;
 <? end ?>
 
 	return _8piTLL;
