@@ -1167,10 +1167,14 @@ end
 
 function EFESolver:printbuf(name)
 	local buf = assert(self[name])
-	print(name)
 	local cpu = buf:toCPU()
 	for i=0,tonumber(self.base.size:volume()-1) do
-		print(cpu[i])
+		local z = i
+		local x = tonumber(z % self.base.size.x)
+		z = tonumber((z - x) / self.base.size.x)
+		local y = tonumber(z % self.base.size.y)
+		z = tonumber((z - y) / self.base.size.y)
+		print(name..'('..x..', '..y..', '..z..') = '..cpu[i])
 	end
 	print()
 end
