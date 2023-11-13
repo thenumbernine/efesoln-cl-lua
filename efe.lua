@@ -1,6 +1,7 @@
 #!/usr/bin/env luajit
 local ffi = require 'ffi'
 local class = require 'ext.class'
+local string = require 'ext.string'	-- defaultConcat
 local math = require 'ext.math'
 local table = require 'ext.table'
 local path = require 'ext.path'
@@ -427,6 +428,32 @@ function EFESolver:init(args)
 		-- TODO rename to 'gridSize' ?
 		size = {config.size, config.size, config.size},
 		verbose = true,
+	})
+
+	-- while we're here, create ffi.metatypes for all structs
+	-- TODO use the struct-lua project for this for automatic string serialization
+	-- TODO use vec-ffi for real3
+	local ffi = require 'ffi'
+	ffi.metatype('real3', {
+		__tostring = function(x)
+			return '{'..x.x..', '..x.y..', '..x.z..'}'
+		end,
+		__concat = string.defaultConcat,
+	})
+	ffi.metatype('sym3', {
+		__tostring = function(x)
+			return '{'..x.xx..', '..x.xy..', '..x.xz..', '..x.yy..', '..x.yz..', '..x.zz..'}'
+		end,
+		__concat = string.defaultConcat,
+	})
+	ffi.metatype('gPrim_t', {
+		__tostring = function(x)
+			return '{alpha='..x.alpha
+			..', betaU='..x.betaU
+			..', gammaLL='..x.gammaLL
+			..'}'
+		end,
+		__concat = string.defaultConcat,
 	})
 
 	-- parameters:
@@ -985,8 +1012,9 @@ function EFESolver:updateNewton()
 	--]]
 
 	-- here's the newton update method
+print('calc_dPhi_dgPrims()')	
 	self.calc_dPhi_dgPrims()
-
+self:printbuf'dPhi_dgPrims'
 	-- now that we have ∂Φ/∂g_ab
 	-- trace along g_ab - λ * ∂Φ/∂g_ab 
 	-- to find what λ gives us minimal residual
@@ -1053,6 +1081,8 @@ print(string.format('using lambda=%.16e residual=%.16e', lambda, residualRev))
 		self.update_gPrims()
 	else	-- no line search
 		-- update gPrims from dPhi/dg_ab 
+print('self.update_gPrims')
+print('lambda', self.updateLambda) 		
 		self.update_gPrims.obj:setArg(2, ffi.new('real[1]', self.updateLambda))
 		self.update_gPrims()
 	end
@@ -1133,6 +1163,16 @@ function EFESolver:updateTex()
 		gl.glTexSubImage3D(gl.GL_TEXTURE_3D, 0, 0, 0, z, self.tex.width, self.tex.height, 1, gl.GL_RED, gl.GL_FLOAT, self.texCPUBuf + self.tex.width * self.tex.height * z)
 	end
 	self.tex:unbind(0)
+end
+
+function EFESolver:printbuf(name)
+	local buf = assert(self[name])
+	print(name)
+	local cpu = buf:toCPU()
+	for i=0,tonumber(self.base.size:volume()-1) do
+		print(cpu[i])
+	end
+	print()
 end
 
 return EFESolver
