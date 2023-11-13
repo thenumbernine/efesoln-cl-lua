@@ -249,7 +249,7 @@ kernel void calc_8piTLLs(
 	global sym4 const * const gLLs
 ) {
 	initKernel();
-	_8piTLLs[index] = calc_8piTLL(gLLs+index, TPrims+index);
+	_8piTLLs[index] = calc_8piTLL(gLLs[index], TPrims[index]);
 }
 
 kernel void calc_EFEs(
@@ -260,7 +260,9 @@ kernel void calc_EFEs(
 	global tensor_4sym4 const * const GammaULLs
 ) {
 	initKernel();
+	<?=TPrim_t?> const TPrim = TPrims[index];
+	sym4 const gLL = gLLs[index];
 	sym4 const EinsteinLL = sym4_zero;//calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	sym4 const _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);	// getting nans
+	sym4 const _8piTLL = calc_8piTLL(gLL, TPrim);	// getting nans
 	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
 }

@@ -302,8 +302,8 @@ end ?>
 }
 
 sym4 calc_8piTLL(
-	global sym4 const * const gLL,
-	global <?=TPrim_t?> const * const TPrim
+	sym4 const gLL,
+	<?=TPrim_t?> const TPrim
 ) {
 	sym4 _8piTLL = sym4_zero;
 
@@ -316,17 +316,17 @@ if solver.body.useEM then
 	T_ab = F_au F_b^u - 1/4 g_ab F_uv F^uv
 	*/
 
-	real4 const EU = (real4)(0 <?for i=0,2 do ?>, TPrim->E.s<?=i?> <? end ?>); 
-	real4 const EL = sym4_real4_mul(*gLL, EU);
+	real4 const EU = (real4)(0 <?for i=0,2 do ?>, TPrim.E.s<?=i?> <? end ?>); 
+	real4 const EL = sym4_real4_mul(gLL, EU);
 	real const ESq = dot(EL, EU);
 	
-	real4 const BU = (real4)(0 <?for i=0,2 do ?>, TPrim->B.s<?=i?> <? end ?>); 
-	real4 const BL = sym4_real4_mul(*gLL, BU);
+	real4 const BU = (real4)(0 <?for i=0,2 do ?>, TPrim.B.s<?=i?> <? end ?>); 
+	real4 const BL = sym4_real4_mul(gLL, BU);
 	real const BSq = dot(BL, BU);
 
-	real const sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
+	real const sqrt_det_g = sqrt(fabs(sym4_det(gLL)));
 	real3 const SL = real3_real_mul(
-		real3_cross(TPrim->E, TPrim->B),
+		real3_cross(TPrim.E, TPrim.B),
 		sqrt_det_g
 	);
 	
@@ -335,7 +335,7 @@ if solver.body.useEM then
 	for i=0,sDim-1 do 
 ?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>;
 <? 		for j=i,sDim-1 do
-?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL->s<?=i?><?=j?> * (ESq + BSq) <?
+?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL.s<?=i?><?=j?> * (ESq + BSq) <?
 			?>- 2. * (<?
 				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
 				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>);
@@ -346,14 +346,14 @@ if solver.body.useMatter then
 	if solver.body.useVel then 
 ?>	//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
-	real4 const vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
-	real4 const vL = sym4_real4_mul(*gLL, vU);
+	real4 const vU = (real4)(0, TPrim.v.x, TPrim.v.y, TPrim.v.z);
+	real4 const vL = sym4_real4_mul(gLL, vU);
 	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
-	real4 const uL = sym4_real4_mul(*gLL, uU);
-	<? else ?>//otherwise uL = gLL->s0
-	real4 const uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
+	real4 const uL = sym4_real4_mul(gLL, uU);
+	<? else ?>//otherwise uL = gLL.s0
+	real4 const uL = (real4)(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
 <?
 	end 
 ?>
@@ -363,18 +363,14 @@ if solver.body.useMatter then
 		sym4_add(
 			sym4_real_mul(
 				sym4_outer(uL),
-				TPrim->rho * (1. + TPrim->eInt) + TPrim->P
+				TPrim.rho * (1. + TPrim.eInt) + TPrim.P
 			),
 			sym4_real_mul(
-				*gLL,
-				TPrim->P
+				gLL,
+				TPrim.P
 			)
 		), 8. * M_PI);
 	_8piTLL = sym4_add(_8piTLL, _8piT_matter_LL);
-
-_8piTLL.s[0] = TPrim->rho;
-_8piTLL.s[1] = TPrim->P;
-_8piTLL.s[2] = TPrim->eInt;
 <? end ?>
 
 	return _8piTLL;

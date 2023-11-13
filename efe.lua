@@ -226,14 +226,14 @@ local bodies = {
 	},
 }
 
+-- initial conditions:
+
+local EFESolver = CLEnv:subclass()
+
 -- similar to hydro-cl/hydro/solver/solverbase.lua
 -- but not exact, since hydro-cl has its own struct
 -- ... TODO ? put this in cl.env?
-local function checkStructSizes(self)
-	local ctypes = table{
-		ffi.typeof'gPrim_t',
-		ffi.typeof(self.TPrim_t),
-	}
+function EFESolver:checkStructSizes(self, ctypes)
 
 	local varcount = 0
 	for _,ctype in ipairs(ctypes) do
@@ -308,12 +308,8 @@ end
 		end
 	end
 	print('done')
-	os.exit()
 end
 
--- initial conditions:
-
-local EFESolver = CLEnv:subclass()
 
 EFESolver.useFourPotential = false
 
@@ -621,7 +617,13 @@ typedef char int8_t;
 		__concat = string.defaultConcat,
 	})
 
-	checkStructSizes(self)
+	--[[
+	self:checkStructSizes{
+		ffi.typeof'gPrim_t',
+		ffi.typeof(self.TPrim_t),
+	}
+	os.exit()
+	--]]
 
 	-- parameters:
 
@@ -1169,9 +1171,9 @@ end
 function EFESolver:resetState()
 	self.init_gPrims()
 
-print'init_TPrims'
+--print'init_TPrims'
 	self.init_TPrims()
-self:printbuf'TPrims'
+--self:printbuf'TPrims'
 
 	self:updateAux()
 	self:updateTex()
@@ -1208,9 +1210,9 @@ function EFESolver:updateNewton()
 	--]]
 
 	-- here's the newton update method
-print'calc_dPhi_dgPrims'
+--print'calc_dPhi_dgPrims'
 	self.calc_dPhi_dgPrims()
-self:printbuf'dPhi_dgPrims'
+--self:printbuf'dPhi_dgPrims'
 	-- now that we have ∂Φ/∂g_ab
 	-- trace along g_ab - λ * ∂Φ/∂g_ab
 	-- to find what λ gives us minimal residual
@@ -1326,9 +1328,9 @@ function EFESolver:updateAux()
 		end
 	end
 
-print'calc_EFEs'
+--print'calc_EFEs'
 	self.calc_EFEs()
-self:printbuf'EFEs'
+--self:printbuf'EFEs'
 end
 
 function EFESolver:updateTex()
