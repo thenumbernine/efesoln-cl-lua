@@ -25,7 +25,7 @@ if solver.body.useEM then ?>
 <?=solver.body.init and solver.body.init or ''?>
 
 <? if solver.useFourPotential then ?>
-	TPrim->AL = real4_scale(TPrim->JU, -1);
+	TPrim->AL = real4_real_mul(TPrim->JU, -1);
 <? end ?>
 }
 
@@ -199,7 +199,7 @@ kernel void solveAL(
 
 		skewSum = real4_add(
 			skewSum,
-			real4_scale(
+			real4_real_mul(
 				TPrim_prev->JU,
 				inv_dx.s<?=i?> * inv_dx.s<?=i?>)
 			);
@@ -211,7 +211,7 @@ kernel void solveAL(
 
 		skewSum = real4_add(
 			skewSum,
-			real4_scale(
+			real4_real_mul(
 				TPrim_next->JU,
 				inv_dx.s<?=i?> * inv_dx.s<?=i?>)
 			);
@@ -260,7 +260,7 @@ kernel void calc_EFEs(
 	global tensor_4sym4 const * const GammaULLs
 ) {
 	initKernel();
-	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	sym4 _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);
+	sym4 const EinsteinLL = sym4_zero;//calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	sym4 const _8piTLL = calc_8piTLL(gLLs+index, TPrims+index);	// getting nans
 	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
 }

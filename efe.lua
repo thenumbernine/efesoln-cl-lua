@@ -1050,7 +1050,6 @@ function EFESolver:updateNewton()
 	--]]
 
 	-- here's the newton update method
-self:printbuf'EFEs'
 print'calc_dPhi_dgPrims'
 	self.calc_dPhi_dgPrims()
 self:printbuf'dPhi_dgPrims'

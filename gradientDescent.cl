@@ -170,7 +170,7 @@ if solver.body.useEM then ?>
 	real const BSq = dot(BL, BU);
 
 	real const sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
-	real3 const SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
+	real3 const SL = real3_real_mul(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 
 <?
 	for e=0,stDim-1 do
