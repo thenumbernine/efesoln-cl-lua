@@ -438,7 +438,7 @@ function EFESolver:init(args)
 	self.code = self.code .. '\n' 
 		.. self:compileTemplates(path'efe.cl':read())
 
-	self.updateAlpha = config.updateAlpha
+	self.updateLambda = config.updateLambda
 
 	self.initCond = self.initConds:find(nil, function(initCond)
 		return initCond.name == config.initCond
@@ -1033,9 +1033,9 @@ print(string.format('lambda=%.16e residual=%.16e', lambda, residual))
 			end
 		end
 		
-		local lambdaFwd, residualFwd = bisect(0, self.updateAlpha)
+		local lambdaFwd, residualFwd = bisect(0, self.updateLambda)
 print(string.format('fwd lambda=%.16e residual=%.16e', lambdaFwd, residualFwd))
-		local lambdaRev, residualRev = bisect(0, -self.updateAlpha)	
+		local lambdaRev, residualRev = bisect(0, -self.updateLambda)	
 print(string.format('rev lambda=%.16e residual=%.16e', lambdaRev, residualRev))
 
 		self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
@@ -1053,7 +1053,7 @@ print(string.format('using lambda=%.16e residual=%.16e', lambda, residualRev))
 		self.update_gPrims()
 	else	-- no line search
 		-- update gPrims from dPhi/dg_ab 
-		self.update_gPrims.obj:setArg(2, ffi.new('real[1]', self.updateAlpha))
+		self.update_gPrims.obj:setArg(2, ffi.new('real[1]', self.updateLambda))
 		self.update_gPrims()
 	end
 

@@ -3,7 +3,7 @@ return {
 	size = 8,
 	
 	-- line trace amount
-	updateAlpha = 1,
+	updateLambda = 1,
 
 	--body = 'vacuum',
 	body = 'Earth',

@@ -304,7 +304,7 @@ end
 kernel void update_gPrims(
 	global gPrim_t* gPrims,
 	global const gPrim_t* dPhi_dgPrims,
-	real updateAlpha
+	real updateLambda
 ) {
 	initKernel();
 	global gPrim_t* gPrim = gPrims + index;
@@ -312,18 +312,18 @@ kernel void update_gPrims(
 
 <? 
 if solver.convergeAlpha then
-?>	gPrim->alpha -= updateAlpha * dPhi_dgPrim->alpha;
+?>	gPrim->alpha -= updateLambda * dPhi_dgPrim->alpha;
 <?
 end
 if solver.convergeBeta then
 	for m=0,sDim-1 do
-?>	gPrim->betaU.s<?=m?> -= updateAlpha * dPhi_dgPrim->betaU.s<?=m?>;
+?>	gPrim->betaU.s<?=m?> -= updateLambda * dPhi_dgPrim->betaU.s<?=m?>;
 <? 	end 
 end
 if solver.convergeGamma then
 	for m=0,sDim-1 do
 		for n=m,sDim-1 do
-?>	gPrim->gammaLL.s<?=m..n?> -= updateAlpha * dPhi_dgPrim->gammaLL.s<?=m..n?>;
+?>	gPrim->gammaLL.s<?=m..n?> -= updateLambda * dPhi_dgPrim->gammaLL.s<?=m..n?>;
 <?		end
 	end
 end
