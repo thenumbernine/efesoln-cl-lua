@@ -36,14 +36,14 @@ function SphericalBody:init(args)
 	self.useEM = false
 
 	self.init = template([[
-	real3 x = getX(i);
-	real r = real3_len(x);
+	real3 const x = getX(i);
+	real const r = real3_len(x);
 	
-	const real rho0 = <?=self.density?>;
-	const real radius = <?=self.radius?>;
-	const real radius3 = radius * radius * radius;
-	const real mass = <?=self.mass?>;
-	real r2 = r * r;
+	real const rho0 = <?=self.density?>;
+	real const radius = <?=self.radius?>;
+	real const radius3 = radius * radius * radius;
+	real const mass = <?=self.mass?>;
+	real const r2 = r * r;
 	TPrim->rho = r < radius ? rho0 : 0;
 	TPrim->P = r < radius ? (rho0 * (
 		(sqrt(1. - 2. * mass * r2 / radius3) - sqrt(1. - 2. * mass / radius))
@@ -63,16 +63,16 @@ function EMRing:init(args)
 	self.useEM = true
 	
 	self.init = template([[
-	const real radius = <?=self.radius?>;
+	real const radius = <?=self.radius?>;
 	
-	real3 x = getX(i);
+	real3 const x = getX(i);
 	
-	real polar_rSq = x.x*x.x + x.y*x.y;
-	real polar_r = sqrt(polar_rSq);		//r in polar coordinates	
-	real dr = polar_r - radius;			//difference from polar radius to torus big radius
-	real r = sqrt(x.z*x.z + dr*dr);		//r in torus radial coordinates
-	real theta = atan2(x.z, dr);		//angle around the small radius
-	real phi = atan2(x.x, x.y);			//angle around the big radius
+	real const polar_rSq = x.x*x.x + x.y*x.y;
+	real const polar_r = sqrt(polar_rSq);		//r in polar coordinates	
+	real const dr = polar_r - radius;			//difference from polar radius to torus big radius
+	real const r = sqrt(x.z*x.z + dr*dr);		//r in torus radial coordinates
+	real const theta = atan2(x.z, dr);		//angle around the small radius
+	real const phi = atan2(x.x, x.y);			//angle around the big radius
 
 	//F^uv_;v = -4 π J^u
 	// means that the divergence of the EM is the 4-current 
@@ -162,22 +162,22 @@ function EMLine:init(args)
 	local rBz = 0
 
 	self.init = template([[
-	const real radius = <?=self.radius?>;
+	real const radius = <?=self.radius?>;
 	
-	real3 x = getX(i);
+	real3 const x = getX(i);
 	
-	real r2Sq = x.x*x.x + x.y*x.y;
-	real r2 = sqrt(r2Sq);		//r in polar coordinates	
+	real const r2Sq = x.x*x.x + x.y*x.y;
+	real const r2 = sqrt(r2Sq);		//r in polar coordinates	
 
-	const real Er = <?=clnumber(rEr)?> / r2;
-	const real Ez = <?=clnumber(Ez)?>;
+	real const Er = <?=clnumber(rEr)?> / r2;
+	real const Ez = <?=clnumber(Ez)?>;
 
 	TPrim->E.x = x.x/r2 * Er;
 	TPrim->E.y = x.y/r2 * Er;
 	TPrim->E.z = Ez;
 
-	const real Bt = <?=clnumber(rBt)?> / r2;
-	const real Bz = <?=clnumber(Bz)?>;
+	real const Bt = <?=clnumber(rBt)?> / r2;
+	real const Bz = <?=clnumber(Bz)?>;
 
 	TPrim->B.x = -x.y/r2 * Bt;
 	TPrim->B.y = x.x/r2 * Bt;
@@ -233,13 +233,13 @@ EFESolver.useFourPotential = false
 EFESolver.initConds = table{
 	{flat = ''},
 	{['stellar Schwarzschild'] = [[
-	const real radius = <?=solver.body.radius?>;
-	const real mass = <?=solver.body.mass?>;
-	const real density = <?=solver.body.density?>;
+	real const radius = <?=solver.body.radius?>;
+	real const mass = <?=solver.body.mass?>;
+	real const density = <?=solver.body.density?>;
 	
-	real matterRadius = (real)min(r, radius);
-	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = density * volumeOfMatterRadius;	// m^3		
+	real const matterRadius = (real)min(r, radius);
+	real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+	real const m = density * volumeOfMatterRadius;	// m^3		
 	
 	/*
 	g_ti = beta_i = 0
@@ -285,17 +285,17 @@ end
 	this might be a mess, but I'm (1) calculating the change in time as if I were in a frame rotating by L exp(i omega t)
 	then (2) re-centering the frame at L exp(i omega t) ... so I can use the original coordinate system
 	*/
-	real dr_alpha = r > radius 
+	real const dr_alpha = r > radius 
 		? (mass / (r * r * sqrt(1. - 2. * mass / r))) 
 		: (mass * r / (radius * radius * radius * sqrt(1. - 2. * mass * r * r / (radius * radius * radius))));
-	real dr_m = r > radius ? 0 : (4. * M_PI * r * r * density);
-	MetricPrims& dt_metricPrims = dt_metricPrimGrid(index);
-	real L = 149.6e+9;	//distance from earth to sun, in m 
+	real const dr_m = r > radius ? 0 : (4. * M_PI * r * r * density);
+	MetricPrims & dt_metricPrims = dt_metricPrimGrid(index);
+	real const L = 149.6e+9;	//distance from earth to sun, in m 
 	//real omega = 0; //no rotation
 	//real omega = 2. * M_PI / (60. * 60. * 24. * 365.25) / c;	//one revolution per year in m^-1 
 	//real omega = 1;	//angular velocity of the speed of light
-	real omega = c;	//I'm trying to find a difference ...
-	real t = 0;	//where the position should be.  t=0 means the body is moved by [L, 0], and its derivatives are along [0, L omega] 
+	real const omega = c;	//I'm trying to find a difference ...
+	real const t = 0;	//where the position should be.  t=0 means the body is moved by [L, 0], and its derivatives are along [0, L omega] 
 	Vector<real,2> dt_xHat(L * omega * sin(omega * t), -L * omega * cos(omega * t));
 	dt_metricPrims.alpha = dr_alpha * (xi(0)/r * dt_xHat(0) + xi(1)/r * dt_xHat(1));
 	for (int i = 0; i < sDim; ++i) {
@@ -351,18 +351,18 @@ end
 ]]},
 	-- looks like an error
 	{['stellar Kerr-Newman'] = [[
-	const real radius = <?=solver.body.radius?>;
-	const real mass = <?=solver.body.mass?>;
-	const real density = <?=solver.body.density?>;
+	real const radius = <?=solver.body.radius?>;
+	real const mass = <?=solver.body.mass?>;
+	real const density = <?=solver.body.density?>;
 	
-	real angularVelocity = 2. * M_PI / (60. * 60. * 24.) / c;	//angular velocity, in m^-1
-	real inertia = 2. / 5. * mass * radius * radius;	//moment of inertia about a sphere, in m^3
-	real angularMomentum = inertia * angularVelocity;	//angular momentum in m^2
-	real a = angularMomentum / mass;	//m
+	real const angularVelocity = 2. * M_PI / (60. * 60. * 24.) / c;	//angular velocity, in m^-1
+	real const inertia = 2. / 5. * mass * radius * radius;	//moment of inertia about a sphere, in m^3
+	real const angularMomentum = inertia * angularVelocity;	//angular momentum in m^2
+	real const a = angularMomentum / mass;	//m
 			
 	//real r is the solution of (x*x + y*y) / (r*r + a*a) + z*z / (r*r) = 1 
 	// r^4 - (x^2 + y^2 + z^2 - a^2) r^2 - a^2 z^2 = 0
-	real RSq_minus_aSq = real3_lenSq(x) - a*a;
+	real const RSq_minus_aSq = real3_lenSq(x) - a*a;
 	//so we have two solutions ... which do we use? 
 	//from gnuplot it looks like the two of these are the same ...
 	r = sqrt((RSq_minus_aSq + sqrt(RSq_minus_aSq * RSq_minus_aSq + 4.*a*a*x.z*x.z)) / 2.);	//use the positive root
@@ -372,12 +372,12 @@ end
 	// and that determines 'a', the angular momentum per mass within the coordinate (should it?)
 	// then we would have a circular definition
 	//real R = real3_len(x);
-	real matterRadius = min(r, radius);
-	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = density * volumeOfMatterRadius;	// m^3
+	real const matterRadius = min(r, radius);
+	real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+	real const m = density * volumeOfMatterRadius;	// m^3
 
-	real Q = 0;	//charge
-	real H = (r*m - Q*Q/2.)/(r*r + a*a*x.z*x.z/(r*r));
+	real const Q = 0;	//charge
+	real const H = (r*m - Q*Q/2.)/(r*r + a*a*x.z*x.z/(r*r));
 
 	//3.4.33 through 3.4.35 of Alcubierre "Introduction to 3+1 Numerical Relativity"
 	
@@ -389,7 +389,7 @@ end
 	//metricPrims.alpha = 1./sqrt(1. + 2*H);
 	gPrim->alpha = sqrt(1. - 2*H/(1+2*H) );
 	
-	real3 l = _real3( (r*x.x + a*x.y)/(r*r + a*a), (r*x.y - a*x.x)/(r*r + a*a), x.z/r );
+	real3 const l = _real3( (r*x.x + a*x.y)/(r*r + a*a), (r*x.y - a*x.x)/(r*r + a*a), x.z/r );
 <?
 for i=0,sDim-1 do
 ?>	gPrim->betaU.s<?=i?> = 2. * H * l.s<?=i?> / (1. + 2. * H);
@@ -456,13 +456,13 @@ function EFESolver:init(args)
 	<? for i=0,sDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int indexL = indexForInt4(iL);
-		global const <?=TPrim_t?>* TPrim_prev = TPrims + indexL;
+		int const indexL = indexForInt4(iL);
+		global <?=TPrim_t?> const * const TPrim_prev = TPrims + indexL;
 		
 		int4 iR = i;
 		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int indexR = indexForInt4(iR);
-		global const <?=TPrim_t?>* TPrim_next = TPrims + indexR;
+		int const indexR = indexForInt4(iR);
+		global <?=TPrim_t?> const * const TPrim_next = TPrims + indexR;
 		
 		div += (TPrim_next-><?=field?>.s<?=i?> - TPrim_prev-><?=field?>.s<?=i?>) * .5 * inv_dx.s<?=i?>;
 	}<? end ?>
@@ -504,9 +504,9 @@ function EFESolver:init(args)
 			}},
 			{[{'GammaULLs'}] = {
 				{['numerical gravity'] = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
-	global const tensor_4sym4* GammaULL = GammaULLs + index;
+	real3 const x = getX(i);
+	real const r = real3_len(x);
+	global tensor_4sym4 const * const GammaULL = GammaULLs + index;
 	texCLBuf[index] = (0.
 		+ GammaULL->s1.s00 * x.s0 / r
 		+ GammaULL->s2.s00 * x.s1 / r
@@ -515,12 +515,12 @@ function EFESolver:init(args)
 			}},	
 			{[{}] = self.body.density and {
 				{['analytical gravity'] = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
-	real matterRadius = min(r, (real)<?=solver.body.radius?>);
-	real volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
-	real dm_dr = 0;
+	real3 const x = getX(i);
+	real const r = real3_len(x);
+	real const matterRadius = min(r, (real)<?=solver.body.radius?>);
+	real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+	real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
+	real const dm_dr = 0;
 	texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
 		* c * c;	//+9 at earth surface, without matter derivatives
 ]]},		
@@ -528,14 +528,14 @@ function EFESolver:init(args)
 			{[{'EFEs'}] = {
 				{['EFE_tt (g/cm^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;'},
 				{['|EFE_ti|*c'] = [[
-	global const sym4* EFE = EFEs + index;	
+	global sym4 const * const EFE = EFEs + index;	
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do ?>
 		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
 <? end ?>) * c;
 ]]},
 				{['|EFE_ij|'] = [[
-	global const sym4* EFE = EFEs + index;
+	global sym4 const * const EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do
 	for j=0,sDim-1 do
@@ -546,22 +546,22 @@ end ?>);
 			}},
 			{[{'gLLs', 'gUUs', 'GammaULLs'}] = {
 				{['|Einstein_ab|'] = [[
-	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(sym4_dot(EinsteinLL, EinsteinLL));
 ]]},
 				{['Einstein_tt (g/cm^3)'] = [[
-	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G / 1000.;
 ]]},
 				{['|Einstein_ti|*c'] = [[
-	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do ?>
 		+ EinsteinLL.s0<?=i+1?> * EinsteinLL.s0<?=i+1?>
 <? end ?>) * c;
 ]]},		
 				{['|Einstein_ij| (g/cm^3)'] = [[
-	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do
 	for j=0,sDim-1 do
@@ -910,10 +910,10 @@ function EFESolver:refreshInitCond()
 	self.init_gPrims = self:kernel{
 		argsOut = {self.gPrims},
 		body = [[
-	real3 x = getX(i);
-	real r = real3_len(x);
+	real3 const x = getX(i);
+	real const r = real3_len(x);
 
-	global gPrim_t* gPrim = gPrims + index;
+	global gPrim_t * const gPrim = gPrims + index;
 
 	//init to flat by default
 	*gPrim = (gPrim_t){

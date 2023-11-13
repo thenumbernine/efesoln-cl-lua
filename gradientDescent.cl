@@ -1,25 +1,25 @@
 // here is the code used for updating weights based on the EFE
 
 kernel void calc_dPhi_dgPrims(
-	global gPrim_t* dPhi_dgPrims,
-	global const <?=TPrim_t?>* TPrims,
-	global const gPrim_t* gPrims,
-	global const sym4* gLLs,
-	global const sym4* gUUs,
-	global const tensor_4sym4* GammaULLs,
-	global const sym4* EFEs
+	global gPrim_t * const dPhi_dgPrims,
+	global <?=TPrim_t?> const * const TPrims,
+	global gPrim_t const * const gPrims,
+	global sym4 const * const gLLs,
+	global sym4 const * const gUUs,
+	global tensor_4sym4 const * const GammaULLs,
+	global sym4 const * const EFEs
 ) {
 	initKernel();
 	
-	global const sym4* gLL = gLLs + index;
-	global const sym4* gUU = gUUs + index;
-	global const tensor_4sym4* GammaULL = GammaULLs + index;
+	global sym4 const * const gLL = gLLs + index;
+	global sym4 const * const gUU = gUUs + index;
+	global tensor_4sym4 const * const GammaULL = GammaULLs + index;
 
 	//this is also in the Ricci computation, but should I be storing it?  is it too big?
 	tensor_44sym4 dGammaLULL;
 	calc_dGammaLULL(&dGammaLULL, GammaULLs);
 
-	tensor_44sym4 RiemannULLL = (tensor_44sym4){
+	tensor_44sym4 const RiemannULLL = (tensor_44sym4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (tensor_4sym4){
 <? 	for b=0,stDim-1 do
@@ -40,7 +40,7 @@ kernel void calc_dPhi_dgPrims(
 <? end 
 ?>	};
 
-	sym4 RicciLL = (sym4){
+	sym4 const RicciLL = (sym4){
 <? for a=0,stDim-1 do 
 	for b=a,stDim-1 do
 ?>		.s<?=a..b?> = 0. <?
@@ -51,7 +51,7 @@ kernel void calc_dPhi_dgPrims(
 end 
 ?>	};
 
-	real RicciUL[4][4] = {
+	real const RicciUL[4][4] = {
 <? for a=0,stDim-1 do 
 ?>		{
 <?
@@ -66,7 +66,7 @@ end
 <? end 
 ?>	};
 
-	sym4 RicciUU = (sym4){
+	sym4 const RicciUU = (sym4){
 <? for a=0,stDim-1 do
 	for b=a,stDim-1 do 
 ?>		.s<?=a..b?> = 0.<?
@@ -77,12 +77,12 @@ end
 end 
 ?>	};
 
-	real Gaussian = 0.<? 
+	real const Gaussian = 0.<? 
 for a=0,stDim-1 do 
 ?> + RicciUL[<?=a?>][<?=a?>]<?
 end ?>;
 
-	real GammaUUL[4][4][4] = {
+	real const GammaUUL[4][4][4] = {
 <? for a=0,stDim-1 do 
 ?>		{
 <?	for b=0,stDim-1 do 
@@ -100,7 +100,7 @@ end ?>;
 ?>	};
 
 	//dR_ab/dg_pq
-	tensor_sym4sym4 dRicciLL_dgLL = (tensor_sym4sym4){
+	tensor_sym4sym4 const dRicciLL_dgLL = (tensor_sym4sym4){
 <? for e=0,stDim-1 do 
 	for f=e,stDim-1 do
 ?>		.s<?=e..f?> = (sym4){
@@ -120,7 +120,7 @@ end
 ?>	};
 
 	//g^cd dR_cd/dg_ef
-	sym4 gUU_dRicciLL_dgLL = (sym4){
+	sym4 const gUU_dRicciLL_dgLL = (sym4){
 <? for e=0,stDim-1 do 
 	for f=e,stDim-1 do 
 ?>		.s<?=e..f?> = sym4_dot(*gUU, dRicciLL_dgLL.s<?=e..f?>),
@@ -129,7 +129,7 @@ end ?>
 	};
 
 	//dG_ab/dg_pq = tensor_sym4sym4.s[pq].s[ab]
-	tensor_sym4sym4 dEinsteinLL_dgLL = (tensor_sym4sym4){
+	tensor_sym4sym4 const dEinsteinLL_dgLL = (tensor_sym4sym4){
 <? for e=0,stDim-1 do
 	for f=e,stDim-1 do 
 ?>		.s<?=e..f?> = (sym4){
@@ -149,7 +149,7 @@ end ?>
 <? end 
 ?>	};
 
-	global const <?=TPrim_t?>* TPrim = TPrims + index;
+	global <?=TPrim_t?> const * const TPrim = TPrims + index;
 
 	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
 <? for a=0,stDim-1 do
@@ -161,16 +161,16 @@ end
 
 <?
 if solver.body.useEM then ?>	
-	real4 EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->E.s<?=i?> <? end ?>); 
-	real4 EL = sym4_real4_mul(*gLL, EU);
-	real ESq = dot(EL, EU);
+	real4 const EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->E.s<?=i?> <? end ?>); 
+	real4 const EL = sym4_real4_mul(*gLL, EU);
+	real const ESq = dot(EL, EU);
 	
-	real4 BU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->B.s<?=i?> <? end ?>); 
-	real4 BL = sym4_real4_mul(*gLL, BU);
-	real BSq = dot(BL, BU);
+	real4 const BU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim->B.s<?=i?> <? end ?>); 
+	real4 const BL = sym4_real4_mul(*gLL, BU);
+	real const BSq = dot(BL, BU);
 
-	real sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
-	real3 SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
+	real const sqrt_det_g = sqrt(fabs(sym4_det(*gLL)));
+	real3 const SL = real3_scale(real3_cross(TPrim->E, TPrim->B), sqrt_det_g);
 
 <?
 	for e=0,stDim-1 do
@@ -213,14 +213,14 @@ end
 if solver.body.useMatter then
 	if solver.body.useVel then ?>//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
-	real4 vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
-	real4 vL = sym4_real4_mul(*gLL, vU);
-	real vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
-	real W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
-	real4 uL = sym4_real4_mul(*gLL, uU);
+	real4 const vU = (real4)(0, TPrim->v.x, TPrim->v.y, TPrim->v.z);
+	real4 const vL = sym4_real4_mul(*gLL, vU);
+	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
+	real const W = 1. / sqrt(1. - sqrt(vLenSq));
+	real4 const uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
+	real4 const uL = sym4_real4_mul(*gLL, uU);
 	<? else ?>//otherwise uL = gLL->s0
-	real4 uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
+	real4 const uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
 	<? 
 	end
 	
@@ -240,7 +240,7 @@ if solver.body.useMatter then
 end
 ?>
 
-	global const sym4* EFE = EFEs + index;	// G_ab - 8 pi T_ab
+	global sym4 const * const EFE = EFEs + index;	// G_ab - 8 π T_ab
 	sym4 dPhi_dgLL;
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do 
@@ -254,12 +254,12 @@ end
 <? 	end
 end ?>
 
-	global gPrim_t* dPhi_dgPrim = dPhi_dgPrims + index;
-	global const gPrim_t* gPrim = gPrims + index;
+	global gPrim_t * const dPhi_dgPrim = dPhi_dgPrims + index;
+	global gPrim_t const * const gPrim = gPrims + index;
 
-	sym3 gammaLL = gPrim->gammaLL;
-	real3 betaU = gPrim->betaU;
-	real3 betaL = sym3_real3_mul(gammaLL, betaU);
+	sym3 const gammaLL = gPrim->gammaLL;
+	real3 const betaU = gPrim->betaU;
+	real3 const betaL = sym3_real3_mul(gammaLL, betaU);
 
 <?
 if solver.convergeAlpha then
@@ -288,7 +288,7 @@ end ?>
 	//scale up our gradient?
 	//scale by c^4 / G ~ 1e+44
 	// which is the units of conversion 
-	//c^4/G * G_ab = 8 pi T_ab
+	//c^4/G * G_ab = 8 π T_ab
 	dPhi_dgPrim->alpha *= c*c*c*c/G;
 <? for i=0,sDim-1 do
 ?>	dPhi_dgPrim->betaU.s<?=i?> *= c*c*c*c/G;
@@ -302,13 +302,13 @@ end
 }
 
 kernel void update_gPrims(
-	global gPrim_t* gPrims,
-	global const gPrim_t* dPhi_dgPrims,
-	real updateLambda
+	global gPrim_t * const gPrims,
+	global gPrim_t const * const dPhi_dgPrims,
+	real const updateLambda
 ) {
 	initKernel();
-	global gPrim_t* gPrim = gPrims + index;
-	global const gPrim_t* dPhi_dgPrim = dPhi_dgPrims + index;
+	global gPrim_t * const gPrim = gPrims + index;
+	global gPrim_t const * const dPhi_dgPrim = dPhi_dgPrims + index;
 
 <? 
 if solver.convergeAlpha then
