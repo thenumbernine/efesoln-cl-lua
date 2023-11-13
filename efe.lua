@@ -442,7 +442,20 @@ function EFESolver:init(args)
 	})
 	ffi.metatype('sym3', {
 		__tostring = function(x)
-			return '{'..x.xx..', '..x.xy..', '..x.xz..', '..x.yy..', '..x.yz..', '..x.zz..'}'
+			return '{'
+			..x.xx..', '..x.xy..', '..x.xz..', '
+			..x.yy..', '..x.yz..', '
+			..x.zz..'}'
+		end,
+		__concat = string.defaultConcat,
+	})
+	ffi.metatype('sym4', {
+		__tostring = function(x)
+			return '{'
+			..x.tt..', '..x.tx..', '..x.ty..', '..x.tz..', '
+			..x.xx..', '..x.xy..', '..x.xz..', '
+			..x.yy..', '..x.yz..', '
+			..x.zz..'}'
 		end,
 		__concat = string.defaultConcat,
 	})
@@ -905,10 +918,35 @@ function EFESolver:refreshKernels()
 	end
 
 	-- used by updateNewton and updateJFNK:
-	self.calc_EFEs = program:kernel{name='calc_EFEs', argsOut={self.EFEs}, argsIn={self.TPrims, self.gLLs, self.gUUs, self.GammaULLs}}
+	self.calc_EFEs = program:kernel{
+		name = 'calc_EFEs',
+		argsOut = {
+			self.EFEs,
+		},
+		argsIn = {
+			self.TPrims,
+			self.gLLs,
+			self.gUUs,
+			self.GammaULLs,
+		},
+	}
 	
 	-- used by updateNewton:
-	self.calc_dPhi_dgPrims = program:kernel{name='calc_dPhi_dgPrims', argsOut={self.dPhi_dgPrims}, argsIn={self.TPrims, self.gPrims, self.gLLs, self.gUUs, self.GammaULLs, self.EFEs}}
+	self.calc_dPhi_dgPrims = program:kernel{
+		name = 'calc_dPhi_dgPrims',
+		argsOut = {
+			self.dPhi_dgPrims,
+		},
+		argsIn = {
+			self.TPrims,
+			self.gPrims,
+			self.gLLs,
+			self.gUUs,
+			self.GammaULLs,
+			self.EFEs,
+		},
+	}
+	
 	self.update_gPrims = program:kernel{name='update_gPrims', argsOut={self.gPrims}, argsIn={self.dPhi_dgPrims}}
 
 	-- used by updateConjRes and updateGMRes
@@ -1012,7 +1050,8 @@ function EFESolver:updateNewton()
 	--]]
 
 	-- here's the newton update method
-print('calc_dPhi_dgPrims()')	
+self:printbuf'EFEs'
+print'calc_dPhi_dgPrims'
 	self.calc_dPhi_dgPrims()
 self:printbuf'dPhi_dgPrims'
 	-- now that we have ∂Φ/∂g_ab
@@ -1130,7 +1169,9 @@ function EFESolver:updateAux()
 		end
 	end
 
+print'calc_EFEs'
 	self.calc_EFEs()
+self:printbuf'EFEs'
 end
 
 function EFESolver:updateTex()

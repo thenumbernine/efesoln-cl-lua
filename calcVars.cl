@@ -1,11 +1,11 @@
 // init
 
 kernel void init_TPrims(
-	global <?=TPrim_t?>* TPrims
+	global <?=TPrim_t?> * const TPrims
 ) {
 	initKernel();
 	
-	global <?=TPrim_t?>* TPrim = TPrims + index;
+	global <?=TPrim_t?> * const TPrim = TPrims + index;
 	
 	*TPrim = (<?=TPrim_t?>){
 <? if solver.body.useMatter then ?>
@@ -32,19 +32,19 @@ if solver.body.useEM then ?>
 // compute buffers to compute EFE
 
 kernel void calc_gLLs_and_gUUs(
-	global sym4* gLLs,
-	global sym4* gUUs,
-	const global gPrim_t* gPrims
+	global sym4 * const gLLs,
+	global sym4 * const gUUs,
+	global gPrim_t const * const gPrims
 ) {
 	initKernel();
 
-	global const gPrim_t* gPrim = gPrims + index;
+	global gPrim_t const * const gPrim = gPrims + index;
 
 	real alphaSq = gPrim->alpha * gPrim->alpha;
 	real3 betaL = sym3_real3_mul(gPrim->gammaLL, gPrim->betaU);
 	real betaSq = real3_dot(betaL, gPrim->betaU);
 
-	global sym4* gLL = gLLs + index;
+	global sym4 * const gLL = gLLs + index;
 	gLL->s00 = -alphaSq + betaSq;
 	<? for i=0,sDim-1 do ?>
 	gLL->s0<?=i+1?> = betaL.s<?=i?>;
@@ -56,7 +56,7 @@ kernel void calc_gLLs_and_gUUs(
 	real det_gammaLL = sym3_det(gPrim->gammaLL);
 	sym3 gammaUU = sym3_inv(det_gammaLL, gPrim->gammaLL);
 
-	global sym4* gUU = gUUs + index;
+	global sym4 * const gUU = gUUs + index;
 	gUU->s00 = -1./alphaSq;
 	<? for i=0,sDim-1 do ?>
 	gUU->s0<?=i+1?> = gPrim->betaU.s<?=i?> / alphaSq;
@@ -67,9 +67,9 @@ kernel void calc_gLLs_and_gUUs(
 }
 
 kernel void calc_GammaULLs(
-	global tensor_4sym4* GammaULLs,
-	const global sym4* gLLs,
-	const global sym4* gUUs
+	global tensor_4sym4 * const GammaULLs,
+	global sym4 const * const gLLs,
+	global sym4 const * const gUUs
 ) {
 	initKernel();
 
@@ -80,12 +80,12 @@ kernel void calc_GammaULLs(
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
 		int indexL = indexForInt4(iL);
-		global const sym4* gLL_prev = gLLs + indexL;
+		global sym4 const * const gLL_prev = gLLs + indexL;
 		
 		int4 iR = i;
 		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
-		global const sym4* gLL_next = gLLs + indexR;
+		global sym4 const * const gLL_next = gLLs + indexR;
 		
 		dgLLL.s<?=i+1?> = (sym4){
 		<? for a=0,stDim-1 do ?>
@@ -108,8 +108,8 @@ kernel void calc_GammaULLs(
 		<? end ?>
 	<? end ?>};
 
-	global const sym4* gUU = gUUs + index;
-	global tensor_4sym4* GammaULL = GammaULLs + index;
+	global sym4 const * const gUU = gUUs + index;
+	global tensor_4sym4 * const GammaULL = GammaULLs + index;
 	<? for a=0,stDim-1 do ?>
 		<? for b=0,stDim-1 do ?>
 			<? for c=b,stDim-1 do ?>
@@ -186,7 +186,7 @@ which means subtract out the potential (in curved space)
 */
 <? if solver.useFourPotential then ?>
 kernel void solveAL(
-	global <?=TPrim_t?>* TPrims
+	global <?=TPrim_t?> * const TPrims
 ) {
 	initKernel();
 
@@ -194,8 +194,8 @@ kernel void solveAL(
 	<? for i=0,sDim-1 do ?>{
 		int4 iL = i;
 		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int indexL = indexForInt4(iL);
-		global <?=TPrim_t?>* TPrim_prev = TPrims + indexL;
+		int const indexL = indexForInt4(iL);
+		global <?=TPrim_t?> * const TPrim_prev = TPrims + indexL;
 
 		skewSum = real4_add(
 			skewSum,
@@ -207,7 +207,7 @@ kernel void solveAL(
 		int4 iR = i;
 		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
 		int indexR = indexForInt4(iR);
-		global <?=TPrim_t?>* TPrim_next = TPrims + indexR;
+		global <?=TPrim_t?> * const TPrim_next = TPrims + indexR;
 
 		skewSum = real4_add(
 			skewSum,
@@ -217,13 +217,13 @@ kernel void solveAL(
 			);
 	}<? end ?>
 
-	const real diag = -2. * (0
+	real const diag = -2. * (0
 <? for i=0,solver.stDim-1 do ?>
 		+ 1. / (dx<?=i?> * dx<?=i?>)
 <? end ?>
 	);
 
-	global <?=TPrim_t?>* TPrim = TPrims + index;
+	global <?=TPrim_t?> * const TPrim = TPrims + index;
 
 	TPrim->AL = real4_sub(TPrim->AL, skewSum) / diag;
 }
@@ -234,30 +234,30 @@ kernel void solveAL(
 // T is T_ab (which is also a function of x but don't tell)
 // and x is gPrims
 kernel void calc_EinsteinLLs(
-	global sym4* EinsteinLLs,
-	global const sym4* gLLs,
-	global const sym4* gUUs,
-	global const tensor_4sym4* GammaULLs
+	global sym4 * const EinsteinLLs,
+	global sym4 const * const gLLs,
+	global sym4 const * const gUUs,
+	global tensor_4sym4 const * const GammaULLs
 ) {
 	initKernel();
 	EinsteinLLs[index] = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 }
 
 kernel void calc_8piTLLs(
-	global sym4* _8piTLLs,
-	global const <?=TPrim_t?>* TPrims,
-	global const sym4* gLLs
+	global sym4 * const _8piTLLs,
+	global <?=TPrim_t?> const * const TPrims,
+	global sym4 const * const gLLs
 ) {
 	initKernel();
 	_8piTLLs[index] = calc_8piTLL(gLLs+index, TPrims+index);
 }
 
 kernel void calc_EFEs(
-	global sym4* EFEs,
-	global const <?=TPrim_t?>* TPrims,
-	global const sym4* gLLs,
-	global const sym4* gUUs,
-	global const tensor_4sym4* GammaULLs
+	global sym4 * const EFEs,
+	global <?=TPrim_t?> const * const TPrims,
+	global sym4 const * const gLLs,
+	global sym4 const * const gUUs,
+	global tensor_4sym4 const * const GammaULLs
 ) {
 	initKernel();
 	sym4 EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
