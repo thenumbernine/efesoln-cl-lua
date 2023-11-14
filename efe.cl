@@ -1,7 +1,7 @@
 #define _real3(a,b,c) (real3){.s={a,b,c}}
 
-constant real c = 299792458;			// m/s 
-constant real G = 6.67384e-11;		// m^3 / (kg s^2)
+constant real const c = 299792458;			// m/s 
+constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 
 #define real3_zero ((real3){ \
 	.x = 0, \

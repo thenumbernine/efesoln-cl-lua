@@ -1267,7 +1267,7 @@ function EFESolver:updateNewton()
 			self.update_gPrims()
 			self:updateAux()	-- calcs from gPrims on down to EFE
 			local residual = self.conjResSolver.args.dot(self.EFEs, self.EFEs)
-print(string.format('lambda=%.16e residual=%.16e', lambda, residual))
+print(('lambda=%.16e residual=%.16e'):format(lambda, residual))
 			return residual
 		end
 		local function bisect(lambdaL, lambdaR)
@@ -1297,9 +1297,9 @@ print(string.format('lambda=%.16e residual=%.16e', lambda, residual))
 		end
 
 		local lambdaFwd, residualFwd = bisect(0, self.updateLambda)
-print(string.format('fwd lambda=%.16e residual=%.16e', lambdaFwd, residualFwd))
+print(('fwd lambda=%.16e residual=%.16e'):format(lambdaFwd, residualFwd))
 		local lambdaRev, residualRev = bisect(0, -self.updateLambda)
-print(string.format('rev lambda=%.16e residual=%.16e', lambdaRev, residualRev))
+print(('rev lambda=%.16e residual=%.16e'):format(lambdaRev, residualRev))
 
 		self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
 		local lambda, residual
@@ -1310,7 +1310,7 @@ print(string.format('rev lambda=%.16e residual=%.16e', lambdaRev, residualRev))
 			lambda = lambdaRev
 			residual = residualRev
 		end
-print(string.format('using lambda=%.16e residual=%.16e', lambda, residualRev))
+print(('using lambda=%.16e residual=%.16e'):format(lambda, residualRev))
 		lambdaPtr[0] = lambda
 		self.update_gPrims.obj:setArg(2, lambdaPtr)
 		self.update_gPrims()

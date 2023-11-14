@@ -38,30 +38,34 @@ kernel void calc_gLLs_and_gUUs(
 ) {
 	initKernel();
 
-	global gPrim_t const * const gPrim = gPrims + index;
+	gPrim_t const gPrim = gPrims[index];
+	real const alpha = gPrim.alpha;
+	real3 const betaU = gPrim.betaU;
+	real3s3 const gammaLL = gPrim.gammaLL;
 
-	real alphaSq = gPrim->alpha * gPrim->alpha;
-	real3 betaL = real3s3_real3_mul(gPrim->gammaLL, gPrim->betaU);
-	real betaSq = real3_dot(betaL, gPrim->betaU);
+	real const alphaSq = alpha * alpha;
+	real const invAlphaSq = 1. / alphaSq;
+	real3 const betaL = real3s3_real3_mul(gammaLL, betaU);
+	real const betaSq = real3_dot(betaL, betaU);
 
 	global real4s4 * const gLL = gLLs + index;
 	gLL->s00 = -alphaSq + betaSq;
 	<? for i=0,sDim-1 do ?>
 	gLL->s0<?=i+1?> = betaL.s<?=i?>;
 		<? for j=i,sDim-1 do ?>
-	gLL->s<?=i+1?><?=j+1?> = gPrim->gammaLL.s<?=i?><?=j?>;
+	gLL->s<?=i+1?><?=j+1?> = gammaLL.s<?=i?><?=j?>;
 		<? end ?>
 	<? end ?>
 
-	real det_gammaLL = real3s3_det(gPrim->gammaLL);
-	real3s3 gammaUU = real3s3_inv(det_gammaLL, gPrim->gammaLL);
+	real const det_gammaLL = real3s3_det(gammaLL);
+	real3s3 const gammaUU = real3s3_inv(det_gammaLL, gammaLL);
 
 	global real4s4 * const gUU = gUUs + index;
-	gUU->s00 = -1./alphaSq;
+	gUU->s00 = -invAlphaSq;
 	<? for i=0,sDim-1 do ?>
-	gUU->s0<?=i+1?> = gPrim->betaU.s<?=i?> / alphaSq;
+	gUU->s0<?=i+1?> = betaU.s<?=i?> * invAlphaSq;
 		<? for j=i,sDim-1 do ?>
-	gUU->s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - gPrim->betaU.s<?=i?> * gPrim->betaU.s<?=j?> / alphaSq;
+	gUU->s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - betaU.s<?=i?> * betaU.s<?=j?> * invAlphaSq;
 		<? end ?>
 	<? end ?>
 }
@@ -287,8 +291,8 @@ kernel void calc_EFEs(
 	initKernel();
 	<?=TPrim_t?> const TPrim = TPrims[index];
 	real4s4 const gLL = gLLs[index];
-	real4s4 const EinsteinLL = real4s4_zero;//calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);	// getting nans
+	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
 	EFEs[index] = real4s4_sub(EinsteinLL, _8piTLL);
 }
