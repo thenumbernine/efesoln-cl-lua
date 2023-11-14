@@ -1,6 +1,7 @@
 return {
 	--size = 64,
-	size = 8,
+	size = 32,
+	--size = 8,
 	
 	-- line trace amount
 	updateLambda = 1,

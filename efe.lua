@@ -541,12 +541,12 @@ typedef char int8_t;
 		--source terms:
 		if self.body.useMatter then
 			TPrim_fields:append{
-				{rho = 'real'},		--matter density
-				{P = 'real'},		--pressure ... due to matter.  TODO what about magnetic pressure?
-				{eInt = 'real'},	--specific internal energy
+				{rho = 'real'},		-- [1/m^2] matter density
+				{P = 'real'},		-- [1/m^2] pressure ... due to matter.  TODO what about magnetic pressure?
+				{eInt = 'real'},	-- [1] specific internal energy
 			}
 			if self.body.useVel then
-				TPrim_fields:insert{v = 'real3'}	--3-vel (upper, spatial)
+				TPrim_fields:insert{v = 'real3'}	-- [1] 3-vel (upper, spatial)
 			end
 		end
 		if self.body.useEM then
@@ -698,15 +698,19 @@ typedef char int8_t;
 				{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
 				{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
 			}},
+			-- u'^i = -Γ^i_ab u^a u^b
+			-- for weak-field, (u^i)^2 ≈ 0, u^t ≈ 1
+			-- u'^i = -Γ^i_tt
+			-- a^i = c^2 u'^i = -c^2 Γ^i_tt
+			-- |a^i| = c^2 |Γ^i_tt|
 			{[{'GammaULLs'}] = {
 				{['numerical gravity'] = [[
-	real3 const x = getX(i);
-	real const r = real3_len(x);
-	global real4x4s4 const * const GammaULL = GammaULLs + index;
-	texCLBuf[index] = (0.
-		+ GammaULL->s1.s00 * x.s0 / r
-		+ GammaULL->s2.s00 * x.s1 / r
-		+ GammaULL->s3.s00 * x.s2 / r) * c * c;
+	real4x4s4 const GammaULL = GammaULLs[index];
+	texCLBuf[index] = real3_len(_real3(
+		GammaULL.x.tt,
+		GammaULL.y.tt,
+		GammaULL.z.tt
+	)) * c * c;
 ]]},
 			}},
 			{[{}] = self.body.density and {
