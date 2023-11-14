@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 local table = require 'ext.table'
 require 'symmath'.setup{implicitVars=true}
-require 'symmath.tostring.MathJax'.setup{
+require 'symmath.export.MathJax'.setup{
 	title = 'generating my gradient descent code',
 	url = 'file:///home/chris/Projects/christopheremoore.net/MathJax/MathJax.js?config=TeX-MML-AM_CHTML',
 }
@@ -109,8 +109,8 @@ EFE_def = EFE_def
 								+ Gamma'^k_lm' * g'^lm'))())()
 printbr(EFE_def)
 
-local TensorRef = require 'symmath.tensor.TensorRef'
-local TensorIndex = require 'symmath.tensor.TensorIndex'
+local TensorRef = require 'symmath.tensor.Ref'
+local TensorIndex = require 'symmath.tensor.Index'
 -- replace Gamma^a_bc with g^ad Gamma_dbc
 EFE_def = EFE_def:map(function(expr)
 	if TensorRef:isa(expr)
