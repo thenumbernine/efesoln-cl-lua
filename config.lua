@@ -4,7 +4,7 @@ return {
 	--size = 8,
 	
 	-- line trace amount
-	updateLambda = 1,
+	updateLambda = 1e-3,
 
 	--body = 'vacuum',
 	body = 'Earth',

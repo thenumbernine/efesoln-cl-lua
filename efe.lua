@@ -1194,11 +1194,25 @@ function EFESolver:updateNewton()
 
 	-- calc norm of self.EFEs
 	local function calcResidual()
+		--[[ hmmm....
 		self.jfnkSolver.args.scale(
 			self.tmpBuf,
 			self.EFEs,
-			c^2 / G)
+			1 / G)
 		return self.conjResSolver.args.dot(self.tmpBuf, self.tmpBuf)
+		--]]
+		-- [[
+		local ptr = self.EFEs:toCPU()
+		local sum = 0
+		local m = ffi.sizeof(self.EFEs.type) / ffi.sizeof'real'
+		local volume = tonumber(self.base.size:volume())
+		for i=0,volume-1 do
+			for j=0,m-1 do
+				sum = sum + (ptr[i].s[j] / G)^2
+			end
+		end
+		return math.sqrt(sum) / volume
+		--]]
 	end
 
 	if self.useLineSearch then	-- do bisect line search
