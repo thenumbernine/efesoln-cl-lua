@@ -38,20 +38,21 @@ function SphericalBody:init(args)
 	self.useEM = false
 
 	self.init = template([[
-	real3 const x = getX(i);
-	real const r = real3_len(x);
+	real3 const x = getX(i);						//[m]
+	real const r = real3_len(x);					//[m]
 
-	real const rho0 = <?=self.density?>;
-	real const radius = <?=self.radius?>;
-	real const radius3 = radius * radius * radius;
-	real const mass = <?=self.mass?>;
-	real const r2 = r * r;
-	TPrim->rho = r < radius ? rho0 : 0;
+	real const rho0 = <?=self.density?>;			//[1/m^2]
+	real const radius = <?=self.radius?>;			//[m]
+	real const radius3 = radius * radius * radius;	//[m^3]
+	real const mass = <?=self.mass?>;				//[m]
+	real const r2 = r * r;							//[m^2]
+	TPrim->rho = r < radius ? rho0 : 0;				//[1/m^2]
+	
+	// equation of structure from 1973 MTW Gravitation, box 23.2 eqn 5...
 	TPrim->P = r < radius ? (rho0 * (
 		(sqrt(1. - 2. * mass * r2 / radius3) - sqrt(1. - 2. * mass / radius))
 		/ (3. * sqrt(1. - 2. * mass / radius) - sqrt(1. - 2. * mass * r2 / radius3))
-	)) : 0;
-
+	)) : 0;											//[1/m^2]
 ]], {self=self})
 end
 
@@ -205,6 +206,10 @@ local bodies = {
 	Earth = SphericalBody{
 		radius = 6.37101e+6,	-- m
 		mass = 5.9736e+24 * G / c / c,	-- m
+		-- rho = 5515 kg/m^3 (correct avg overall is 5513.4 kg/m^3 ... density based on PREM is 13088 in center to 1020 at radius
+		-- https://physics.stackexchange.com/questions/184032/what-is-the-pressure-at-the-center-of-the-earth-or-a-neutron-star
+		-- ... P should reach 3.65e+11 Pa = kg / (m s^2) at the center of the Earth ...
+		-- I'm just getting 1.7 ... which is half ...
 	},
 	Sun = SphericalBody{
 		radius = 6.960e+8,	-- m
@@ -229,87 +234,6 @@ local bodies = {
 -- initial conditions:
 
 local EFESolver = CLEnv:subclass()
-
--- similar to hydro-cl/hydro/solver/solverbase.lua
--- but not exact, since hydro-cl has its own struct
--- ... TODO ? put this in cl.env?
-function EFESolver:checkStructSizes(self, ctypes)
-
-	local varcount = 0
-	for _,ctype in ipairs(ctypes) do
-		varcount = varcount + 1
-		if struct:isa(ctype) then
-			varcount = varcount + #ctype.fields
-		end
-	end
-	local cmd = self.cmds
-	local _1x1_domain = self:domain{size={1}, dim=1}
-	local resultPtr = ffi.new('size_t[?]', varcount)
-	local resultBuf = self:buffer{name='result', type='size_t', count=varcount, data=resultPtr}
-
-	local code = template([[
-#define offsetof __builtin_offsetof
-
-<?
-local index = 0
-for i,ctype in ipairs(ctypes) do
-	local typename
-	if type(ctype) == 'string' then
-?>	result[<?=index?>] = sizeof(<?=ctype?>);
-<?
-		index = index + 1
-	else
-?>	result[<?=index?>] = sizeof(<?=ctype.name?>);
-<?
-		index = index + 1
-		for _,field in ipairs(ctype.fields) do
-			local fieldname, fieldtype = next(field)
-?>	result[<?=index?>] = offsetof(<?=ctype.name?>, <?=fieldname?>);
-<?
-			index = index + 1
-		end
-	end
-end
-?>
-]], {
-		ctypes = ctypes,
-	})
---print(code)
-	require 'cl.obj.kernel'{
-		env = self,
-		domain = _1x1_domain,
-		argsOut = {resultBuf},
-		header = codePrefix,
-		showCodeOnError = true,
-		body = code,
-	}()
-	ffi.fill(resultPtr, 0)
-	resultBuf:toCPU(resultPtr)
-	local index = 0
-	for i,ctype in ipairs(ctypes) do
-		if type(ctype) == 'string' then
-			local clsize = tostring(resultPtr[index]):match'^(%d+)ULL$'
-			index = index + 1
-			local ffisize = tostring(ffi.sizeof(ctype))
-			print('sizeof('..ctype..'): OpenCL='..clsize..', ffi='..ffisize..(clsize == ffisize and '' or ' -- !!!DANGER!!!'))
-		else
-			local clsize = tostring(resultPtr[index]):match'^(%d+)ULL$'
-			index = index + 1
-			local ffisize = tostring(ffi.sizeof(ctype.name))
-			print('sizeof('..ctype.name..'): OpenCL='..clsize..', ffi='..ffisize..(clsize == ffisize and '' or ' -- !!!DANGER!!!'))
-
-			for _,field in ipairs(ctype.fields) do
-				local fieldname, fieldtype = next(field)
-				local cloffset = tostring(resultPtr[index]):match'^(%d+)ULL$'
-				index = index + 1
-				local ffioffset = tostring(ffi.offsetof(ctype.name, fieldname))
-				print('offsetof('..ctype.name..', '..fieldname..'): OpenCL='..cloffset..', ffi='..ffioffset..(cloffset == ffioffset and '' or ' -- !!!DANGER!!!'))
-			end
-		end
-	end
-	print('done')
-end
-
 
 EFESolver.useFourPotential = false
 
@@ -619,8 +543,14 @@ typedef char int8_t;
 
 	--[[
 	self:checkStructSizes{
-		ffi.typeof'gPrim_t',
-		ffi.typeof(self.TPrim_t),
+		'real3',
+		'real3s3',
+		'real4s4',
+		'real4x4s4',
+		'real4x4x4s4',
+		'real4s4x4s4',
+		'gPrim_t',
+		self.TPrim_t,
 	}
 	os.exit()
 	--]]
@@ -679,9 +609,12 @@ typedef char int8_t;
 		table.map({
 			{[{'TPrims'}] = table()
 				:append(self.body.useMatter and {
-					{['rho (g/cm^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G / 1000;'},
-					{['P (m)'] = 'texCLBuf[index] = TPrims[index].P;'},
-					{['eInt (m)'] = 'texCLBuf[index] = TPrims[index].eInt;'},
+					{['rho (kg/m^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G;'},
+--[P] in 1/m^2
+--[P c^2 / G] in 1/m^2 * kg/m = kg/m^3
+--[P c^4 / G] in 1/m^2 * kg/m * m^2/s^2 = kg/(m s^2)
+					{['P (kg/(m s^2))'] = 'texCLBuf[index] = TPrims[index].P * c * c * c * c / G;'},
+					{['eInt (m^2/s^2)'] = 'texCLBuf[index] = TPrims[index].eInt * c * c;'},
 				} or nil)
 				:append(self.body.useMatter and self.body.useVel and {
 					{['v (m/s)'] = 'texCLBuf[index] = TPrims[index].v * c;'},
@@ -726,7 +659,7 @@ typedef char int8_t;
 ]]},
 			} or {}},
 			{[{'EFEs'}] = {
-				{['EFE_tt (g/cm^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;'},
+				{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
 				{['|EFE_ti|*c'] = [[
 	global real4s4 const * const EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
@@ -734,14 +667,14 @@ typedef char int8_t;
 		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
 <? end ?>) * c;
 ]]},
-				{['|EFE_ij|'] = [[
+				{['|EFE_ij| (kg/m s^2))'] = [[
 	global real4s4 const * const EFE = EFEs + index;
-	texCLBuf[index] = sqrt(0.
+	texCLBuf[index] = ((0.
 <? for i=0,sDim-1 do
 	for j=0,sDim-1 do
-	?>	+ EFE->s<?=sym(i+1,j+1)?> * EFE->s<?=sym(i+1,j+1)?>
+	?>	+ EFE->s<?=sym(i+1,j+1)?> * gLLs[index].s<?=sym(i+1,j+1)?>
 <?	end
-end ?>);
+end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 			}},
 			{[{'gLLs', 'gUUs', 'GammaULLs'}] = {
@@ -749,9 +682,9 @@ end ?>);
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(real4s4_dot(EinsteinLL, EinsteinLL));
 ]]},
-				{['Einstein_tt (g/cm^3)'] = [[
+				{['Einstein_tt (kg/m^3)'] = [[
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G / 1000.;
+	texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 				{['|Einstein_ti|*c'] = [[
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
@@ -760,14 +693,14 @@ end ?>);
 		+ EinsteinLL.s0<?=i+1?> * EinsteinLL.s0<?=i+1?>
 <? end ?>) * c;
 ]]},
-				{['|Einstein_ij| (g/cm^3)'] = [[
+				{['|Einstein_ij| (kg/(m s^2))'] = [[
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	texCLBuf[index] = sqrt(0.
+	texCLBuf[index] = ((0.
 <? for i=0,sDim-1 do
 	for j=0,sDim-1 do
-	?>	+ EinsteinLL.s<?=sym(i+1,j+1)?> * EinsteinLL.s<?=sym(i+1,j+1)?>
+	?> + EinsteinLL.s<?=sym(i+1,j+1)?> * gLLs[index].s<?=sym(i+1,j+1)?>
 <?	end
-end ?>) / (8. * M_PI) * c * c / G / 1000.;
+end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 
 			}},
@@ -997,11 +930,14 @@ function EFESolver:initBuffers()
 	self.GammaULLs = self:buffer{name='GammaULLs', type='real4x4s4'}
 
 	-- used by updateNewton:
-	self.EFEs = self:buffer{name='EFEs', type='real4s4'}
+	self.EFEs = self:buffer{name='EFEs', type='real4s4'}	-- 10 reals per size
 	self.dPhi_dgPrims = self:buffer{name='dPhi_dgPrims', type='gPrim_t'}
 
 	-- used by updateNewton's line trace
 	 self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
+	
+	-- used by norms of EFEs
+	 self.tmpBuf = self:buffer{name='tmpBuf', type='real4s4'}
 
 	-- used by updateConjRes and updateGMRes:
 	self._8piTLLs = self:buffer{name='_8piTLLs', type='real4s4'}
@@ -1139,10 +1075,8 @@ function EFESolver:refreshInitCond()
 	real3 const x = getX(i);
 	real const r = real3_len(x);
 
-	global gPrim_t * const gPrim = gPrims + index;
-
 	//init to flat by default
-	*gPrim = (gPrim_t){
+	gPrims[index] = (gPrim_t){
 		.alpha = 1,
 		.betaU = real3_zero,
 		.gammaLL = real3s3_ident,
@@ -1258,6 +1192,15 @@ function EFESolver:updateNewton()
 	-- trace along g_ab - λ * ∂Φ/∂g_ab
 	-- to find what λ gives us minimal residual
 
+	-- calc norm of self.EFEs
+	local function calcResidual()
+		self.jfnkSolver.args.scale(
+			self.tmpBuf,
+			self.EFEs,
+			c^2 / G)
+		return self.conjResSolver.args.dot(self.tmpBuf, self.tmpBuf)
+	end
+
 	if self.useLineSearch then	-- do bisect line search
 		-- store a backup.  TODO env:copy, and have ConjGrad:copy reference it.
 		self.conjResSolver.args.copy(self.gPrimsCopy, self.gPrims)
@@ -1270,7 +1213,7 @@ function EFESolver:updateNewton()
 			self.update_gPrims.obj:setArg(2, lambdaPtr)
 			self.update_gPrims()
 			self:updateAux()	-- calcs from gPrims on down to EFE
-			local residual = self.conjResSolver.args.dot(self.EFEs, self.EFEs)
+			local residual = calcResidual()
 print(('lambda=%.16e residual=%.16e'):format(lambda, residual))
 			return residual
 		end
@@ -1336,7 +1279,7 @@ print('lambda', self.updateLambda)
 	--]]
 
 	self:updateAux()
-print('residual', self.conjResSolver.args.dot(self.EFEs, self.EFEs))
+print('residual', calcResidual())
 	self:updateTex()
 end
 

@@ -238,6 +238,7 @@ constant real3 const inv_dx = _real3(<?=
 	.z = real4x4s4_zero, \
 })
 
+//[1/m^2]
 real4x4x4s4 calc_dGammaLULL(
 	global real4x4s4 const * const GammaULLs
 ) {
@@ -281,6 +282,7 @@ real4x4x4s4 calc_dGammaLULL(
 	return dGammaLULL;
 }
 
+//[1/m^2]
 real4s4 calc_EinsteinLL(
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
@@ -339,6 +341,7 @@ end ?>
 	);
 }
 
+//[1/m^2]
 real4s4 calc_8piTLL(
 	real4s4 const gLL,
 	<?=TPrim_t?> const TPrim
@@ -397,6 +400,7 @@ if solver.body.useMatter then
 ?>
 
 	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
+	//[1/m^2]
 	real4s4 const _8piT_matter_LL = real4s4_real_mul(
 		real4s4_add(
 			real4s4_real_mul(
