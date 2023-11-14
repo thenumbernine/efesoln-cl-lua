@@ -528,7 +528,7 @@ typedef char int8_t;
 			fields = {
 				{alpha = 'real'},
 				{betaU = 'real3'},
-				{gammaLL = 'sym3'},
+				{gammaLL = 'real3s3'},
 			},
 			-- real s[] as union access
 			unionType = 'real',
@@ -597,7 +597,7 @@ typedef char int8_t;
 		end,
 		__concat = string.defaultConcat,
 	})
-	ffi.metatype('sym3', {
+	ffi.metatype('real3s3', {
 		__tostring = function(x)
 			return '{'
 			..x.xx..', '..x.xy..', '..x.xz..', '
@@ -606,7 +606,7 @@ typedef char int8_t;
 		end,
 		__concat = string.defaultConcat,
 	})
-	ffi.metatype('sym4', {
+	ffi.metatype('real4s4', {
 		__tostring = function(x)
 			return '{'
 			..x.tt..', '..x.tx..', '..x.ty..', '..x.tz..', '
@@ -696,7 +696,7 @@ typedef char int8_t;
 			{[{'gPrims'}] = {
 				{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
 				{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
-				{['det|gamma|-1'] = 'texCLBuf[index] = sym3_det(gPrims[index].gammaLL) - 1.;'},
+				{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
 			}},
 			{[{'GammaULLs'}] = {
 				{['numerical gravity'] = [[
@@ -724,14 +724,14 @@ typedef char int8_t;
 			{[{'EFEs'}] = {
 				{['EFE_tt (g/cm^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G / 1000.;'},
 				{['|EFE_ti|*c'] = [[
-	global sym4 const * const EFE = EFEs + index;
+	global real4s4 const * const EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do ?>
 		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
 <? end ?>) * c;
 ]]},
 				{['|EFE_ij|'] = [[
-	global sym4 const * const EFE = EFEs + index;
+	global real4s4 const * const EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do
 	for j=0,sDim-1 do
@@ -742,22 +742,22 @@ end ?>);
 			}},
 			{[{'gLLs', 'gUUs', 'GammaULLs'}] = {
 				{['|Einstein_ab|'] = [[
-	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	texCLBuf[index] = sqrt(sym4_dot(EinsteinLL, EinsteinLL));
+	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	texCLBuf[index] = sqrt(real4s4_dot(EinsteinLL, EinsteinLL));
 ]]},
 				{['Einstein_tt (g/cm^3)'] = [[
-	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G / 1000.;
 ]]},
 				{['|Einstein_ti|*c'] = [[
-	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do ?>
 		+ EinsteinLL.s0<?=i+1?> * EinsteinLL.s0<?=i+1?>
 <? end ?>) * c;
 ]]},
 				{['|Einstein_ij| (g/cm^3)'] = [[
-	sym4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do
 	for j=0,sDim-1 do
@@ -988,19 +988,19 @@ end
 function EFESolver:initBuffers()
 	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
-	self.gLLs = self:buffer{name='gLLs', type='sym4'}
-	self.gUUs = self:buffer{name='gUUs', type='sym4'}
+	self.gLLs = self:buffer{name='gLLs', type='real4s4'}
+	self.gUUs = self:buffer{name='gUUs', type='real4s4'}
 	self.GammaULLs = self:buffer{name='GammaULLs', type='real4x4s4'}
 
 	-- used by updateNewton:
-	self.EFEs = self:buffer{name='EFEs', type='sym4'}
+	self.EFEs = self:buffer{name='EFEs', type='real4s4'}
 	self.dPhi_dgPrims = self:buffer{name='dPhi_dgPrims', type='gPrim_t'}
 
 	-- used by updateNewton's line trace
 	 self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
 
 	-- used by updateConjRes and updateGMRes:
-	self._8piTLLs = self:buffer{name='_8piTLLs', type='sym4'}
+	self._8piTLLs = self:buffer{name='_8piTLLs', type='real4s4'}
 
 	self.tex = require 'gl.tex3d'{
 		width = tonumber(self.base.size.x),
@@ -1111,7 +1111,7 @@ function EFESolver:refreshKernels()
 		name = 'calc_EinsteinLLs',
 		-- don't provide an actual buffer here
 		-- the conjResSolver will provide its own
-		argsOut = {{name='EinsteinLLs', type='sym4', obj=true}},
+		argsOut = {{name='EinsteinLLs', type='real4s4', obj=true}},
 		argsIn = {self.gLLs, self.gUUs, self.GammaULLs},
 	}
 	self.calc_8piTLLs = program:kernel{name='calc_8piTLLs', argsOut={self._8piTLLs}, argsIn={self.TPrims, self.gLLs}}
@@ -1141,7 +1141,7 @@ function EFESolver:refreshInitCond()
 	*gPrim = (gPrim_t){
 		.alpha = 1,
 		.betaU = real3_zero,
-		.gammaLL = sym3_ident,
+		.gammaLL = real3s3_ident,
 	};
 
 ]]..self:compileTemplates(initCond.code),
@@ -1194,7 +1194,7 @@ function EFESolver:update()
 	end
 
 --[[
-TODO here - gauge conditions
+TODO here - gauge conditions - maybe?
 first attempt -- harmonic slicing condition:
 d/dt α = (∂_t - L_β) α = -α^2 K^ij γ_ij
 α_,t - β^k α_,k = -α^2 K^ij γ_ij
@@ -1229,7 +1229,6 @@ substitute back into harmonic slicing condition:
 	... then update?	
 	∂g_ab/∂t = -∂Φ/∂g_ab
 --]]
-print'TODO IMPLEMENT ME PLEASE'
 
 	self.iteration = self.iteration + 1
 end

@@ -32,8 +32,8 @@ if solver.body.useEM then ?>
 // compute buffers to compute EFE
 
 kernel void calc_gLLs_and_gUUs(
-	global sym4 * const gLLs,
-	global sym4 * const gUUs,
+	global real4s4 * const gLLs,
+	global real4s4 * const gUUs,
 	global gPrim_t const * const gPrims
 ) {
 	initKernel();
@@ -41,10 +41,10 @@ kernel void calc_gLLs_and_gUUs(
 	global gPrim_t const * const gPrim = gPrims + index;
 
 	real alphaSq = gPrim->alpha * gPrim->alpha;
-	real3 betaL = sym3_real3_mul(gPrim->gammaLL, gPrim->betaU);
+	real3 betaL = real3s3_real3_mul(gPrim->gammaLL, gPrim->betaU);
 	real betaSq = real3_dot(betaL, gPrim->betaU);
 
-	global sym4 * const gLL = gLLs + index;
+	global real4s4 * const gLL = gLLs + index;
 	gLL->s00 = -alphaSq + betaSq;
 	<? for i=0,sDim-1 do ?>
 	gLL->s0<?=i+1?> = betaL.s<?=i?>;
@@ -53,10 +53,10 @@ kernel void calc_gLLs_and_gUUs(
 		<? end ?>
 	<? end ?>
 
-	real det_gammaLL = sym3_det(gPrim->gammaLL);
-	sym3 gammaUU = sym3_inv(det_gammaLL, gPrim->gammaLL);
+	real det_gammaLL = real3s3_det(gPrim->gammaLL);
+	real3s3 gammaUU = real3s3_inv(det_gammaLL, gPrim->gammaLL);
 
-	global sym4 * const gUU = gUUs + index;
+	global real4s4 * const gUU = gUUs + index;
 	gUU->s00 = -1./alphaSq;
 	<? for i=0,sDim-1 do ?>
 	gUU->s0<?=i+1?> = gPrim->betaU.s<?=i?> / alphaSq;
@@ -66,7 +66,7 @@ kernel void calc_gLLs_and_gUUs(
 	<? end ?>
 }
 
-constant sym4 const gLL_flat = (sym4){
+constant real4s4 const gLL_flat = (real4s4){
 	.tt = -1, .tx = 0, .ty = 0, .tz = 0,
 	.xx = 1, .xy = 0, .xz = 0,
 	.yy = 1, .yz = 0,
@@ -75,8 +75,8 @@ constant sym4 const gLL_flat = (sym4){
 
 kernel void calc_GammaULLs(
 	global real4x4s4 * const GammaULLs,
-	global sym4 const * const gLLs,
-	global sym4 const * const gUUs
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs
 ) {
 	initKernel();
 
@@ -84,9 +84,9 @@ kernel void calc_GammaULLs(
 	//here's where the finite difference stuff comes in ...
 	//TODO modular finite-difference kernels & boundary conditions
 	real4x4s4 dgLLL;
-	dgLLL.s0 = sym4_zero;
+	dgLLL.s0 = real4s4_zero;
 	<? for i=0,sDim-1 do ?>{
-		sym4 gLL_prev;
+		real4s4 gLL_prev;
 		if (i.s<?=i?> > 0) {
 			int4 iL = i;
 			--iL.s<?=i?>;
@@ -97,7 +97,7 @@ kernel void calc_GammaULLs(
 			gLL_prev = gLL_flat;
 		}
 		
-		sym4 gLL_next;
+		real4s4 gLL_next;
 		if (i.s<?=i?> < size.s<?=i?> - 1) {
 			int4 iR = i;
 			++iR.s<?=i?>;
@@ -108,7 +108,7 @@ kernel void calc_GammaULLs(
 			gLL_next = gLL_flat;
 		}
 		
-		dgLLL.s<?=i+1?> = (sym4){
+		dgLLL.s<?=i+1?> = (real4s4){
 		<? for a=0,stDim-1 do ?>
 			<? for b=a,stDim-1 do ?>
 			.s<?=a..b?> = (gLL_next.s<?=a..b?> - gLL_prev.s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
@@ -133,7 +133,7 @@ kernel void calc_GammaULLs(
 
 	//Γ^a_bc = GammaULL.a.bc
 	//Γ^a_bc = g^ad Γ_dbc
-	sym4 const gUU = gUUs[index];
+	real4s4 const gUU = gUUs[index];
 	global real4x4s4 * const GammaULL = GammaULLs + index;
 	<? for a=0,stDim-1 do ?>
 		<? for b=0,stDim-1 do ?>
@@ -259,9 +259,9 @@ kernel void solveAL(
 // T is T_ab (which is also a function of x but don't tell)
 // and x is gPrims
 kernel void calc_EinsteinLLs(
-	global sym4 * const EinsteinLLs,
-	global sym4 const * const gLLs,
-	global sym4 const * const gUUs,
+	global real4s4 * const EinsteinLLs,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
@@ -269,26 +269,26 @@ kernel void calc_EinsteinLLs(
 }
 
 kernel void calc_8piTLLs(
-	global sym4 * const _8piTLLs,
+	global real4s4 * const _8piTLLs,
 	global <?=TPrim_t?> const * const TPrims,
-	global sym4 const * const gLLs
+	global real4s4 const * const gLLs
 ) {
 	initKernel();
 	_8piTLLs[index] = calc_8piTLL(gLLs[index], TPrims[index]);
 }
 
 kernel void calc_EFEs(
-	global sym4 * const EFEs,
+	global real4s4 * const EFEs,
 	global <?=TPrim_t?> const * const TPrims,
-	global sym4 const * const gLLs,
-	global sym4 const * const gUUs,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
 	<?=TPrim_t?> const TPrim = TPrims[index];
-	sym4 const gLL = gLLs[index];
-	sym4 const EinsteinLL = sym4_zero;//calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	sym4 const _8piTLL = calc_8piTLL(gLL, TPrim);	// getting nans
+	real4s4 const gLL = gLLs[index];
+	real4s4 const EinsteinLL = real4s4_zero;//calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);	// getting nans
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
-	EFEs[index] = sym4_sub(EinsteinLL, _8piTLL);
+	EFEs[index] = real4s4_sub(EinsteinLL, _8piTLL);
 }

@@ -24,4 +24,6 @@ return {
 	--solver = 'ConjRes',
 	--solver = 'GMRes',
 	--solver = 'JFNK',
+
+	useLineSearch = true,
 }

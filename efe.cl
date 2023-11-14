@@ -40,7 +40,7 @@ static inline real3 real3_sub(real3 const a, real3 const b) {
 	return _real3(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
-constant sym3 sym3_ident = {<? 
+constant real3s3 real3s3_ident = {<? 
 for i=0,2 do
 	for j=i,2 do 
 ?>	.s<?=i?><?=j?> = <?= i==j and 1 or 0 ?>,<?
@@ -48,7 +48,7 @@ for i=0,2 do
 end 
 ?>};
 
-static inline real sym3_det(sym3 const m) {
+static inline real real3s3_det(real3s3 const m) {
 	return m.s00 * m.s11 * m.s22
 		+ m.s01 * m.s12 * m.s02
 		+ m.s02 * m.s01 * m.s12
@@ -57,8 +57,8 @@ static inline real sym3_det(sym3 const m) {
 		- m.s00 * m.s12 * m.s12;
 }
 
-static inline sym3 sym3_inv(real const d, sym3 const m) {
-	return (sym3){
+static inline real3s3 real3s3_inv(real const d, real3s3 const m) {
+	return (real3s3){
 		.xx = (m.yy * m.zz - m.yz * m.yz) / d,
 		.xy = (m.xz * m.yz - m.xy * m.zz) / d,
 		.xz = (m.xy * m.yz - m.xz * m.yy) / d,
@@ -68,7 +68,7 @@ static inline sym3 sym3_inv(real const d, sym3 const m) {
 	};
 }
 
-static inline real3 sym3_real3_mul(sym3 const m, real3 const v) {
+static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 	return (real3){
 		.x = m.xx * v.x + m.xy * v.y + m.xz * v.z,
 		.y = m.xy * v.y + m.yy * v.y + m.yz * v.z,
@@ -76,14 +76,14 @@ static inline real3 sym3_real3_mul(sym3 const m, real3 const v) {
 	};
 }
 
-#define sym4_zero ((sym4){ \
+#define real4s4_zero ((real4s4){ \
 	.tt = 0, .tx = 0, .ty = 0, .tz = 0, \
 	.xx = 0, .xy = 0, .xz = 0, \
 	.yy = 0, .yz = 0, \
 	.zz = 0, \
 })
 
-static inline real sym4_dot(sym4 const a, sym4 const b) {
+static inline real real4s4_dot(real4s4 const a, real4s4 const b) {
 	return 0.<?
 for a=0,stDim-1 do
 	for b=0,stDim-1 do 
@@ -92,8 +92,8 @@ for a=0,stDim-1 do
 end ?>;
 }
 
-static inline sym4 sym4_outer(real4 const v) {
-	return (sym4){
+static inline real4s4 real4s4_outer(real4 const v) {
+	return (real4s4){
 <? for a=0,stDim-1 do
 	for b=a,stDim-1 do
 ?>		.s<?=a..b?> = v.s<?=a?> * v.s<?=b?>,
@@ -102,8 +102,11 @@ end
 ?>	};
 }
 
-static inline sym4 sym4_real_mul(sym4 const a, real const s) {
-	return (sym4){
+static inline real4s4 real4s4_real_mul(
+	real4s4 const a,
+	real const s
+) {
+	return (real4s4){
 <?
 for a=0,3 do
 	for b=a,3 do 
@@ -113,8 +116,11 @@ end
 ?>	};
 }
 
-static inline sym4 sym4_add(sym4 const a, sym4 const b) {
-	return (sym4){
+static inline real4s4 real4s4_add(
+	real4s4 const a,
+	real4s4 const b
+) {
+	return (real4s4){
 <?
 for a=0,3 do
 	for b=a,3 do 
@@ -124,8 +130,8 @@ end
 ?>	};
 }
 
-static inline sym4 sym4_sub(sym4 const a, sym4 const b) {
-	return (sym4){
+static inline real4s4 real4s4_sub(real4s4 const a, real4s4 const b) {
+	return (real4s4){
 <?
 for a=0,3 do
 	for b=a,3 do 
@@ -135,11 +141,15 @@ end
 ?>	};
 }
 
-static inline sym4 sym4_mul_add(sym4 const a, sym4 const b, real const c) {
-	return sym4_add(a, sym4_real_mul(b, c));
+static inline real4s4 real4s4_mul_add(
+	real4s4 const a,
+	real4s4 const b,
+	real const c
+) {
+	return real4s4_add(a, real4s4_real_mul(b, c));
 }
 
-static inline real4 sym4_real4_mul(sym4 const m, real4 const v) {
+static inline real4 real4s4_real4_mul(real4s4 const m, real4 const v) {
 	return (real4){
 <? for i=0,3 do
 ?>		0. <? 
@@ -150,7 +160,7 @@ static inline real4 sym4_real4_mul(sym4 const m, real4 const v) {
 ?>	};
 }
 
-static inline real sym4_det(sym4 const m) {
+static inline real real4s4_det(real4s4 const m) {
 	return
 		m.s03 * m.s12 * m.s12 * m.s03 - m.s02 * m.s13 * m.s12 * m.s03 -
 		m.s03 * m.s11 * m.s22 * m.s03 + m.s01 * m.s13 * m.s22 * m.s03 +
@@ -167,16 +177,16 @@ static inline real sym4_det(sym4 const m) {
 }
 
 #define real4x4s4_zero ((real4x4s4){ \
-	.t = sym4_zero, \
-	.x = sym4_zero, \
-	.y = sym4_zero, \
-	.z = sym4_zero, \
+	.t = real4s4_zero, \
+	.x = real4s4_zero, \
+	.y = real4s4_zero, \
+	.z = real4s4_zero, \
 })
 
 static inline real4x4s4 tensor_4sym4_real_mul(real4x4s4 const a, real const s) {
 	return (real4x4s4){
 <? for a=0,3 do
-?>		.s<?=a?> = sym4_real_mul(a.s<?=a?>, s),
+?>		.s<?=a?> = real4s4_real_mul(a.s<?=a?>, s),
 <? end 
 ?>	};
 }
@@ -184,7 +194,7 @@ static inline real4x4s4 tensor_4sym4_real_mul(real4x4s4 const a, real const s) {
 static inline real4x4s4 tensor_4sym4_sub(real4x4s4 const a, real4x4s4 const b) {
 	return (real4x4s4){
 <? for a=0,3 do 
-?>		.s<?=a?> = sym4_sub(a.s<?=a?>, b.s<?=a?>),
+?>		.s<?=a?> = real4s4_sub(a.s<?=a?>, b.s<?=a?>),
 <? end 
 ?>	};
 }
@@ -197,7 +207,7 @@ static inline real4s4x4s4 tensor_sym4sym4_add(
 <? 
 for a=0,3 do
 	for b=a,3 do
-?>		.s<?=a..b?> = sym4_add(a.s<?=a..b?>, b.s<?=a..b?>),
+?>		.s<?=a..b?> = real4s4_add(a.s<?=a..b?>, b.s<?=a..b?>),
 <? 	end
 end 
 ?>	};
@@ -273,12 +283,15 @@ real4x4x4s4 calc_dGammaLULL(
 	return dGammaLULL;
 }
 
-sym4 calc_EinsteinLL(
-	global sym4 const * const gLLs,
-	global sym4 const * const gUUs,
+real4s4 calc_EinsteinLL(
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
 	int4 const i = globalInt4();
+	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+		return real4s4_zero;
+	}
 	int const index = indexForInt4(i);
 	
 	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
@@ -287,20 +300,21 @@ sym4 calc_EinsteinLL(
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
 	// but this one doesn't need RiemannULLL, so we can contract one of the terms in RicciLL's calcs
 
-	global real4x4s4 const * const GammaULL = GammaULLs + index;
+	real4x4s4 const GammaULL = GammaULLs[index];
+	
 	real4 const Gamma12L = (real4){
 <? 
 for a=0,stDim-1 do 
 ?>		0. <? 
 	for b=0,stDim-1 do 
-?> + GammaULL->s<?=b?>.s<?=sym(b,a)?><? 
+?> + GammaULL.s<?=b?>.s<?=sym(b,a)?><? 
 	end
 	if a < stDim-1 then ?>,
 <? 	end
 end ?>
 };
 
-	sym4 const RicciLL = {
+	real4s4 const RicciLL = {
 <? 
 for a=0,stDim-1 do
 	for b=a,stDim-1 do
@@ -308,9 +322,9 @@ for a=0,stDim-1 do
 		for c=0,stDim-1 do ?>
 			+ dGammaLULL.s<?=c?>.s<?=c?>.s<?=a..b?> 
 			- dGammaLULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?> 
-			+ Gamma12L.s<?=c?> * GammaULL->s<?=c?>.s<?=a..b?><?
+			+ Gamma12L.s<?=c?> * GammaULL.s<?=c?>.s<?=a..b?><?
 			for d=0,stDim-1 do ?>
-			- GammaULL->s<?=c?>.s<?=sym(d,b)?> * GammaULL->s<?=d?>.s<?=sym(c,a)?><?
+			- GammaULL.s<?=c?>.s<?=sym(d,b)?> * GammaULL.s<?=d?>.s<?=sym(c,a)?><?
 			end
 		end 
 ?>,
@@ -318,18 +332,20 @@ for a=0,stDim-1 do
 end ?>
 	};
 
-	real const Gaussian = sym4_dot(RicciLL, gUUs[index]);
-	return sym4_mul_add(
+	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
+	
+	return real4s4_mul_add(
 		RicciLL,
-		gLLs[index], -.5 * Gaussian
+		gLLs[index],
+		-.5 * Gaussian
 	);
 }
 
-sym4 calc_8piTLL(
-	sym4 const gLL,
+real4s4 calc_8piTLL(
+	real4s4 const gLL,
 	<?=TPrim_t?> const TPrim
 ) {
-	sym4 _8piTLL = sym4_zero;
+	real4s4 _8piTLL = real4s4_zero;
 
 <? 
 if solver.body.useEM then 
@@ -341,14 +357,14 @@ if solver.body.useEM then
 	*/
 
 	real4 const EU = (real4)(0 <?for i=0,2 do ?>, TPrim.E.s<?=i?> <? end ?>); 
-	real4 const EL = sym4_real4_mul(gLL, EU);
+	real4 const EL = real4s4_real4_mul(gLL, EU);
 	real const ESq = dot(EL, EU);
 	
 	real4 const BU = (real4)(0 <?for i=0,2 do ?>, TPrim.B.s<?=i?> <? end ?>); 
-	real4 const BL = sym4_real4_mul(gLL, BU);
+	real4 const BL = real4s4_real4_mul(gLL, BU);
 	real const BSq = dot(BL, BU);
 
-	real const sqrt_det_g = sqrt(fabs(sym4_det(gLL)));
+	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
 	real3 const SL = real3_real_mul(
 		real3_cross(TPrim.E, TPrim.B),
 		sqrt_det_g
@@ -371,11 +387,11 @@ if solver.body.useMatter then
 ?>	//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = (real4)(0, TPrim.v.x, TPrim.v.y, TPrim.v.z);
-	real4 const vL = sym4_real4_mul(gLL, vU);
+	real4 const vL = real4s4_real4_mul(gLL, vU);
 	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
-	real4 const uL = sym4_real4_mul(gLL, uU);
+	real4 const uL = real4s4_real4_mul(gLL, uU);
 	<? else ?>//otherwise uL = gLL.s0
 	real4 const uL = (real4)(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
 <?
@@ -383,18 +399,18 @@ if solver.body.useMatter then
 ?>
 
 	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
-	sym4 const _8piT_matter_LL = sym4_real_mul(
-		sym4_add(
-			sym4_real_mul(
-				sym4_outer(uL),
+	real4s4 const _8piT_matter_LL = real4s4_real_mul(
+		real4s4_add(
+			real4s4_real_mul(
+				real4s4_outer(uL),
 				TPrim.rho * (1. + TPrim.eInt) + TPrim.P
 			),
-			sym4_real_mul(
+			real4s4_real_mul(
 				gLL,
 				TPrim.P
 			)
 		), 8. * M_PI);
-	_8piTLL = sym4_add(_8piTLL, _8piT_matter_LL);
+	_8piTLL = real4s4_add(_8piTLL, _8piT_matter_LL);
 <? end ?>
 
 	return _8piTLL;
