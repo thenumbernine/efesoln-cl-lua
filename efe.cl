@@ -40,13 +40,11 @@ static inline real3 real3_sub(real3 const a, real3 const b) {
 	return _real3(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
-constant real3s3 real3s3_ident = {<? 
-for i=0,2 do
-	for j=i,2 do 
-?>	.s<?=i?><?=j?> = <?= i==j and 1 or 0 ?>,<?
-	end
-end 
-?>};
+#define real3s3_ident ((real3s3){\
+	.xx = 1, .xy = 0, .xz = 0,\
+	.yy = 1, .yz = 0,\
+	.zz = 1,\
+})
 
 static inline real real3s3_det(real3s3 const m) {
 	return m.s00 * m.s11 * m.s22
@@ -183,7 +181,7 @@ static inline real real4s4_det(real4s4 const m) {
 	.z = real4s4_zero, \
 })
 
-static inline real4x4s4 tensor_4sym4_real_mul(real4x4s4 const a, real const s) {
+static inline real4x4s4 real4x4s4_real_mul(real4x4s4 const a, real const s) {
 	return (real4x4s4){
 <? for a=0,3 do
 ?>		.s<?=a?> = real4s4_real_mul(a.s<?=a?>, s),
@@ -191,7 +189,7 @@ static inline real4x4s4 tensor_4sym4_real_mul(real4x4s4 const a, real const s) {
 ?>	};
 }
 
-static inline real4x4s4 tensor_4sym4_sub(real4x4s4 const a, real4x4s4 const b) {
+static inline real4x4s4 real4x4s4_sub(real4x4s4 const a, real4x4s4 const b) {
 	return (real4x4s4){
 <? for a=0,3 do 
 ?>		.s<?=a?> = real4s4_sub(a.s<?=a?>, b.s<?=a?>),
@@ -199,7 +197,7 @@ static inline real4x4s4 tensor_4sym4_sub(real4x4s4 const a, real4x4s4 const b) {
 ?>	};
 }
 
-static inline real4s4x4s4 tensor_sym4sym4_add(
+static inline real4s4x4s4 real4s4x4s4_add(
 	real4s4x4s4 const a,
 	real4s4x4s4 const b
 ) {
@@ -275,8 +273,8 @@ real4x4x4s4 calc_dGammaLULL(
 			GammaULL_next = real4x4s4_zero;
 		}
 	
-		dGammaLULL.s<?=i+1?> = tensor_4sym4_real_mul(
-			tensor_4sym4_sub(GammaULL_next, GammaULL_prev),
+		dGammaLULL.s<?=i+1?> = real4x4s4_real_mul(
+			real4x4s4_sub(GammaULL_next, GammaULL_prev),
 			.5 * inv_dx.s<?=i?> );
 	}<? end ?>
 
