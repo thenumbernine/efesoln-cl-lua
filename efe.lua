@@ -702,7 +702,7 @@ typedef char int8_t;
 				{['numerical gravity'] = [[
 	real3 const x = getX(i);
 	real const r = real3_len(x);
-	global tensor_4sym4 const * const GammaULL = GammaULLs + index;
+	global real4x4s4 const * const GammaULL = GammaULLs + index;
 	texCLBuf[index] = (0.
 		+ GammaULL->s1.s00 * x.s0 / r
 		+ GammaULL->s2.s00 * x.s1 / r
@@ -990,7 +990,7 @@ function EFESolver:initBuffers()
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
 	self.gLLs = self:buffer{name='gLLs', type='sym4'}
 	self.gUUs = self:buffer{name='gUUs', type='sym4'}
-	self.GammaULLs = self:buffer{name='GammaULLs', type='tensor_4sym4'}
+	self.GammaULLs = self:buffer{name='GammaULLs', type='real4x4s4'}
 
 	-- used by updateNewton:
 	self.EFEs = self:buffer{name='EFEs', type='sym4'}

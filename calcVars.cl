@@ -66,37 +66,60 @@ kernel void calc_gLLs_and_gUUs(
 	<? end ?>
 }
 
+constant sym4 const gLL_flat = (sym4){
+	.tt = -1, .tx = 0, .ty = 0, .tz = 0,
+	.xx = 1, .xy = 0, .xz = 0,
+	.yy = 1, .yz = 0,
+	.zz = 1,
+};
+
 kernel void calc_GammaULLs(
-	global tensor_4sym4 * const GammaULLs,
+	global real4x4s4 * const GammaULLs,
 	global sym4 const * const gLLs,
 	global sym4 const * const gUUs
 ) {
 	initKernel();
 
+	//g_ab,c = dgLLL.c.ab
 	//here's where the finite difference stuff comes in ...
-	tensor_4sym4 dgLLL;
+	//TODO modular finite-difference kernels & boundary conditions
+	real4x4s4 dgLLL;
 	dgLLL.s0 = sym4_zero;
 	<? for i=0,sDim-1 do ?>{
-		int4 iL = i;
-		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int indexL = indexForInt4(iL);
-		global sym4 const * const gLL_prev = gLLs + indexL;
+		sym4 gLL_prev;
+		if (i.s<?=i?> > 0) {
+			int4 iL = i;
+			--iL.s<?=i?>;
+			int const indexL = indexForInt4(iL);
+			gLL_prev = gLLs[indexL];
+		} else {
+			// boundary condition:
+			gLL_prev = gLL_flat;
+		}
 		
-		int4 iR = i;
-		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int indexR = indexForInt4(iR);
-		global sym4 const * const gLL_next = gLLs + indexR;
+		sym4 gLL_next;
+		if (i.s<?=i?> < size.s<?=i?> - 1) {
+			int4 iR = i;
+			++iR.s<?=i?>;
+			int const indexR = indexForInt4(iR);
+			gLL_next = gLLs[indexR];
+		} else {
+			//boundary condition:
+			gLL_next = gLL_flat;
+		}
 		
 		dgLLL.s<?=i+1?> = (sym4){
 		<? for a=0,stDim-1 do ?>
 			<? for b=a,stDim-1 do ?>
-			.s<?=a..b?> = (gLL_next->s<?=a..b?> - gLL_prev->s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
+			.s<?=a..b?> = (gLL_next.s<?=a..b?> - gLL_prev.s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
 			<? end ?>
 		<? end ?>
 		};
 	}<? end ?>
 
-	tensor_4sym4 GammaLLL = (tensor_4sym4){
+	//Γ_abc = GammaLLL.a.bc
+	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
+	real4x4s4 const GammaLLL = (real4x4s4){
 	<? for a=0,stDim-1 do ?>
 		<? for b=0,stDim-1 do ?>
 			<? for c=b,stDim-1 do ?>
@@ -108,14 +131,16 @@ kernel void calc_GammaULLs(
 		<? end ?>
 	<? end ?>};
 
-	global sym4 const * const gUU = gUUs + index;
-	global tensor_4sym4 * const GammaULL = GammaULLs + index;
+	//Γ^a_bc = GammaULL.a.bc
+	//Γ^a_bc = g^ad Γ_dbc
+	sym4 const gUU = gUUs[index];
+	global real4x4s4 * const GammaULL = GammaULLs + index;
 	<? for a=0,stDim-1 do ?>
 		<? for b=0,stDim-1 do ?>
 			<? for c=b,stDim-1 do ?>
 	GammaULL->s<?=a?>.s<?=b?><?=c?> = 0.
 				<? for d=0,stDim-1 do ?>
-		+ gUU->s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
+		+ gUU.s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
 				<? end ?>;
 			<? end ?>
 		<? end ?>
@@ -237,7 +262,7 @@ kernel void calc_EinsteinLLs(
 	global sym4 * const EinsteinLLs,
 	global sym4 const * const gLLs,
 	global sym4 const * const gUUs,
-	global tensor_4sym4 const * const GammaULLs
+	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
 	EinsteinLLs[index] = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
@@ -257,7 +282,7 @@ kernel void calc_EFEs(
 	global <?=TPrim_t?> const * const TPrims,
 	global sym4 const * const gLLs,
 	global sym4 const * const gUUs,
-	global tensor_4sym4 const * const GammaULLs
+	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
 	<?=TPrim_t?> const TPrim = TPrims[index];

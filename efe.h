@@ -19,14 +19,17 @@ typedef union {
 typedef union {
 	sym4 s[4];
 	struct { sym4 s0, s1, s2, s3; };
-} tensor_4sym4;
+	struct { sym4 t, x, y, z; };
+} real4x4s4;
 
 typedef union {
-	tensor_4sym4 s[4];
-	struct { tensor_4sym4 s0, s1, s2, s3; };
-} tensor_44sym4;
+	real4x4s4 s[4];
+	struct { real4x4s4 s0, s1, s2, s3; };
+	struct { real4x4s4 t, x, y, z; };
+} real4x4x4s4;
 
 typedef union {
 	sym4 s[10];
 	struct { sym4 s00, s01, s02, s03, s11, s12, s13, s22, s23, s33; };
-} tensor_sym4sym4;
+	struct { sym4 tt, tx, ty, tz, xx, xy, xz, yy, yz, zz; };
+} real4s4x4s4;

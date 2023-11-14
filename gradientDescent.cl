@@ -6,23 +6,22 @@ kernel void calc_dPhi_dgPrims(
 	global gPrim_t const * const gPrims,
 	global sym4 const * const gLLs,
 	global sym4 const * const gUUs,
-	global tensor_4sym4 const * const GammaULLs,
+	global real4x4s4 const * const GammaULLs,
 	global sym4 const * const EFEs
 ) {
 	initKernel();
 	
 	global sym4 const * const gLL = gLLs + index;
 	global sym4 const * const gUU = gUUs + index;
-	global tensor_4sym4 const * const GammaULL = GammaULLs + index;
+	global real4x4s4 const * const GammaULL = GammaULLs + index;
 
 	//this is also in the Ricci computation, but should I be storing it?  is it too big?
-	tensor_44sym4 dGammaLULL;
-	calc_dGammaLULL(&dGammaLULL, GammaULLs);
+	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
 
 	//R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
-	tensor_44sym4 const RiemannULLL = (tensor_44sym4){
+	real4x4x4s4 const RiemannULLL = (real4x4x4s4){
 <? for a=0,stDim-1 do
-?>		.s<?=a?> = (tensor_4sym4){
+?>		.s<?=a?> = (real4x4s4){
 <? 	for b=0,stDim-1 do
 ?>			.s<?=b?> = (sym4){
 <? 		for c=0,stDim-1 do 
@@ -184,7 +183,7 @@ end ?>;
 	
 	= Γ^pc_c Γ^q_ba - Γ^pc_b Γ^q_ca - g^cp R^q_acb
 	*/
-	tensor_sym4sym4 const dRicciLL_dgLL = (tensor_sym4sym4){
+	real4s4x4s4 const dRicciLL_dgLL = (real4s4x4s4){
 <? for p=0,stDim-1 do 
 	for q=p,stDim-1 do
 ?>		.s<?=p..q?> = (sym4){
@@ -213,7 +212,7 @@ end ?>
 	};
 
 	/*
-	∂/∂g_pq G_ab = tensor_sym4sym4.s[pq].s[ab]
+	∂/∂g_pq G_ab = real4s4x4s4.s[pq].s[ab]
 	= ∂/∂g_pq (R_ab - 1/2 R g_ab)
 	= ∂/∂g_pq R_ab - 1/2 ∂/∂g_pq R g_ab - 1/2 R ∂/∂g_pq g_ab
 	= ∂/∂g_pq R_ab - 1/2 g_ab ∂/∂g_pq (R_uv g^uv) - 1/2 R δ_a^p δ_b^q
@@ -221,7 +220,7 @@ end ?>
 	= ∂/∂g_pq R_ab - 1/2 g_ab (g^uv ∂/∂g_pq R_uv - R_uv g^pu g^qv) - 1/2 R δ_a^p δ_b^q
 	= ∂/∂g_pq R_ab - 1/2 (R δ_a^p δ_b^q + g_ab (g^uv ∂/∂g_pq R_uv - R^pq))
 	*/
-	tensor_sym4sym4 const dEinsteinLL_dgLL = (tensor_sym4sym4){
+	real4s4x4s4 const dEinsteinLL_dgLL = (real4s4x4s4){
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do 
 ?>		.s<?=p..q?> = (sym4){
@@ -243,7 +242,7 @@ end ?>
 
 	<?=TPrim_t?> const TPrim = TPrims[index];
 
-	tensor_sym4sym4 d_8piTLL_dgLL = (tensor_sym4sym4){
+	real4s4x4s4 d_8piTLL_dgLL = (real4s4x4s4){
 <? for a=0,stDim-1 do
 	for b=a,stDim-1 do
 ?>		.s<?=a..b?> = sym4_zero,

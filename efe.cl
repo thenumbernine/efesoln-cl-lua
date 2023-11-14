@@ -3,7 +3,11 @@
 constant real c = 299792458;			// m/s 
 constant real G = 6.67384e-11;		// m^3 / (kg s^2)
 
-constant real3 real3_zero = {.x=0, .y=0, .z=0};
+#define real3_zero ((real3){ \
+	.x = 0, \
+	.y = 0, \
+	.z = 0, \
+})
 
 static inline real real3_dot(real3 const a, real3 const b) {
 	return a.x * b.x + a.y * b.y + a.z * b.z;
@@ -72,12 +76,12 @@ static inline real3 sym3_real3_mul(sym3 const m, real3 const v) {
 	};
 }
 
-constant sym4 const sym4_zero = (sym4){<?
-for a=0,stDim-1 do
-	for b=a,stDim-1 do 
-?>.s<?=a..b?> = 0.,<?
-	end
-end ?>};
+#define sym4_zero ((sym4){ \
+	.tt = 0, .tx = 0, .ty = 0, .tz = 0, \
+	.xx = 0, .xy = 0, .xz = 0, \
+	.yy = 0, .yz = 0, \
+	.zz = 0, \
+})
 
 static inline real sym4_dot(sym4 const a, sym4 const b) {
 	return 0.<?
@@ -162,39 +166,34 @@ static inline real sym4_det(sym4 const m) {
 		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
 }
 
-constant tensor_4sym4 const tensor_4sym4_zero = (tensor_4sym4){
-<? for a=0,3 do 
-?>	.s<?=a?> = (sym4){<?
-	for b=0,3 do
-		for c=b,3 do 
-?>.s<?=b?><?=c?> = 0., <?
-		end
-	end
-?>	},
-<? end 
-?>};
+#define real4x4s4_zero ((real4x4s4){ \
+	.t = sym4_zero, \
+	.x = sym4_zero, \
+	.y = sym4_zero, \
+	.z = sym4_zero, \
+})
 
-static inline tensor_4sym4 tensor_4sym4_real_mul(tensor_4sym4 const a, real const s) {
-	return (tensor_4sym4){
+static inline real4x4s4 tensor_4sym4_real_mul(real4x4s4 const a, real const s) {
+	return (real4x4s4){
 <? for a=0,3 do
 ?>		.s<?=a?> = sym4_real_mul(a.s<?=a?>, s),
 <? end 
 ?>	};
 }
 
-static inline tensor_4sym4 tensor_4sym4_sub(tensor_4sym4 const a, tensor_4sym4 const b) {
-	return (tensor_4sym4){
+static inline real4x4s4 tensor_4sym4_sub(real4x4s4 const a, real4x4s4 const b) {
+	return (real4x4s4){
 <? for a=0,3 do 
 ?>		.s<?=a?> = sym4_sub(a.s<?=a?>, b.s<?=a?>),
 <? end 
 ?>	};
 }
 
-static inline tensor_sym4sym4 tensor_sym4sym4_add(
-	tensor_sym4sym4 const a,
-	tensor_sym4sym4 const b
+static inline real4s4x4s4 tensor_sym4sym4_add(
+	real4s4x4s4 const a,
+	real4s4x4s4 const b
 ) {
-	return (tensor_sym4sym4){
+	return (real4s4x4s4){
 <? 
 for a=0,3 do
 	for b=a,3 do
@@ -224,46 +223,71 @@ constant real3 const inv_dx = _real3(<?=
 	xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),	\
 	xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
 
-void calc_dGammaLULL(
-	tensor_44sym4 * const dGammaLULL,
-	global tensor_4sym4 * const GammaULLs
+#define real4x4x4s4_zero ((real4x4x4s4){ \
+	.t = real4x4s4_zero, \
+	.x = real4x4s4_zero, \
+	.y = real4x4s4_zero, \
+	.z = real4x4s4_zero, \
+})
+
+real4x4x4s4 calc_dGammaLULL(
+	global real4x4s4 const * const GammaULLs
 ) {
-	initKernel();
-	dGammaLULL->s0 = tensor_4sym4_zero;
+	//initKernel();
+	int4 i = globalInt4();
+	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+		return real4x4x4s4_zero;
+	}
+	int index = indexForInt4ForSize(i, size.x, size.y, size.z);
+
+	real4x4x4s4 dGammaLULL;
+	dGammaLULL.s0 = real4x4s4_zero;
 	<? for i=0,sDim-1 do ?>{
-		int4 iL = i;
-		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int const indexL = indexForInt4(iL);
-		global tensor_4sym4 const * const GammaULL_prev = GammaULLs + indexL;
+		real4x4s4 GammaULL_prev;
+		if (i.s<?=i?> > 0) {
+			int4 iL = i;
+			--iL.s<?=i?>;
+			int const indexL = indexForInt4(iL);
+			GammaULL_prev = GammaULLs[indexL];
+		} else {
+			// boundary condition
+			GammaULL_prev = real4x4s4_zero;
+		}
 		
-		int4 iR = i;
-		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int const indexR = indexForInt4(iR);
-		global tensor_4sym4 const * const GammaULL_next = GammaULLs + indexR;
+		real4x4s4 GammaULL_next;
+		if (i.s<?=i?> < size.s<?=i?> - 1) {
+			int4 iR = i;
+			++iR.s<?=i?>;
+			int const indexR = indexForInt4(iR);
+			GammaULL_next = GammaULLs[indexR];
+		} else {
+			// boundary condition
+			GammaULL_next = real4x4s4_zero;
+		}
 	
-		dGammaLULL->s<?=i+1?> = tensor_4sym4_real_mul(
-			tensor_4sym4_sub(*GammaULL_next, *GammaULL_prev),
+		dGammaLULL.s<?=i+1?> = tensor_4sym4_real_mul(
+			tensor_4sym4_sub(GammaULL_next, GammaULL_prev),
 			.5 * inv_dx.s<?=i?> );
 	}<? end ?>
+
+	return dGammaLULL;
 }
 
 sym4 calc_EinsteinLL(
 	global sym4 const * const gLLs,
 	global sym4 const * const gUUs,
-	global tensor_4sym4 const * const GammaULLs
+	global real4x4s4 const * const GammaULLs
 ) {
 	int4 const i = globalInt4();
 	int const index = indexForInt4(i);
 	
-	//here's where the finite difference stuff comes in ...
-	tensor_44sym4 dGammaLULL;
-	calc_dGammaLULL(&dGammaLULL, GammaULLs);
+	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
 
 	//this Ricci calculation differs from the one in calc_dPhi_dgLLs because
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
 	// but this one doesn't need RiemannULLL, so we can contract one of the terms in RicciLL's calcs
 
-	global tensor_4sym4 const * const GammaULL = GammaULLs + index;
+	global real4x4s4 const * const GammaULL = GammaULLs + index;
 	real4 const Gamma12L = (real4){
 <? 
 for a=0,stDim-1 do 
