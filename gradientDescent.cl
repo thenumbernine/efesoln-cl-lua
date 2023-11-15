@@ -331,12 +331,12 @@ if solver.body.useMatter then
 end
 ?>
 
-	global real4s4 const * const EFE = EFEs + index;	// G_ab - 8 π T_ab
+	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
 	real4s4 dPhi_dgLL;
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do 
 ?>	dPhi_dgLL.s<?=p..q?> = real4s4_dot(<?
-		?>*EFE, <?
+		?>EFE, <?
 		?>real4s4_sub(<?
 			?>dEinsteinLL_dgLL.s<?=p..q?>, <?
 			?>d_8piTLL_dgLL.s<?=p..q?><?

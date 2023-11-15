@@ -35,16 +35,17 @@ $= g g^{fe}$<br>
 <br>
 
 <b>Levi-Civita tensor:</b><br>
-$[abcd] = $ permutation tensor of $abcd$.<br>
+$\bar\epsilon_{abcd} = $ permutation tensor of $abcd$ with weight of 1, raised/lowered by $\eta_{ab}$.<br>
 <br>
-$\epsilon_{abcd} = \sqrt{-g} [abcd]$<br>
-$\epsilon^{abcd} = \frac{-1}{\sqrt{-g}} [abcd]$<br>
+$\epsilon_{abcd} = \sqrt{|det(g_{uv})|} \bar\epsilon_{abcd} = |det({e^a}_b)| \bar\epsilon_{abcd}$<br>
+...where ${e^a}_b$ is the transformation from a locally-Minkowski basis to our manifold, such that $g_{ab} = \eta_{uv} {e^u}_a {e^v}_b$.<br>
+$\epsilon^{abcd} = \frac{-1}{\sqrt{-g}} \bar\epsilon_{abcd}$<br>
 <br>
 Derivatives:<br>
-$\frac{\epsilon_{abcd}}{\partial g_{ef}} = \frac{\partial \sqrt{-g}}{\partial g_{ef}} [abcd]$<br>
-$ = -\frac{1}{2 \sqrt{-g}} \frac{\partial det g}{\partial g_{ef}} [abcd]$<br>
-$ = -\frac{1}{2 \sqrt{-g}} g g^{fe} [abcd]$<br>
-$ = \frac{1}{2} \sqrt{-g} g^{fe} [abcd]$<br>
+$\frac{\epsilon_{abcd}}{\partial g_{ef}} = \frac{\partial \sqrt{-g}}{\partial g_{ef}} \bar\epsilon_{abcd}$<br>
+$ = -\frac{1}{2 \sqrt{-g}} \frac{\partial det g}{\partial g_{ef}} \bar\epsilon_{abcd}$<br>
+$ = -\frac{1}{2 \sqrt{-g}} g g^{fe} \bar\epsilon_{abcd}$<br>
+$ = \frac{1}{2} \sqrt{-g} g^{fe} \bar\epsilon_{abcd}$<br>
 <br>
 
 <b>Metric derivative, discretized:</b><br>
@@ -601,8 +602,8 @@ $ = \frac{1}{8\pi} \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
 	- 2 g_{im} \delta^e_j (E^m  E^f + B^m B^f)
 }\right]}$<br>
 $ = \frac{1}{8\pi} \downarrow a(i) \overset{\rightarrow b(j)}{ \left[\matrix{
-	E^e E^f + B^e B^f & -\sqrt{-g} g^{fe} [tjmn] E^m B^n \\
-	-\sqrt{-g} g^{fe} [timn] E^m B^n &
+	E^e E^f + B^e B^f & -\sqrt{-g} g^{fe} \bar\epsilon_{tjmn} E^m B^n \\
+	-\sqrt{-g} g^{fe} \bar\epsilon_{timn} E^m B^n &
 	\delta^e_i \delta^f_j g_{mn} (E^m E^n + B^m B^n)
 	+ g_{ij} (E^e  E^f + B^e B^f)
 	- 2 \delta^e_i g_{jn} (E^f  E^n + B^f B^n)
