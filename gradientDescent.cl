@@ -169,7 +169,7 @@ end ?>
 	= ∂/∂g_pq R_ab - 1/2 g_ab ∂/∂g_pq (R_uv g^uv) - 1/2 R δ_a^p δ_b^q
 	= ∂/∂g_pq R_ab - 1/2 g_ab (∂/∂g_pq R_uv g^uv + R_uv ∂/∂g_pq g^uv) - 1/2 R δ_a^p δ_b^q
 	= ∂/∂g_pq R_ab - 1/2 g_ab (g^uv ∂/∂g_pq R_uv - R_uv g^pu g^qv) - 1/2 R δ_a^p δ_b^q
-	= ∂/∂g_pq R_ab - 1/2 (R δ_a^p δ_b^q + g_ab (g^uv ∂/∂g_pq R_uv - R^pq))
+	= ∂R_ab/∂g_pq - 1/2 (R δ_a^p δ_b^q + g_ab (g^uv ∂R_uv/∂g_pq - R^pq))
 	*/
 	real4s4x4s4 const dEinsteinLL_dgLL = (real4s4x4s4){
 <? for p=0,stDim-1 do
@@ -193,14 +193,7 @@ end ?>
 
 	<?=TPrim_t?> const TPrim = TPrims[index];
 
-	real4s4x4s4 d_8piTLL_dgLL = (real4s4x4s4){
-<? for a=0,stDim-1 do
-	for b=a,stDim-1 do
-?>		.s<?=a..b?> = real4s4_zero,
-<?	end
-end 
-?>	};
-
+	real4s4x4s4 d_8piTLL_dgLL = real4s4x4s4_zero;
 <?
 if solver.body.useEM then ?>	
 	real4 const EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim.E.s<?=i?> <? end ?>); 

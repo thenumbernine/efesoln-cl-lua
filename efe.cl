@@ -4,15 +4,15 @@
 //so we do this instead and are safe:
 #define _real3(a,b,c)            ((real3){.x=a, .y=b, .z=c})
 
-
 constant real const c = 299792458;			// m/s 
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 
-#define real3_zero ((real3){ \
-	.x = 0, \
-	.y = 0, \
-	.z = 0, \
-})
+#define new_real3_zero() ((real3){ \
+<? for i=0,2 do --\
+?>	.s<?=i?> = 0,\
+<? end --\
+?>})
+constant real3 const real3_zero = new_real3_zero();
 
 static inline real real3_dot(real3 const a, real3 const b) {
 	return a.x * b.x + a.y * b.y + a.z * b.z;
@@ -79,12 +79,13 @@ static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 	};
 }
 
-#define real4s4_zero ((real4s4){ \
+#define new_real4s4_zero() ((real4s4){ \
 	.tt = 0, .tx = 0, .ty = 0, .tz = 0, \
 	.xx = 0, .xy = 0, .xz = 0, \
 	.yy = 0, .yz = 0, \
 	.zz = 0, \
 })
+constant real4s4 const real4s4_zero = new_real4s4_zero();
 
 static inline real real4s4_dot(real4s4 const a, real4s4 const b) {
 	return 0.<?
@@ -226,12 +227,14 @@ for a=0,3 do
 end ?>;
 }
 
-#define real4x4s4_zero ((real4x4s4){ \
-	.t = real4s4_zero, \
-	.x = real4s4_zero, \
-	.y = real4s4_zero, \
-	.z = real4s4_zero, \
-})
+#define new_real4x4s4_zero() ((real4x4s4){ \
+<? for i=0,3 do --\
+?>	.s<?=i?> = new_real4s4_zero(),\
+<? end --\
+?>})
+// using a macro goes noticeably slower so ...
+// however using a 'constant' cannot initialize its fields with other 'constant's ...
+constant real4x4s4 const real4x4s4_zero = new_real4x4s4_zero();
 
 static inline real4x4s4 real4x4s4_real_mul(real4x4s4 const a, real const s) {
 	return (real4x4s4){
@@ -257,7 +260,7 @@ static inline real4x4s4 real4x4s4_sub(real4x4s4 const a, real4x4s4 const b) {
 ?>	};
 }
 
-//b_i = a_jji
+//b_i = a^j_ji
 static inline real4 real4x4s4_tr12(real4x4s4 const a) {
 	return (real4)(
 <? for i=0,3 do 
@@ -296,6 +299,14 @@ end
 ?>	};
 }
 
+#define new_real4s4x4s4_zero() ((real4s4x4s4){\
+<? for a=0,3 do --\
+	for b=a,3 do --\
+?>	.s<?=a..b?> = new_real4s4_zero(),\
+<?	end --\
+end  --\
+?>})
+constant real4s4x4s4 const real4s4x4s4_zero = new_real4s4x4s4_zero();
 
 static inline real4s4x4s4 real4s4x4s4_add(
 	real4s4x4s4 const a,
@@ -310,6 +321,14 @@ for a=0,3 do
 end 
 ?>	};
 }
+
+#define new_real4x4x4s4_zero() ((real4x4x4s4){ \
+<? for i=0,3 do --\
+?>	.s<?=i?> = new_real4x4s4_zero(),\
+<? end --\
+?>})
+constant real4x4x4s4 const real4x4x4s4_zero = new_real4x4x4s4_zero();
+
 
 constant int const stDim = <?=stDim?>;	
 constant int const sDim = <?=sDim?>;
@@ -330,13 +349,6 @@ constant real3 const inv_dx = _real3(<?=
 	xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),	\
 	xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),	\
 	xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
-
-#define real4x4x4s4_zero ((real4x4x4s4){ \
-	.t = real4x4s4_zero, \
-	.x = real4x4s4_zero, \
-	.y = real4x4s4_zero, \
-	.z = real4x4s4_zero, \
-})
 
 //[1/m^2]
 real4x4x4s4 calc_dGammaLULL(
