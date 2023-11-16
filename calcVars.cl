@@ -1,12 +1,100 @@
+//
+
+<?
+-- source: https://en.wikipedia.org/wiki/Finite_difference_coefficient
+-- derivCoeffs[derivative][order] = {coeffs...}
+-- separating out the denom is improving my numerical accuracy.  without doing so, bssnok-fd-num, cartesian, minkowski, RK4 diverges.
+local derivCoeffs = {
+	-- centered, antisymmetric 1st deriv coefficients
+	{
+		[2] = {1, denom=2},
+		[4] = {8, -1, denom=12},
+		[6] = {45, -9, 1, denom=60},
+		[8] = {672, -168, 32, -3, denom=840},
+		[10] = {5/6, -5/21, 5/84, -5/504, 1/1260, denom=1},
+	},
+	-- centered, symmetric 2nd deriv coefficients
+	{
+		[2] = {[0] = -2, 1, denom=1},
+		[4] = {[0] = -30, 16, -1, denom=12},
+		[6] = {[0] = -490, 270, -27, 2, denom=180},
+		[8] = {[0] = -205/72, 8/5, -1/5, 8/315, -1/560, denom=1},
+	},
+	-- centered, antisymmetric 3rd deriv coefficients
+	{
+		[2] = {-2, 1, denom=2},
+		[4] = {-13, 8, -1, denom=8},
+		[6] = {-488, 338, -72, 7, denom=240},
+	},
+	-- centered, symmetric 4th deriv coefficients
+	{
+		[2] = {[0] = 6, -4, 1, denom=1},
+		[4] = {[0] = 56, -39, 12, -1, denom=6},
+		--[6] = {[0] = 2730, -1952, 676, -96, 7},
+	}
+}
+
+-- bake in denominator
+local table = require 'ext.table'
+for deriv, coeffsPerOrder in ipairs(derivCoeffs) do
+	for order, coeffs in pairs(coeffsPerOrder) do
+		local denom = coeffs.denom
+		coeffs.denom = nil
+		local keys = table.keys(coeffs)
+		for _,i in ipairs(keys) do
+			coeffs[i] = coeffs[i] / denom
+		end
+	end
+end
+
+--[[
+args:
+	bufferName
+	bufferType
+	resultName
+	resultType
+--]]
+local function finiteDifference(args)
+	local order
+	local bufferName = args.bufferName
+	local bufferType = args.bufferType
+	local resultName = args.resultName
+	local resultType = args.resultType
+	local order = 2	-- TODO put in config.lua
+	local coeffs = assert(derivCoeffs[1][order])
+?>	<?=resultType?> <?=resultName?> = <?=resultType?>_zero;
+	<? for i=0,sDim-1 do ?>{
+		<? for j,coeff in pairs(coeffs) do ?>{
+			<?=bufferType?> const yL = (i.s<?=i?> - <?=j?> < 0)
+				? <?=bufferType?>_zero	// lhs boundary condition
+				: <?=bufferName?>[index - stepsize.s<?=i?> * <?=j?>];
+
+			<?=bufferType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
+				? <?=bufferType?>_zero	// rhs boundary condition
+				: <?=bufferName?>[index + stepsize.s<?=i?> * <?=j?>];
+
+			<?=resultName?>.s<?=i+1?> = <?=bufferType?>_add(
+				<?=resultName?>.s<?=i+1?>,
+				<?=bufferType?>_real_mul(
+					<?=bufferType?>_sub(yR, yL),
+					<?=coeff?> * inv_dx.s<?=i?>
+				)
+			);
+		}<? end ?>
+	}<? end ?>
+<?
+end
+?>
+
 // init
 
 kernel void init_TPrims(
 	global <?=TPrim_t?> * const TPrims
 ) {
 	initKernel();
-	
+
 	global <?=TPrim_t?> * const TPrim = TPrims + index;
-	
+
 	*TPrim = (<?=TPrim_t?>){
 <? if solver.body.useMatter then ?>
 		.rho = 0,
@@ -15,8 +103,8 @@ kernel void init_TPrims(
 <? 	if solver.body.useVel then ?>
 		.v = real3_zero,
 <? 	end
-end 
-if solver.body.useEM then ?>		
+end
+if solver.body.useEM then ?>
 		.E = real3_zero,
 		.B = real3_zero,
 <? end ?>
@@ -87,6 +175,14 @@ kernel void calc_GammaULLs(
 	//g_ab,c := dgLLL.c.ab
 	//here's where the finite difference stuff comes in ...
 	//TODO modular finite-difference kernels & boundary conditions
+#if 0	// auto-gen ... breaking
+<?finiteDifference{
+	bufferName = "gLLs",
+	bufferType = "real4s4",
+	resultName = "dgLLL",
+	resultType = "real4x4s4",
+}?>
+#else
 	real4x4s4 dgLLL;
 	dgLLL.s0 = real4s4_zero;
 	<? for i=0,sDim-1 do ?>{
@@ -111,15 +207,22 @@ kernel void calc_GammaULLs(
 			//boundary condition:
 			gLL_next = gLL_flat;
 		}
-		
+
+#if 0 // per-component - works
 		dgLLL.s<?=i+1?> = (real4s4){
-		<? for a=0,stDim-1 do ?>
-			<? for b=a,stDim-1 do ?>
-			.s<?=a..b?> = (gLL_next.s<?=a..b?> - gLL_prev.s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
-			<? end ?>
-		<? end ?>
-		};
+<?
+for a=0,stDim-1 do
+	for b=a,stDim-1 do
+?>			.s<?=a..b?> = (gLL_next.s<?=a..b?> - gLL_prev.s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
+<?
+	end
+end
+?>		};
+#else // using real4s4 math functions - works
+		dgLLL.s<?=i+1?> = real4s4_real_mul(real4s4_sub(gLL_next, gLL_prev), .5 * inv_dx.s<?=i?>);
+#endif
 	}<? end ?>
+#endif
 
 	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
@@ -185,33 +288,33 @@ A_v;u^v - A_u;v^v + R_u^v A_v = 4 pi J_u
 = g^vw (A_v;uw - A_u;vw + R_uv A_w) = 4 pi J_u
 = g^vw (A_v;u;w - A_u;v;w + R_uv A_w) = 4 pi J_u
 = g^vw (
-	(A_v,u - Gamma^r_vu A_r)_;w 
-	- (A_u,v - Gamma^r_uv A_r)_;w 
+	(A_v,u - Gamma^r_vu A_r)_;w
+	- (A_u,v - Gamma^r_uv A_r)_;w
 	+ R_uv A_w) = 4 pi J_u
 = g^vw (
-	(A_v,u - Gamma^r_vu A_r)_,w 
+	(A_v,u - Gamma^r_vu A_r)_,w
 	- (A_s,u - Gamma^r_su A_r) Gamma^s_vw
 	- (A_v,s - Gamma^r_vs A_r) Gamma^s_uw
-	- (A_u,v - Gamma^r_uv A_r)_,w 
+	- (A_u,v - Gamma^r_uv A_r)_,w
 	+ (A_u,s - Gamma^r_us A_r) Gamma^s_vw
 	+ (A_s,v - Gamma^r_sv A_r) Gamma^s_uw
 	+ R_uv A_w) = 4 pi J_u
 = g^vw (
-	A_v,uw 
-	- A_u,vw 
-	- Gamma^s_vw A_s,u 
-	+ Gamma^s_uw A_s,v 
+	A_v,uw
+	- A_u,vw
+	- Gamma^s_vw A_s,u
+	+ Gamma^s_uw A_s,v
 	- Gamma^s_uw A_v,s
-	+ Gamma^s_vw A_u,s 
+	+ Gamma^s_vw A_u,s
 	+ R_uv A_w) = 4 pi J_u
 
 
 or how about I enforce the A^u_;u = 0 constraint as well?
 
 so every iteration that we converge J_a for -1/(4pi) (g^vw D_v D_w delta^u_a  - R_a^u) A_u = J_a
-we also constrain A^u_;u = 0, which means divergence-free, 
-which means subtract out the potential (in curved space) 
-... how? 
+we also constrain A^u_;u = 0, which means divergence-free,
+which means subtract out the potential (in curved space)
+... how?
 */
 <? if solver.useFourPotential then ?>
 kernel void solveAL(
@@ -221,7 +324,7 @@ kernel void solveAL(
 
 	real4 skewSum = real4_zero;
 	<? for i=0,sDim-1 do ?>{
-		
+
 		<?=TPrim_t?> TPrim_prev;
 		if (i.s<?=i?> > 0) {
 			int4 iL = i;

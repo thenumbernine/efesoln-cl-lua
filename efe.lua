@@ -1008,6 +1008,8 @@ function EFESolver:refreshKernels()
 		path'gradientDescent.cl':read(),
 	}:concat'\n')
 
+	path'cache.cl':write(code)
+
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
 	local program = self:program{code=code}
 
