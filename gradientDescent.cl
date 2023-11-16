@@ -44,38 +44,20 @@ kernel void calc_dPhi_dgPrims(
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4s4_tr13(RiemannULLL);
 
-	//R^a_b = g^ac R_cb
+	//RicciUL.a.b := R^a_b = g^ac R_cb
 	real4x4 const RicciUL = real4s4_real4s4_mul(gUU, RicciLL);
 
-	//R^ab = R^a_c g^cb
+	//RicciUU.ab := R^ab = R^a_c g^cb
 	real4s4 const RicciUU = real4x4_real4s4_to_real4s4_mul(RicciUL, gUU);
 
-	//R = R^a_a
-	real const Gaussian = 0.<? 
-for a=0,stDim-1 do 
-?> + RicciUL.s<?=a?>.s<?=a?><?
-end ?>;
+	//Gaussian := R = R^a_a
+	real const Gaussian = real4x4_tr(RicciUL);
 
-	//Γ^ab_c = Γ^a_dc g^db
-	real const GammaUUL[4][4][4] = {
-<? for a=0,stDim-1 do 
-?>		{
-<?	for b=0,stDim-1 do 
-?>			{
-<? 		for c=0,stDim-1 do 
-?>				0.<? 
-			for d=0,stDim-1 do 
-?> + GammaULL.s<?=a?>.s<?=sym(d,c)?> * gUU.s<?=sym(d,b)?><?
-			end ?>,
-<? 		end 
-?>			},
-<?	 end 
-?>		},
-<? end 
-?>	};
+	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
+	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
 
 	/*
-	∂/∂g_pq g_ab = δ_a^p δ_b^q
+	∂g_ab/∂g_pq = δ_a^p δ_b^q
 
 	∂/∂g_pq δ^a_b = 0
 	∂/∂g_pq (g^ac g_cb) = 0
@@ -95,7 +77,7 @@ end ?>;
 	= -1/2 g^ap g^qu (g_ub,c + g_uc,b - g_bc,u)
 	= -g^ap Γ^q_bc
 
-	∂/∂g_pq R_ab 
+	dRicciLL_dgLL.pq.ab := ∂R_ab/∂g_pq
 	= ∂/∂g_pq R^c_acb
 	= ∂/∂g_pq (Γ^c_ab,c - Γ^c_ac,b + Γ^c_ec Γ^e_ab - Γ^c_eb Γ^e_ac)
 	= ∂/∂g_pq Γ^c_ab,c - ∂/∂g_pq Γ^c_ac,b 
@@ -160,8 +142,8 @@ end ?>;
 			for b=a,stDim-1 do
 ?>			.s<?=a..b?> = 0.<?
 				for c=0,stDim-1 do ?> 
-				+ GammaUUL[<?=p?>][<?=c?>][<?=c?>] * GammaULL.s<?=q?>.s<?=sym(b,a)?>
-				- GammaUUL[<?=p?>][<?=c?>][<?=b?>] * GammaULL.s<?=q?>.s<?=sym(c,a)?>
+				+ GammaUUL.s<?=p?>.s<?=c?>.s<?=c?> * GammaULL.s<?=q?>.s<?=sym(b,a)?>
+				- GammaUUL.s<?=p?>.s<?=c?>.s<?=b?> * GammaULL.s<?=q?>.s<?=sym(c,a)?>
 				- gUU.s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=sym(c,b)?><? 
 				end ?>,
 <? 			end

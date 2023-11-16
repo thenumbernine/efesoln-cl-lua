@@ -29,6 +29,12 @@ typedef union {
 } real4x4s4;
 
 typedef union {
+	real4x4 s[4];
+	struct { real4x4 s0, s1, s2, s3; };
+	struct { real4x4 t, x, y, z; };
+} real4x4x4;
+
+typedef union {
 	real4x4s4 s[4];
 	struct { real4x4s4 s0, s1, s2, s3; };
 	struct { real4x4s4 t, x, y, z; };

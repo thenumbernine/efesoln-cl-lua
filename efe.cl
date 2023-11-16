@@ -270,6 +270,18 @@ static inline real4 real4x4s4_tr12(real4x4s4 const a) {
 ?>	);
 }
 
+//a^ij_k = b^i_mk c^mj
+static inline real4x4x4 real4x4s4_real4s4_mul21(
+	real4x4s4 const a,
+	real4s4 const b
+) {
+	return (real4x4x4){
+<? for i=0,3 do 
+?>		.s<?=i?> = real4s4_real4s4_mul(b, a.s<?=i?>),
+<? end 
+?>	};
+}
+
 //b_ij = a^k_ikj
 static inline real4s4 real4x4x4s4_tr13(real4x4x4s4 const a) {
 	return (real4s4){
