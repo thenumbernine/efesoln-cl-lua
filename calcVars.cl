@@ -186,41 +186,15 @@ kernel void calc_GammaULLs(
 	real4x4s4 dgLLL;
 	dgLLL.s0 = real4s4_zero;
 	<? for i=0,sDim-1 do ?>{
-		real4s4 gLL_prev;
-		if (i.s<?=i?> > 0) {
-			int4 iL = i;
-			--iL.s<?=i?>;
-			int const indexL = indexForInt4(iL);
-			gLL_prev = gLLs[indexL];
-		} else {
-			// boundary condition:
-			gLL_prev = gLL_flat;
-		}
+		real4s4 const gLL_prev = (i.s<?=i?> - 1 < 0)
+			? gLL_flat	// boundary condition:
+			: gLLs[index - stepsize.s<?=i?>];
 		
-		real4s4 gLL_next;
-		if (i.s<?=i?> < size.s<?=i?> - 1) {
-			int4 iR = i;
-			++iR.s<?=i?>;
-			int const indexR = indexForInt4(iR);
-			gLL_next = gLLs[indexR];
-		} else {
-			//boundary condition:
-			gLL_next = gLL_flat;
-		}
+		real4s4 const gLL_next = (i.s<?=i?> + 1 >= size.s<?=i?> - 1)
+			? gLL_flat	//boundary condition:
+			: gLLs[index + stepsize.s<?=i?>];
 
-#if 0 // per-component - works
-		dgLLL.s<?=i+1?> = (real4s4){
-<?
-for a=0,stDim-1 do
-	for b=a,stDim-1 do
-?>			.s<?=a..b?> = (gLL_next.s<?=a..b?> - gLL_prev.s<?=a..b?>) * .5 * inv_dx.s<?=i?>,
-<?
-	end
-end
-?>		};
-#else // using real4s4 math functions - works
 		dgLLL.s<?=i+1?> = real4s4_real_mul(real4s4_sub(gLL_next, gLL_prev), .5 * inv_dx.s<?=i?>);
-#endif
 	}<? end ?>
 #endif
 
