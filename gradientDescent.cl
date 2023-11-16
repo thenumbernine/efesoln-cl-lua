@@ -11,14 +11,14 @@ kernel void calc_dPhi_dgPrims(
 ) {
 	initKernel();
 	
-	global real4s4 const * const gLL = gLLs + index;
-	global real4s4 const * const gUU = gUUs + index;
-	global real4x4s4 const * const GammaULL = GammaULLs + index;
+	real4s4 const gLL = gLLs[index];
+	real4s4 const gUU = gUUs[index];
+	real4x4s4 const GammaULL = GammaULLs[index];
 
 	//this is also in the Ricci computation, but should I be storing it?  is it too big?
 	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
 
-	//R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
+	//RiemannULLL.a.b.cd := R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
 	real4x4x4s4 const RiemannULLL = (real4x4x4s4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (real4x4s4){
@@ -30,8 +30,8 @@ kernel void calc_dPhi_dgPrims(
 					  dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
 					- dGammaLULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?><?
 				for e=0,stDim-1 do ?>
-					+ GammaULL->s<?=a?>.s<?=sym(e,c)?> * GammaULL->s<?=e?>.s<?=sym(b,d)?>
-					- GammaULL->s<?=a?>.s<?=sym(e,d)?> * GammaULL->s<?=e?>.s<?=sym(b,c)?><? 
+					+ GammaULL.s<?=a?>.s<?=sym(e,c)?> * GammaULL.s<?=e?>.s<?=sym(b,d)?>
+					- GammaULL.s<?=a?>.s<?=sym(e,d)?> * GammaULL.s<?=e?>.s<?=sym(b,c)?><? 
 				end ?>,
 <? 			end 
 		end
@@ -41,50 +41,19 @@ kernel void calc_dPhi_dgPrims(
 <? end 
 ?>	};
 
-	//R_ab = R^c_acb
-	real4s4 const RicciLL = (real4s4){
-<? for a=0,stDim-1 do 
-	for b=a,stDim-1 do
-?>		.s<?=a..b?> = 0. <?
-		for c=0,stDim-1 do 
-?> + RiemannULLL.s<?=c?>.s<?=a?>.s<?=sym(c,b)?><? 
-		end ?>,
-<? 	end
-end 
-?>	};
+	//RicciLL.ab := R_ab = R^c_acb
+	real4s4 const RicciLL = real4x4x4s4_tr13(RiemannULLL);
 
 	//R^a_b = g^ac R_cb
-	real const RicciUL[4][4] = {
-<? for a=0,stDim-1 do 
-?>		{
-<?
-	for b=0,stDim-1 do 
-?>			0.<?
-		for c=0,stDim-1 do 
-?> + gUU->s<?=sym(a,c)?> * RicciLL.s<?=sym(c,b)?><?
-		end ?>,
-<?
-	end 
-?>		},
-<? end 
-?>	};
+	real4x4 const RicciUL = real4s4_real4s4_mul(gUU, RicciLL);
 
 	//R^ab = R^a_c g^cb
-	real4s4 const RicciUU = (real4s4){
-<? for a=0,stDim-1 do
-	for b=a,stDim-1 do 
-?>		.s<?=a..b?> = 0.<?
-		for c=0,stDim-1 do 
-		?> + RicciUL[<?=a?>][<?=c?>] * gUU->s<?=sym(c,b)?><?
-	end ?>,
-<?	end
-end 
-?>	};
+	real4s4 const RicciUU = real4x4_real4s4_to_real4s4_mul(RicciUL, gUU);
 
 	//R = R^a_a
 	real const Gaussian = 0.<? 
 for a=0,stDim-1 do 
-?> + RicciUL[<?=a?>][<?=a?>]<?
+?> + RicciUL.s<?=a?>.s<?=a?><?
 end ?>;
 
 	//Γ^ab_c = Γ^a_dc g^db
@@ -96,7 +65,7 @@ end ?>;
 <? 		for c=0,stDim-1 do 
 ?>				0.<? 
 			for d=0,stDim-1 do 
-?> + GammaULL->s<?=a?>.s<?=sym(d,c)?> * gUU->s<?=sym(d,b)?><?
+?> + GammaULL.s<?=a?>.s<?=sym(d,c)?> * gUU.s<?=sym(d,b)?><?
 			end ?>,
 <? 		end 
 ?>			},
@@ -191,9 +160,9 @@ end ?>;
 			for b=a,stDim-1 do
 ?>			.s<?=a..b?> = 0.<?
 				for c=0,stDim-1 do ?> 
-				+ GammaUUL[<?=p?>][<?=c?>][<?=c?>] * GammaULL->s<?=q?>.s<?=sym(b,a)?>
-				- GammaUUL[<?=p?>][<?=c?>][<?=b?>] * GammaULL->s<?=q?>.s<?=sym(c,a)?>
-				- gUU->s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=sym(c,b)?><? 
+				+ GammaUUL[<?=p?>][<?=c?>][<?=c?>] * GammaULL.s<?=q?>.s<?=sym(b,a)?>
+				- GammaUUL[<?=p?>][<?=c?>][<?=b?>] * GammaULL.s<?=q?>.s<?=sym(c,a)?>
+				- gUU.s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=sym(c,b)?><? 
 				end ?>,
 <? 			end
 		end 
@@ -202,17 +171,17 @@ end ?>;
 end 
 ?>	};
 
-	//g^ab ∂/∂g_pq R_ab
+	//g^ab ∂R_ab/∂g_pq
 	real4s4 const gUU_dRicciLL_dgLL = (real4s4){
 <? for p=0,stDim-1 do 
 	for q=p,stDim-1 do 
-?>		.s<?=p..q?> = real4s4_dot(*gUU, dRicciLL_dgLL.s<?=p..q?>),
+?>		.s<?=p..q?> = real4s4_dot(gUU, dRicciLL_dgLL.s<?=p..q?>),
 <?	end
 end ?>
 	};
 
 	/*
-	∂/∂g_pq G_ab = real4s4x4s4.s[pq].s[ab]
+	∂G_ab/∂g_pq = dEinsteinLL_dgLL.pq.ab
 	= ∂/∂g_pq (R_ab - 1/2 R g_ab)
 	= ∂/∂g_pq R_ab - 1/2 ∂/∂g_pq R g_ab - 1/2 R ∂/∂g_pq g_ab
 	= ∂/∂g_pq R_ab - 1/2 g_ab ∂/∂g_pq (R_uv g^uv) - 1/2 R δ_a^p δ_b^q
@@ -229,7 +198,7 @@ end ?>
 ?>			.s<?=a..b?> = dRicciLL_dgLL.s<?=p..q?>.s<?=a..b?><?
 				?> - .5 * (<?
 				if p==a and q==b then ?>Gaussian<? else ?>0.<? end 
-				?> + gLL->s<?=a..b?> * (<?
+				?> + gLL.s<?=a..b?> * (<?
 					?>gUU_dRicciLL_dgLL.s<?=p..q?><?
 					?> - RicciUU.s<?=p..q?><?
 				?>)),
@@ -253,14 +222,14 @@ end
 <?
 if solver.body.useEM then ?>	
 	real4 const EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim.E.s<?=i?> <? end ?>); 
-	real4 const EL = real4s4_real4_mul(*gLL, EU);
+	real4 const EL = real4s4_real4_mul(gLL, EU);
 	real const ESq = dot(EL, EU);
 	
 	real4 const BU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim.B.s<?=i?> <? end ?>); 
-	real4 const BL = real4s4_real4_mul(*gLL, BU);
+	real4 const BL = real4s4_real4_mul(gLL, BU);
 	real const BSq = dot(BL, BU);
 
-	real const sqrt_det_g = sqrt(fabs(real4s4_det(*gLL)));
+	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
 	real3 const SL = real3_real_mul(real3_cross(TPrim.E, TPrim.B), sqrt_det_g);
 
 <?
@@ -274,11 +243,11 @@ if solver.body.useEM then ?>
 			end
 			?>;
 <? 			for i=0,sDim-1 do 
-?>	d_8piTLL_dgLL.s<?=e..f?>.s0<?=i+1?> = -SL.s<?=i?> * gUU->s<?=e..f?>;
+?>	d_8piTLL_dgLL.s<?=e..f?>.s0<?=i+1?> = -SL.s<?=i?> * gUU.s<?=e..f?>;
 <? 				for j=i,sDim-1 do 
 ?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=i+1?><?=j+1?> = 0.<? 
 					if e==i+1 and f==j+1 then ?> + ESq + BSq <? end 
-					?> + gLL->s<?=i..j?> * (<?
+					?> + gLL.s<?=i..j?> * (<?
 					if e==0 or f==0 then
 						?>0<?
 					else
@@ -305,13 +274,13 @@ if solver.body.useMatter then
 	if solver.body.useVel then ?>//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = (real4)(0, TPrim.v.x, TPrim.v.y, TPrim.v.z);
-	real4 const vL = real4s4_real4_mul(*gLL, vU);
+	real4 const vL = real4s4_real4_mul(gLL, vU);
 	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
-	real4 const uL = real4s4_real4_mul(*gLL, uU);
-	<? else ?>//otherwise uL = gLL->s0
-	real4 const uL = (real4)(gLL->s00, gLL->s01, gLL->s02, gLL->s03);
+	real4 const uL = real4s4_real4_mul(gLL, uU);
+	<? else ?>//otherwise uL = gLL.s0
+	real4 const uL = (real4)(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
 	<? 
 	end
 	
@@ -332,18 +301,21 @@ end
 ?>
 
 	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
-	real4s4 dPhi_dgLL;
+	
+	//∂Φ/∂g_pq = (G_ab - 8 π T_ab) (∂G_ab/∂g_pq - 8 π ∂T_ab/∂g_pq)
+	real4s4 dPhi_dgLL = (real4s4){
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do 
-?>	dPhi_dgLL.s<?=p..q?> = real4s4_dot(<?
-		?>EFE, <?
-		?>real4s4_sub(<?
-			?>dEinsteinLL_dgLL.s<?=p..q?>, <?
-			?>d_8piTLL_dgLL.s<?=p..q?><?
-		?>)<?
-	?>);
+?>	.s<?=p..q?> = real4s4_dot(
+			EFE, 
+			real4s4_sub(
+				dEinsteinLL_dgLL.s<?=p..q?>, 
+				d_8piTLL_dgLL.s<?=p..q?>
+			)
+		),
 <? 	end
-end ?>
+end
+?>	};
 
 	global gPrim_t * const dPhi_dgPrim = dPhi_dgPrims + index;
 	gPrim_t const gPrim = gPrims[index];

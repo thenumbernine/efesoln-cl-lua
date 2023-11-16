@@ -88,8 +88,8 @@ static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 
 static inline real real4s4_dot(real4s4 const a, real4s4 const b) {
 	return 0.<?
-for a=0,stDim-1 do
-	for b=0,stDim-1 do 
+for a=0,3 do
+	for b=0,3 do 
 ?> + a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?><?
 	end 
 end ?>;
@@ -97,8 +97,8 @@ end ?>;
 
 static inline real4s4 real4s4_outer(real4 const v) {
 	return (real4s4){
-<? for a=0,stDim-1 do
-	for b=a,stDim-1 do
+<? for a=0,3 do
+	for b=a,3 do
 ?>		.s<?=a..b?> = v.s<?=a?> * v.s<?=b?>,
 <? 	end
 end
@@ -152,6 +152,7 @@ static inline real4s4 real4s4_mul_add(
 	return real4s4_add(a, real4s4_real_mul(b, c));
 }
 
+//a_i = b_ij c_j
 static inline real4 real4s4_real4_mul(real4s4 const m, real4 const v) {
 	return (real4){
 <? for i=0,3 do
@@ -177,6 +178,52 @@ static inline real real4s4_det(real4s4 const m) {
 		m.s02 * m.s11 * m.s02 * m.s33 + m.s01 * m.s12 * m.s02 * m.s33 +
 		m.s02 * m.s01 * m.s12 * m.s33 - m.s00 * m.s12 * m.s12 * m.s33 -
 		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
+}
+
+//a_ij = b_ik c_kj
+static inline real4x4 real4s4_real4s4_mul(
+	real4s4 const a,
+	real4s4 const b
+) {
+	return (real4x4){
+<? for a=0,3 do 
+?>		.s<?=a?> = (real4)(
+<?
+	for b=0,3 do 
+?>			0.<?
+		for c=0,3 do 
+?> + a.s<?=sym(a,c)?> * b.s<?=sym(c,b)?><?
+		end ?><?=b < 3 and "," or ""?>
+<?
+	end 
+?>		),
+<? end 
+?>	};
+}
+
+//a_ij = b_ik c_kj
+static inline real4s4 real4x4_real4s4_to_real4s4_mul(
+	real4x4 const a,
+	real4s4 const b
+) {
+	return (real4s4){
+<? for a=0,3 do
+	for b=a,3 do 
+?>		.s<?=a..b?> = 0.<?
+		for c=0,3 do 
+		?> + a.s<?=a?>.s<?=c?> * b.s<?=sym(c,b)?><?
+	end ?>,
+<?	end
+end 
+?>	};
+}
+
+//a = b_ii
+static inline real real4x4_tr(real4x4 const a) {
+	return 0.<? 
+for a=0,3 do 
+?> + a.s<?=a?>.s<?=a?><?
+end ?>;
 }
 
 #define real4x4s4_zero ((real4x4s4){ \
@@ -209,6 +256,34 @@ static inline real4x4s4 real4x4s4_sub(real4x4s4 const a, real4x4s4 const b) {
 <? end 
 ?>	};
 }
+
+//b_i = a_jji
+static inline real4 real4x4s4_tr12(real4x4s4 const a) {
+	return (real4)(
+<? for i=0,3 do 
+?>		0.<? 
+	for j=0,3 do 
+?> + a.s<?=j?>.s<?=sym(j,i)?><? 
+	end
+?><?=i<3 and "," or ""?>
+<? end
+?>	);
+}
+
+//b_ij = a^k_ikj
+static inline real4s4 real4x4x4s4_tr13(real4x4x4s4 const a) {
+	return (real4s4){
+<? for a=0,3 do 
+	for b=a,3 do
+?>		.s<?=a..b?> = 0. <?
+		for c=0,3 do 
+?> + a.s<?=c?>.s<?=a?>.s<?=sym(c,b)?><? 
+		end ?>,
+<? 	end
+end 
+?>	};
+}
+
 
 static inline real4s4x4s4 real4s4x4s4_add(
 	real4s4x4s4 const a,
@@ -262,6 +337,7 @@ real4x4x4s4 calc_dGammaLULL(
 	}
 	int index = indexForInt4ForSize(i, size.x, size.y, size.z);
 
+	//Γ^b_cd,a = dGammaLULL.a.b.cd
 <?= solver:finiteDifference{
 	bufferName = "GammaULLs",
 	valueType = "real4x4s4",
@@ -292,17 +368,7 @@ real4s4 calc_EinsteinLL(
 
 	real4x4s4 const GammaULL = GammaULLs[index];
 	
-	real4 const Gamma12L = (real4){
-<? 
-for a=0,stDim-1 do 
-?>		0. <? 
-	for b=0,stDim-1 do 
-?> + GammaULL.s<?=b?>.s<?=sym(b,a)?><? 
-	end
-	if a < stDim-1 then ?>,
-<? 	end
-end ?>
-};
+	real4 const Gamma12L = real4x4s4_tr12(GammaULL);
 
 	real4s4 const RicciLL = {
 <? 
