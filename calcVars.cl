@@ -84,7 +84,7 @@ kernel void calc_GammaULLs(
 ) {
 	initKernel();
 
-	//g_ab,c = dgLLL.c.ab
+	//g_ab,c := dgLLL.c.ab
 	//here's where the finite difference stuff comes in ...
 	//TODO modular finite-difference kernels & boundary conditions
 	real4x4s4 dgLLL;
@@ -121,7 +121,7 @@ kernel void calc_GammaULLs(
 		};
 	}<? end ?>
 
-	//Γ_abc = GammaLLL.a.bc
+	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
 	real4x4s4 const GammaLLL = (real4x4s4){
 	<? for a=0,stDim-1 do ?>
@@ -221,27 +221,33 @@ kernel void solveAL(
 
 	real4 skewSum = real4_zero;
 	<? for i=0,sDim-1 do ?>{
-		int4 iL = i;
-		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int const indexL = indexForInt4(iL);
-		global <?=TPrim_t?> * const TPrim_prev = TPrims + indexL;
-
-		skewSum = real4_add(
-			skewSum,
-			real4_real_mul(
-				TPrim_prev->JU,
-				inv_dx.s<?=i?> * inv_dx.s<?=i?>)
-			);
 		
-		int4 iR = i;
-		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int indexR = indexForInt4(iR);
-		global <?=TPrim_t?> * const TPrim_next = TPrims + indexR;
+		<?=TPrim_t?> TPrim_prev;
+		if (i.s<?=i?> > 0) {
+			int4 iL = i;
+			--iL.s<?=i?>;
+			int const indexL = indexForInt4(iL);
+			TPrim_prev = TPrims[indexL];
+		} else {
+			// boundary condition
+			TPrim_prev = TPrims[index];
+		}
+
+		<?=TPrim_t?> TPrim_next;
+		if (i.s<?=i?> < size.s<?=i?> - 1) {
+			int4 iR = i;
+			++iR.s<?=i?>;
+			int indexR = indexForInt4(iR);
+			TPrim_next = TPrims[indexR];
+		} else {
+			// boundary condition
+			TPrim_next = TPrims[index];
+		}
 
 		skewSum = real4_add(
 			skewSum,
 			real4_real_mul(
-				TPrim_next->JU,
+				real4_add(TPrim_prev.JU, TPrim_next.JU),
 				inv_dx.s<?=i?> * inv_dx.s<?=i?>)
 			);
 	}<? end ?>

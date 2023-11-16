@@ -1,4 +1,9 @@
-#define _real3(a,b,c) (real3){.s={a,b,c}}
+// I reported this bug to intel like 3 years ago.  it's fixed, right?
+//is buggy with doubles on intel opencl ubuntu compiler
+//#define _real3(a,b,c)          ((real3){.s={a,b,c}})
+//so we do this instead and are safe:
+#define _real3(a,b,c)            ((real3){.x=a, .y=b, .z=c})
+
 
 constant real const c = 299792458;			// m/s 
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
@@ -276,7 +281,7 @@ real4x4x4s4 calc_dGammaLULL(
 	
 		dGammaLULL.s<?=i+1?> = real4x4s4_real_mul(
 			real4x4s4_sub(GammaULL_next, GammaULL_prev),
-			.5 * inv_dx.s<?=i?> );
+			.5 * inv_dx.s<?=i?>);
 	}<? end ?>
 
 	return dGammaLULL;

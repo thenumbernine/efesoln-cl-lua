@@ -580,17 +580,29 @@ typedef char int8_t;
 		return template([[
 	real div = 0.;
 	<? for i=0,sDim-1 do ?>{
-		int4 iL = i;
-		iL.s<?=i?> = max(i.s<?=i?> - 1, 0);
-		int const indexL = indexForInt4(iL);
-		global <?=TPrim_t?> const * const TPrim_prev = TPrims + indexL;
+		<?=TPrim_t?> TPrim_prev;
+		if (i.s<?=i?> > 0) {
+			int4 iL = i;
+			--iL.s<?=i?>;
+			int const indexL = indexForInt4(iL);
+			TPrim_prev = TPrims[indexL];
+		} else {
+			// boundary condition:
+			TPrim_prev = TPrims[index];
+		}
 
-		int4 iR = i;
-		iR.s<?=i?> = min(i.s<?=i?> + 1, size.s<?=i?> - 1);
-		int const indexR = indexForInt4(iR);
-		global <?=TPrim_t?> const * const TPrim_next = TPrims + indexR;
+		<?=TPrim_t?> TPrim_next;
+		if (i.s<?=i?> < size.s<?=i?> - 1) {
+			int4 iR = i;
+			++iR.s<?=i?>;
+			int const indexR = indexForInt4(iR);
+			TPrim_next = TPrims[indexR];
+		} else {
+			// boundary condition
+			TPrim_next = TPrims[index];
+		}
 
-		div += (TPrim_next-><?=field?>.s<?=i?> - TPrim_prev-><?=field?>.s<?=i?>) * .5 * inv_dx.s<?=i?>;
+		div += (TPrim_next.<?=field?>.s<?=i?> - TPrim_prev.<?=field?>.s<?=i?>) * .5 * inv_dx.s<?=i?>;
 	}<? end ?>
 
 	texCLBuf[index] = div;
