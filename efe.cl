@@ -194,6 +194,14 @@ static inline real4x4s4 real4x4s4_real_mul(real4x4s4 const a, real const s) {
 ?>	};
 }
 
+static inline real4x4s4 real4x4s4_add(real4x4s4 const a, real4x4s4 const b) {
+	return (real4x4s4){
+<? for a=0,3 do 
+?>		.s<?=a?> = real4s4_add(a.s<?=a?>, b.s<?=a?>),
+<? end 
+?>	};
+}
+
 static inline real4x4s4 real4x4s4_sub(real4x4s4 const a, real4x4s4 const b) {
 	return (real4x4s4){
 <? for a=0,3 do 
@@ -254,35 +262,12 @@ real4x4x4s4 calc_dGammaLULL(
 	}
 	int index = indexForInt4ForSize(i, size.x, size.y, size.z);
 
-	real4x4x4s4 dGammaLULL;
-	dGammaLULL.s0 = real4x4s4_zero;
-	<? for i=0,sDim-1 do ?>{
-		real4x4s4 GammaULL_prev;
-		if (i.s<?=i?> > 0) {
-			int4 iL = i;
-			--iL.s<?=i?>;
-			int const indexL = indexForInt4(iL);
-			GammaULL_prev = GammaULLs[indexL];
-		} else {
-			// boundary condition
-			GammaULL_prev = real4x4s4_zero;
-		}
-		
-		real4x4s4 GammaULL_next;
-		if (i.s<?=i?> < size.s<?=i?> - 1) {
-			int4 iR = i;
-			++iR.s<?=i?>;
-			int const indexR = indexForInt4(iR);
-			GammaULL_next = GammaULLs[indexR];
-		} else {
-			// boundary condition
-			GammaULL_next = real4x4s4_zero;
-		}
-	
-		dGammaLULL.s<?=i+1?> = real4x4s4_real_mul(
-			real4x4s4_sub(GammaULL_next, GammaULL_prev),
-			.5 * inv_dx.s<?=i?>);
-	}<? end ?>
+<?= solver:finiteDifference{
+	bufferName = "GammaULLs",
+	valueType = "real4x4s4",
+	resultName = "dGammaLULL",
+	resultType = "real4x4x4s4",
+} ?>
 
 	return dGammaLULL;
 }

@@ -235,6 +235,95 @@ local bodies = {
 
 local EFESolver = CLEnv:subclass()
 
+-- finite difference
+
+-- source: https://en.wikipedia.org/wiki/Finite_difference_coefficient
+-- derivCoeffs[derivative][order] = {coeffs...}
+-- separating out the denom is improving my numerical accuracy.  without doing so, bssnok-fd-num, cartesian, minkowski, RK4 diverges.
+local derivCoeffs = {
+	-- centered, antisymmetric 1st deriv coefficients
+	{
+		[2] = {1, denom=2},
+		[4] = {8, -1, denom=12},
+		[6] = {45, -9, 1, denom=60},
+		[8] = {672, -168, 32, -3, denom=840},
+		[10] = {5/6, -5/21, 5/84, -5/504, 1/1260, denom=1},
+	},
+	-- centered, symmetric 2nd deriv coefficients
+	{
+		[2] = {[0] = -2, 1, denom=1},
+		[4] = {[0] = -30, 16, -1, denom=12},
+		[6] = {[0] = -490, 270, -27, 2, denom=180},
+		[8] = {[0] = -205/72, 8/5, -1/5, 8/315, -1/560, denom=1},
+	},
+	-- centered, antisymmetric 3rd deriv coefficients
+	{
+		[2] = {-2, 1, denom=2},
+		[4] = {-13, 8, -1, denom=8},
+		[6] = {-488, 338, -72, 7, denom=240},
+	},
+	-- centered, symmetric 4th deriv coefficients
+	{
+		[2] = {[0] = 6, -4, 1, denom=1},
+		[4] = {[0] = 56, -39, 12, -1, denom=6},
+		--[6] = {[0] = 2730, -1952, 676, -96, 7},
+	}
+}
+
+-- bake in denominator
+local table = require 'ext.table'
+for deriv, coeffsPerOrder in ipairs(derivCoeffs) do
+	for order, coeffs in pairs(coeffsPerOrder) do
+		local denom = coeffs.denom
+		coeffs.denom = nil
+		local keys = table.keys(coeffs)
+		for _,i in ipairs(keys) do
+			coeffs[i] = coeffs[i] / denom
+		end
+	end
+end
+
+function EFESolver:finiteDifference(args)
+	return template([[<?
+local bufferName = args.bufferName
+local valueType = args.valueType
+local getValue = args.getValue or function(index)
+	return bufferName.."["..index.."]"
+end
+local resultType = args.resultType
+local resultName = args.resultName
+local boundaryCode = args.boundaryCode or valueType.."_zero"
+local coeffs = assert(derivCoeffs[1][order])
+?>	<?=resultType?> <?=resultName?> = <?=resultType?>_zero;
+	<? for i=0,sDim-1 do ?>{
+		<? for j,coeff in pairs(coeffs) do ?>{
+			<?=valueType?> const yL = (i.s<?=i?> - <?=j?> < 0)
+				? <?=boundaryCode?>		// lhs
+				: <?=getValue("index - stepsize.s"..i.." * "..j)?>;
+
+			<?=valueType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
+				? <?=boundaryCode?>		// rhs
+				: <?=getValue("index + stepsize.s"..i.." * "..j)?>;
+
+			<?=resultName?>.s<?=i+1?> = <?=valueType?>_add(
+				<?=resultName?>.s<?=i+1?>,
+				<?=valueType?>_real_mul(
+					<?=valueType?>_sub(yR, yL),
+					<?=coeff?> * inv_dx.s<?=i?>
+				)
+			);
+		}<? end ?>
+	}<? end ?>
+<?
+]], {
+		args = args,
+		derivCoeffs = derivCoeffs,
+		sDim = self.sDim,
+		order = self.diffOrder,
+	})
+end
+
+
 EFESolver.useFourPotential = false
 
 EFESolver.initConds = table{
@@ -420,6 +509,7 @@ function EFESolver:init(args)
 
 	self.stDim = 4 		-- spacetime dim
 	self.sDim = 3		-- space dim
+	self.diffOrder = config.diffOrder	-- finite-difference order
 
 	self.body = bodies[config.body]
 
@@ -562,7 +652,9 @@ typedef char int8_t;
 
 	-- append efe.cl to the environment code
 	self.code = self.code .. '\n'
-		.. self:compileTemplates(path'efe.cl':read())
+		.. self:template(path'efe.cl':read())
+
+	path'cache_efe.cl':write(self.code)
 
 	self.updateLambda = config.updateLambda
 
@@ -981,7 +1073,7 @@ function EFESolver:initBuffers()
 	end
 end
 
-function EFESolver:compileTemplates(code)
+function EFESolver:template(code)
 	return template(code, {
 		clnumber = clnumber,
 		sym = sym,
@@ -993,6 +1085,7 @@ function EFESolver:compileTemplates(code)
 		xmin = self.xmin,
 		xmax = self.xmax,
 		solver = self,
+		finiteDifference = finiteDifference,
 		c = c,
 		G = G,
 		TPrim_t = self.TPrim_t,
@@ -1003,12 +1096,12 @@ function EFESolver:refreshKernels()
 	-- create code
 	print'preprocessing code...'
 
-	local code = self:compileTemplates(table{
+	local code = self:template(table{
 		path'calcVars.cl':read(),
 		path'gradientDescent.cl':read(),
 	}:concat'\n')
 
-	path'cache.cl':write(code)
+	path'cache_calcVars.cl':write(code)
 
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
 	local program = self:program{code=code}
@@ -1096,7 +1189,7 @@ function EFESolver:refreshInitCond()
 		.gammaLL = real3s3_ident,
 	};
 
-]]..self:compileTemplates(initCond.code),
+]]..self:template(initCond.code),
 	}
 end
 

@@ -1,91 +1,3 @@
-//
-
-<?
--- source: https://en.wikipedia.org/wiki/Finite_difference_coefficient
--- derivCoeffs[derivative][order] = {coeffs...}
--- separating out the denom is improving my numerical accuracy.  without doing so, bssnok-fd-num, cartesian, minkowski, RK4 diverges.
-local derivCoeffs = {
-	-- centered, antisymmetric 1st deriv coefficients
-	{
-		[2] = {1, denom=2},
-		[4] = {8, -1, denom=12},
-		[6] = {45, -9, 1, denom=60},
-		[8] = {672, -168, 32, -3, denom=840},
-		[10] = {5/6, -5/21, 5/84, -5/504, 1/1260, denom=1},
-	},
-	-- centered, symmetric 2nd deriv coefficients
-	{
-		[2] = {[0] = -2, 1, denom=1},
-		[4] = {[0] = -30, 16, -1, denom=12},
-		[6] = {[0] = -490, 270, -27, 2, denom=180},
-		[8] = {[0] = -205/72, 8/5, -1/5, 8/315, -1/560, denom=1},
-	},
-	-- centered, antisymmetric 3rd deriv coefficients
-	{
-		[2] = {-2, 1, denom=2},
-		[4] = {-13, 8, -1, denom=8},
-		[6] = {-488, 338, -72, 7, denom=240},
-	},
-	-- centered, symmetric 4th deriv coefficients
-	{
-		[2] = {[0] = 6, -4, 1, denom=1},
-		[4] = {[0] = 56, -39, 12, -1, denom=6},
-		--[6] = {[0] = 2730, -1952, 676, -96, 7},
-	}
-}
-
--- bake in denominator
-local table = require 'ext.table'
-for deriv, coeffsPerOrder in ipairs(derivCoeffs) do
-	for order, coeffs in pairs(coeffsPerOrder) do
-		local denom = coeffs.denom
-		coeffs.denom = nil
-		local keys = table.keys(coeffs)
-		for _,i in ipairs(keys) do
-			coeffs[i] = coeffs[i] / denom
-		end
-	end
-end
-
---[[
-args:
-	bufferName
-	bufferType
-	resultName
-	resultType
---]]
-local function finiteDifference(args)
-	local order
-	local bufferName = args.bufferName
-	local bufferType = args.bufferType
-	local resultName = args.resultName
-	local resultType = args.resultType
-	local order = 2	-- TODO put in config.lua
-	local coeffs = assert(derivCoeffs[1][order])
-?>	<?=resultType?> <?=resultName?> = <?=resultType?>_zero;
-	<? for i=0,sDim-1 do ?>{
-		<? for j,coeff in pairs(coeffs) do ?>{
-			<?=bufferType?> const yL = (i.s<?=i?> - <?=j?> < 0)
-				? <?=bufferType?>_zero	// lhs boundary condition
-				: <?=bufferName?>[index - stepsize.s<?=i?> * <?=j?>];
-
-			<?=bufferType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
-				? <?=bufferType?>_zero	// rhs boundary condition
-				: <?=bufferName?>[index + stepsize.s<?=i?> * <?=j?>];
-
-			<?=resultName?>.s<?=i+1?> = <?=bufferType?>_add(
-				<?=resultName?>.s<?=i+1?>,
-				<?=bufferType?>_real_mul(
-					<?=bufferType?>_sub(yR, yL),
-					<?=coeff?> * inv_dx.s<?=i?>
-				)
-			);
-		}<? end ?>
-	}<? end ?>
-<?
-end
-?>
-
 // init
 
 kernel void init_TPrims(
@@ -173,30 +85,13 @@ kernel void calc_GammaULLs(
 	initKernel();
 
 	//g_ab,c := dgLLL.c.ab
-	//here's where the finite difference stuff comes in ...
-	//TODO modular finite-difference kernels & boundary conditions
-#if 0	// auto-gen ... breaking
-<?finiteDifference{
+<?= solver:finiteDifference{
 	bufferName = "gLLs",
-	bufferType = "real4s4",
+	valueType = "real4s4",
 	resultName = "dgLLL",
 	resultType = "real4x4s4",
-}?>
-#else
-	real4x4s4 dgLLL;
-	dgLLL.s0 = real4s4_zero;
-	<? for i=0,sDim-1 do ?>{
-		real4s4 const gLL_prev = (i.s<?=i?> - 1 < 0)
-			? gLL_flat	// boundary condition:
-			: gLLs[index - stepsize.s<?=i?>];
-		
-		real4s4 const gLL_next = (i.s<?=i?> + 1 >= size.s<?=i?> - 1)
-			? gLL_flat	//boundary condition:
-			: gLLs[index + stepsize.s<?=i?>];
-
-		dgLLL.s<?=i+1?> = real4s4_real_mul(real4s4_sub(gLL_next, gLL_prev), .5 * inv_dx.s<?=i?>);
-	}<? end ?>
-#endif
+	boundaryCode = "gLL_flat",
+} ?>
 
 	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
@@ -295,6 +190,16 @@ kernel void solveAL(
 	global <?=TPrim_t?> * const TPrims
 ) {
 	initKernel();
+
+<? 
+--[[ TODO this is 2nd order, and the middle is missing, because it's an inverse to a discrete Laplacian solved with Jacobi iteration
+= solver:finiteDifference{
+	bufferName = "TPrims",
+	getValue = function(index) return "TPrims["..index.."].JU" end,
+	valueType = "real4",
+} 
+--]]
+?>
 
 	real4 skewSum = real4_zero;
 	<? for i=0,sDim-1 do ?>{

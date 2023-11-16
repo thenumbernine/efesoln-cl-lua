@@ -27,4 +27,7 @@ return {
 	--solver = 'JFNK',
 
 	useLineSearch = true,
+
+	-- finite-difference order
+	diffOrder = 10,
 }
