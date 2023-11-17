@@ -283,32 +283,32 @@ for deriv, coeffsPerOrder in ipairs(derivCoeffs) do
 	end
 end
 
+-- 1st deriv
 function EFESolver:finiteDifference(args)
 	return template([[<?
 local bufferName = args.bufferName
-local valueType = args.valueType
+local srcType = args.srcType
 local getValue = args.getValue or function(index)
 	return bufferName.."["..index.."]"
 end
-local resultType = args.resultType
 local resultName = args.resultName
-local boundaryCode = args.boundaryCode or valueType.."_zero"
+local boundaryCode = args.boundaryCode or "real"..srcType.."_zero"
 local coeffs = assert(derivCoeffs[1][order])
-?>	<?=resultType?> <?=resultName?> = <?=resultType?>_zero;
+?>	real4x<?=srcType?> <?=resultName?> = real4x<?=srcType?>_zero;
 	<? for i=0,sDim-1 do ?>{
 		<? for j,coeff in pairs(coeffs) do ?>{
-			<?=valueType?> const yL = (i.s<?=i?> - <?=j?> < 0)
+			real<?=srcType?> const yL = (i.s<?=i?> - <?=j?> < 0)
 				? <?=boundaryCode?>		// lhs
 				: <?=getValue("index - stepsize.s"..i.." * "..j)?>;
 
-			<?=valueType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
+			real<?=srcType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
 				? <?=boundaryCode?>		// rhs
 				: <?=getValue("index + stepsize.s"..i.." * "..j)?>;
 
-			<?=resultName?>.s<?=i+1?> = <?=valueType?>_add(
+			<?=resultName?>.s<?=i+1?> = real<?=srcType?>_add(
 				<?=resultName?>.s<?=i+1?>,
-				<?=valueType?>_real_mul(
-					<?=valueType?>_sub(yR, yL),
+				real<?=srcType?>_real_mul(
+					real<?=srcType?>_sub(yR, yL),
 					<?=coeff?> * inv_dx.s<?=i?>
 				)
 			);
@@ -322,6 +322,48 @@ local coeffs = assert(derivCoeffs[1][order])
 		order = self.diffOrder,
 	})
 end
+
+-- 2nd deriv
+function EFESolver:finiteDifference2(args)
+	return template([[<?
+local bufferName = args.bufferName
+local srcType = args.srcType
+local getValue = args.getValue or function(index)
+	return bufferName.."["..index.."]"
+end
+local resultType = "real4x"..srcType
+local resultName = args.resultName
+local boundaryCode = args.boundaryCode or "real"..srcType.."_zero"
+local coeffs = assert(derivCoeffs[1][order])
+?>	<?=resultType?> <?=resultName?> = <?=resultType?>_zero;
+	<? for i=0,sDim-1 do ?>{
+		<? for j,coeff in pairs(coeffs) do ?>{
+			real<?=srcType?> const yL = (i.s<?=i?> - <?=j?> < 0)
+				? <?=boundaryCode?>		// lhs
+				: <?=getValue("index - stepsize.s"..i.." * "..j)?>;
+
+			real<?=srcType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
+				? <?=boundaryCode?>		// rhs
+				: <?=getValue("index + stepsize.s"..i.." * "..j)?>;
+
+			<?=resultName?>.s<?=i+1?> = real<?=srcType?>_add(
+				<?=resultName?>.s<?=i+1?>,
+				real<?=srcType?>_real_mul(
+					real<?=srcType?>_sub(yR, yL),
+					<?=coeff?> * inv_dx.s<?=i?>
+				)
+			);
+		}<? end ?>
+	}<? end ?>
+<?
+]], {
+		args = args,
+		derivCoeffs = derivCoeffs,
+		sDim = self.sDim,
+		order = self.diffOrder,
+	})
+end
+
 
 
 EFESolver.useFourPotential = false
@@ -536,6 +578,21 @@ function EFESolver:init(args)
 typedef uchar uint8_t;
 typedef char int8_t;
 ]]
+
+		--[[
+		-- if I use 'struct' then I only get one listing of either sij or tt..zz
+		-- TODO change 'struct' to also have 'union', and make these as nested union+struct
+		-- that'd mean one extra layer of metatypes but meh
+		local real4s4x4s4_mt, real4s4x4s4_code = struct{
+			unionField = 's',
+			unionType = 'real4s4',
+			fields = table.append(range(0,3):mapi(function(i)
+				return range(i,3):mapi(function(j)
+					return {'s'..i..j = 'real4s4'}
+				end)
+			end):unpack())
+		}
+		--]]
 
 		local gPrim_mt, gPrim_code = struct{
 			name = 'gPrim_t',

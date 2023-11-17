@@ -372,9 +372,8 @@ real4x4x4s4 calc_dGammaLULL(
 	//Γ^b_cd,a = dGammaLULL.a.b.cd
 <?= solver:finiteDifference{
 	bufferName = "GammaULLs",
-	valueType = "real4x4s4",
+	srcType = "4x4s4",
 	resultName = "dGammaLULL",
-	resultType = "real4x4x4s4",
 } ?>
 
 	return dGammaLULL;
@@ -397,6 +396,19 @@ real4s4 calc_EinsteinLL(
 	//this Ricci calculation differs from the one in calc_dPhi_dgLLs because
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
 	// but this one doesn't need RiemannULLL, so we can contract one of the terms in RicciLL's calcs
+
+	// TODO use 2nd derivs + 2nd-deriv-finite-difference stencil
+
+
+<? if false then ?>
+	//g_ab,cd := dgLLL.cd.ab
+<?= solver:finiteDifference2{
+	bufferName = "gLLs",
+	srcType = "real4s4",
+	resultName = "d2gLLLL",
+	boundaryCode = "real4s4_zero",
+} ?>
+<? end ?>
 
 	real4x4s4 const GammaULL = GammaULLs[index];
 	

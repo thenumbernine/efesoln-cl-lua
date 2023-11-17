@@ -87,9 +87,8 @@ kernel void calc_GammaULLs(
 	//g_ab,c := dgLLL.c.ab
 <?= solver:finiteDifference{
 	bufferName = "gLLs",
-	valueType = "real4s4",
+	srcType = "4s4",
 	resultName = "dgLLL",
-	resultType = "real4x4s4",
 	boundaryCode = "gLL_flat",
 } ?>
 

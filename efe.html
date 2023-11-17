@@ -223,13 +223,59 @@ For 1st order spatial derivatives, $\frac{\partial}{\partial g_{ef}} {\Gamma^a}_
 <b>Riemann curvature:</b><br>
 ${R^a}_{bcd} = 2 (\frac{\partial}{\partial x^{[c}} {\Gamma^a}_{d]b} + {\Gamma^a}_{e[c} {\Gamma^e}_{d]b})$<br>
 <br>
-Expanded:<br>
+Expanding the antisymmetric indexes:<br>
 ${R^a}_{bcd} = {\Gamma^a}_{bd,c} - {\Gamma^a}_{bc,d} + {\Gamma^a}_{fc} {\Gamma^f}_{bd} - {\Gamma^a}_{fd} {\Gamma^f}_{bc}$<br>
 $= (g^{ae} \Gamma_{ebd})_{,c} - (g^{ae} \Gamma_{ebc})_{,d} + g^{ae} g^{fg} \Gamma_{efc} \Gamma_{gbd} - g^{ae} g^{fg} \Gamma_{efd} \Gamma_{gbc}$<br>
 $= {g^{ae}}_{,c} \Gamma_{ebd} + g^{ae} \Gamma_{ebd,c}
 	- {g^{ae}}_{,d} \Gamma_{ebc} - g^{ae} \Gamma_{ebc,d}
 	+ g^{ae} g^{fg} \Gamma_{efc} \Gamma_{gbd} 
 	- g^{ae} g^{fg} \Gamma_{efd} \Gamma_{gbc}$<br>
+<br>
+
+Replacing only $\Gamma_{abc,d}$'s in terms of $g_{ab,cd}$:<br>
+$=
+	  \frac{1}{2} g^{ae} (g_{eb,d} + g_{ed,b} - g_{bd,e})_{,c}
+	- \frac{1}{2} g^{ae} (g_{eb,c} + g_{ec,b} - g_{bc,e})_{,d}
+	+ {g^{ae}}_{,c} \Gamma_{ebd}
+	- {g^{ae}}_{,d} \Gamma_{ebc}
+	+ g^{ae} g^{fg} \Gamma_{efc} \Gamma_{gbd} 
+	- g^{ae} g^{fg} \Gamma_{efd} \Gamma_{gbc}$<br>
+$=
+	  \frac{1}{2} g^{ae} (
+	  	g_{ed,cb} - g_{bd,ce} - g_{ec,db} + g_{bc,de}
+	)
+	+ {g^{ae}}_{,c} \Gamma_{ebd}
+	- {g^{ae}}_{,d} \Gamma_{ebc}
+	+ g^{ae} g^{fg} \Gamma_{efc} \Gamma_{gbd} 
+	- g^{ae} g^{fg} \Gamma_{efd} \Gamma_{gbc}$<br>
+...then replacing the ${g^{ab}}_{,c}$ terms with $g_{ab,c}$ terms:<br>
+$=
+	  \frac{1}{2} g^{ae} (
+	  	g_{ed,cb} - g_{bd,ce} - g_{ec,db} + g_{bc,de}
+	)
+	- g^{au} g_{uv,c} g^{ve} \Gamma_{ebd}
+	+ g^{au} g_{uv,d} g^{ve} \Gamma_{ebc}
+	+ g^{ae} g^{fg} \Gamma_{efc} \Gamma_{gbd} 
+	- g^{ae} g^{fg} \Gamma_{efd} \Gamma_{gbc}$<br>
+... then replace those with $\Gamma_{abc}$...<br>
+$=
+	  \frac{1}{2} g^{ae} (
+	  	g_{ed,cb} - g_{bd,ce} - g_{ec,db} + g_{bc,de}
+	)
+	- g^{au} (\Gamma_{uvc} + \Gamma_{vuc}) g^{ve} \Gamma_{ebd}
+	+ g^{au} (\Gamma_{uvd} + \Gamma_{vud}) g^{ve} \Gamma_{ebc}
+	+ g^{ae} g^{fg} \Gamma_{efc} \Gamma_{gbd} 
+	- g^{ae} g^{fg} \Gamma_{efd} \Gamma_{gbc}$<br>
+$=
+	  \frac{1}{2} g^{ae} (
+	  	g_{ed,cb} - g_{bd,ce} - g_{ec,db} + g_{bc,de}
+	)
+	+ g^{ae} g^{fg} \Gamma_{fed} \Gamma_{gbc}
+	- g^{ae} g^{fg} \Gamma_{fec} \Gamma_{gbd}
+$<br>
+<br>
+
+If we were to replace all $\Gamma_{abc}$'s in terms of $g_{ab}$:<br>
 $= \frac{1}{2} {g^{ae}}_{,c} (g_{eb,d} + g_{ed,b} - g_{bd,e})
 	+ \frac{1}{2} g^{ae} (g_{eb,dc} + g_{ed,bc} - g_{bd,ec})
 	- \frac{1}{2} {g^{ae}}_{,d} (g_{eb,c} + g_{ec,b} - g_{bc,e})
@@ -320,6 +366,25 @@ $ = \frac{1}{2} g^{ef} (g_{be,af} + g_{af,be} - g_{ab,ef} - g_{ef,ab})
 	
 )$<br>
 <br>
+
+Based on only $g^{ab}, g_{ab,cd}, \Gamma_{abc}$:<br>
+$R_{ab} =
+	  \frac{1}{2} g^{ce} (
+	  	g_{eb,ca} - g_{ab,ce} - g_{ec,ba} + g_{ac,be}
+	)
+	+ g^{ce} g^{fg} \Gamma_{feb} \Gamma_{gac}
+	- g^{ce} g^{fg} \Gamma_{fec} \Gamma_{gab}
+$<br>
+$=
+	  \frac{1}{2} g^{uv} (
+		  g_{au,bv}
+	  	+ g_{bv,au} 
+		- g_{ab,uv} 
+		- g_{vu,ab} 
+	)
+	+ g^{ce} g^{fg} (\Gamma_{feb} \Gamma_{gac} - \Gamma_{fec} \Gamma_{gab})
+$<br>
+<Br>
 
 Derivatives:<br>
 $\frac{\partial R_{ab}}{\partial g_{ef}} = 
