@@ -291,12 +291,13 @@ local srcType = args.srcType
 local getValue = args.getValue or function(index)
 	return bufferName.."["..index.."]"
 end
+local dstType = "real4x"..srcType
 local resultName = args.resultName
 local boundaryCode = args.boundaryCode or "real"..srcType.."_zero"
-local coeffs = assert(derivCoeffs[1][order])
-?>	real4x<?=srcType?> <?=resultName?> = real4x<?=srcType?>_zero;
+local d1coeffs = assert(derivCoeffs[1][order])
+?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
 	<? for i=0,sDim-1 do ?>{
-		<? for j,coeff in pairs(coeffs) do ?>{
+		<? for j,coeff in pairs(d1coeffs) do ?>{
 			real<?=srcType?> const yL = (i.s<?=i?> - <?=j?> < 0)
 				? <?=boundaryCode?>		// lhs
 				: <?=getValue("index - stepsize.s"..i.." * "..j)?>;
@@ -331,28 +332,64 @@ local srcType = args.srcType
 local getValue = args.getValue or function(index)
 	return bufferName.."["..index.."]"
 end
-local resultType = "real4x"..srcType
+local dstType = "real4s4x"..srcType
 local resultName = args.resultName
 local boundaryCode = args.boundaryCode or "real"..srcType.."_zero"
-local coeffs = assert(derivCoeffs[1][order])
-?>	<?=resultType?> <?=resultName?> = <?=resultType?>_zero;
+local d1coeffs = assert(derivCoeffs[1][order])
+local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for order "..order)
+?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
 	<? for i=0,sDim-1 do ?>{
-		<? for j,coeff in pairs(coeffs) do ?>{
-			real<?=srcType?> const yL = (i.s<?=i?> - <?=j?> < 0)
-				? <?=boundaryCode?>		// lhs
-				: <?=getValue("index - stepsize.s"..i.." * "..j)?>;
+		<? for j=i,sDim-1 do ?>{
+<? if i == j then -- 2nd-deriv kernel
+?>
+			<? for k,coeff in pairs(d2coeffs) do ?>{
+				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0)
+					? <?=boundaryCode?>		// lhs
+					: <?=getValue("index - stepsize.s"..i.." * "..k)?>;
 
-			real<?=srcType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
-				? <?=boundaryCode?>		// rhs
-				: <?=getValue("index + stepsize.s"..i.." * "..j)?>;
+				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= size.s<?=i?>)
+					? <?=boundaryCode?>		// rhs
+					: <?=getValue("index + stepsize.s"..i.." * "..k)?>;
 
-			<?=resultName?>.s<?=i+1?> = real<?=srcType?>_add(
-				<?=resultName?>.s<?=i+1?>,
-				real<?=srcType?>_real_mul(
-					real<?=srcType?>_sub(yR, yL),
-					<?=coeff?> * inv_dx.s<?=i?>
-				)
-			);
+				<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
+					<?=resultName?>.s<?=i+1?><?=j+1?>,
+					real<?=srcType?>_real_mul(
+						real<?=srcType?>_add(yR, yL),
+						<?=coeff?> * inv_dx.s<?=i?> * inv_dx.s<?=i?>
+					)
+				);
+			}<? end ?>
+
+<? else	-- two 1st-deriv kernels
+?>
+			<? for k,coeff_k in pairs(d1coeffs) do ?>{
+				<? for l,coeff_l in pairs(d1coeffs) do ?>{
+					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0)
+						? <?=boundaryCode?>		// lhs+lhs
+						: <?=getValue("index - stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l)?>;
+					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
+						? <?=boundaryCode?>		// lhs+rhs
+						: <?=getValue("index - stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l)?>;
+					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> - <?=l?> < 0)
+						? <?=boundaryCode?>		// lhs+rhs
+						: <?=getValue("index + stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l)?>;
+					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
+						? <?=boundaryCode?>		// rhs+rhs
+						: <?=getValue("index + stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l)?>;
+
+					<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
+						<?=resultName?>.s<?=i+1?><?=j+1?>,
+						real<?=srcType?>_real_mul(
+							real<?=srcType?>_sub(
+								real<?=srcType?>_add(yRR, yLL),
+								real<?=srcType?>_add(yLR, yRL)
+							),
+							<?=coeff_k * coeff_l?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>
+						)
+					);
+				}<? end ?>
+			}<? end ?>
+<? end ?>		
 		}<? end ?>
 	}<? end ?>
 <?

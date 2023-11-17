@@ -294,7 +294,38 @@ static inline real4 real4x4s4_tr12(real4x4s4 const a) {
 ?>	);
 }
 
-//a^ij_k = b^i_mk c^mj
+//b^i = a^ij_j
+static inline real4 real4x4x4_tr23(real4x4x4 const a) {
+	return (real4)(
+<? for i=0,3 do
+?>		real4x4_tr(a.s<?=i?>)<?=i < 3 and "," or ""?>
+<? end
+?>	);
+}
+
+//c^i_jk = a^il b_ljk
+static inline real4x4s4 real4s4_real4x4s4_mul(
+	real4s4 const a,
+	real4x4s4 const b
+) {
+	return (real4x4s4){
+<? for i=0,3 do
+?>		.s<?=i?> = (real4s4){
+<?	for j=0,3 do
+		for k=j,3 do
+?>			.s<?=sym(j,k)?> = 0.<?
+			for l=0,3 do
+?> + a.s<?=sym(i,l)?> * b.s<?=l?>.s<?=j..k?><?			
+			end
+?>,
+<?		end
+	end
+?>		},
+<? end
+?>	};
+}
+
+//c^ij_k = a^i_mk b^mj
 static inline real4x4x4 real4x4s4_real4s4_mul21(
 	real4x4s4 const a,
 	real4s4 const b
@@ -399,24 +430,53 @@ real4s4 calc_EinsteinLL(
 
 	// TODO use 2nd derivs + 2nd-deriv-finite-difference stencil
 
+	real4x4s4 const GammaULL = GammaULLs[index];
 
 <? if false then ?>
+	real4s4 const gUU = gUUs[index];
+
+	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
+	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
+
+	//GammaLLL.a.bc := Γ_abc = g_ad Γ^d_bc
+	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
+	
+	//Gamma23U.a := Γ^a = Γ^au_u
+	real4 const Gamma23U = real4x4x4_tr23(GammaUUL);
+
 	//g_ab,cd := dgLLL.cd.ab
 <?= solver:finiteDifference2{
 	bufferName = "gLLs",
-	srcType = "real4s4",
+	srcType = "4s4",
 	resultName = "d2gLLLL",
 	boundaryCode = "real4s4_zero",
 } ?>
-<? end ?>
-
-	real4x4s4 const GammaULL = GammaULLs[index];
-	
-	real4 const Gamma12L = real4x4s4_tr12(GammaULL);
-
 	real4s4 const RicciLL = {
-<? 
-for a=0,stDim-1 do
+<? for a=0,stDim-1 do
+	for b=a,stDim-1 do
+?>		.s<?=a?><?=b?> = 0.<?
+		for u=0,stDim-1 do
+			for v=0,stDim-1 do
+?>				+ gUU.s<?=sym(u,v)?> * (
+					  d2gLLLL.s<?=sym(a,u)?>.s<?=sym(b,v)?> 
+					+ d2gLLLL.s<?=sym(b,v)?>.s<?=sym(a,u)?> 
+					- d2gLLLL.s<?=sym(a,b)?>.s<?=sym(u,v)?> 
+					- d2gLLLL.s<?=sym(u,v)?>.s<?=sym(a,b)?> 
+				)
+				+ GammaUUL.s<?=u?>.s<?=v?>.s<?=a?> * GammaLLL.s<?=u?>.s<?=sym(v,b)?>
+<?			end 
+?>			- Gamma23U.s<?=u?> * GammaLLL.s<?=u?>.s<?=sym(a,b)?>
+<?		end
+?>,
+<?	end
+end ?>
+	};
+
+<? else ?>
+
+	real4 const Gamma12L = real4x4s4_tr12(GammaULL);
+	real4s4 const RicciLL = {
+<? for a=0,stDim-1 do
 	for b=a,stDim-1 do
 ?>		.s<?=a?><?=b?> = 0.<?
 		for c=0,stDim-1 do ?>
@@ -431,6 +491,7 @@ for a=0,stDim-1 do
 <?	end
 end ?>
 	};
+<? end ?>
 
 	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
 	

@@ -109,17 +109,7 @@ kernel void calc_GammaULLs(
 	//Γ^a_bc = GammaULL.a.bc
 	//Γ^a_bc = g^ad Γ_dbc
 	real4s4 const gUU = gUUs[index];
-	global real4x4s4 * const GammaULL = GammaULLs + index;
-	<? for a=0,stDim-1 do ?>
-		<? for b=0,stDim-1 do ?>
-			<? for c=b,stDim-1 do ?>
-	GammaULL->s<?=a?>.s<?=b?><?=c?> = 0.
-				<? for d=0,stDim-1 do ?>
-		+ gUU.s<?=sym(a,d)?> * GammaLLL.s<?=d?>.s<?=b?><?=c?>
-				<? end ?>;
-			<? end ?>
-		<? end ?>
-	<? end ?>
+	GammaULLs[index] = real4s4_real4x4s4_mul(gUU, GammaLLL);
 }
 
 /*
