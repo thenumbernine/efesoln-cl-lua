@@ -7,17 +7,51 @@
 constant real const c = 299792458;			// m/s 
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 
-#define new_real3_zero() ((real3){ \
-<? for i=0,2 do --\
-?>	.s<?=i?> = 0,\
-<? end --\
-?>})
-constant real3 const real3_zero = new_real3_zero();
+#define new_real_zero() 0.
+#define real_zero new_real_zero()
 
+<?
+local range = require 'ext.range'
+local table = require 'ext.table'
+local function makeZero(args)
+	local vec = args.vec
+	local inner = args.inner
+	local fields = args.fields
+	if not fields then
+		local dim = args.dim
+		if dim then
+			if args.sym then
+				fields = table.append(range(0,dim-1):mapi(function(i)
+					return range(i,dim-1):mapi(function(j)
+						return 's'..i..j
+					end)
+				end):unpack())
+			else
+				fields = range(0,dim-1):mapi(function(i) return 's'..i end)
+			end
+		end
+	end
+	if not fields then error("idk how to make this") end
+-- using a macro goes noticeably slower so ...
+-- however using a 'constant' cannot initialize its fields with other 'constant's ...
+?>#define new_<?=vec?>_zero() ((<?=vec?>){\
+<? for _,field in ipairs(fields) do
+?>	.<?=field?> = new_<?=inner?>_zero(),\
+<? end
+?>})
+constant <?=vec?> const <?=vec?>_zero = new_<?=vec?>_zero();
+<?
+end
+?>
+
+<?makeZero{vec='real3', inner='real', dim=3}?>
+
+//a_i b_i
 static inline real real3_dot(real3 const a, real3 const b) {
 	return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+//ε_ijk a_j b_k
 static inline real3 real3_cross(real3 const a, real3 const b) {
 	return _real3(
 		a.y * b.z - a.z * b.y,
@@ -79,13 +113,7 @@ static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 	};
 }
 
-#define new_real4s4_zero() ((real4s4){ \
-	.tt = 0, .tx = 0, .ty = 0, .tz = 0, \
-	.xx = 0, .xy = 0, .xz = 0, \
-	.yy = 0, .yz = 0, \
-	.zz = 0, \
-})
-constant real4s4 const real4s4_zero = new_real4s4_zero();
+<?makeZero{vec='real4s4', inner='real', dim=4, sym=true}?>
 
 static inline real real4s4_dot(real4s4 const a, real4s4 const b) {
 	return 0.<?
@@ -227,14 +255,7 @@ for a=0,3 do
 end ?>;
 }
 
-#define new_real4x4s4_zero() ((real4x4s4){ \
-<? for i=0,3 do --\
-?>	.s<?=i?> = new_real4s4_zero(),\
-<? end --\
-?>})
-// using a macro goes noticeably slower so ...
-// however using a 'constant' cannot initialize its fields with other 'constant's ...
-constant real4x4s4 const real4x4s4_zero = new_real4x4s4_zero();
+<?makeZero{vec='real4x4s4', inner='real4s4', dim=4}?>
 
 static inline real4x4s4 real4x4s4_real_mul(real4x4s4 const a, real const s) {
 	return (real4x4s4){
@@ -299,14 +320,7 @@ end
 ?>	};
 }
 
-#define new_real4s4x4s4_zero() ((real4s4x4s4){\
-<? for a=0,3 do --\
-	for b=a,3 do --\
-?>	.s<?=a..b?> = new_real4s4_zero(),\
-<?	end --\
-end  --\
-?>})
-constant real4s4x4s4 const real4s4x4s4_zero = new_real4s4x4s4_zero();
+<?makeZero{vec='real4s4x4s4', inner='real4s4', dim=4, sym=true}?>
 
 static inline real4s4x4s4 real4s4x4s4_add(
 	real4s4x4s4 const a,
@@ -322,13 +336,7 @@ end
 ?>	};
 }
 
-#define new_real4x4x4s4_zero() ((real4x4x4s4){ \
-<? for i=0,3 do --\
-?>	.s<?=i?> = new_real4x4s4_zero(),\
-<? end --\
-?>})
-constant real4x4x4s4 const real4x4x4s4_zero = new_real4x4x4s4_zero();
-
+<?makeZero{vec='real4x4x4s4', inner='real4x4s4', dim=4}?>
 
 constant int const stDim = <?=stDim?>;	
 constant int const sDim = <?=sDim?>;
