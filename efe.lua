@@ -1276,12 +1276,12 @@ function EFESolver:refreshInitCond()
 	real3 const x = getX(i);
 	real const r = real3_len(x);
 
+	global gPrim_t * const gPrim = gPrims + index;
+
 	//init to flat by default
-	gPrims[index] = (gPrim_t){
-		.alpha = 1,
-		.betaU = real3_zero,
-		.gammaLL = real3s3_ident,
-	};
+	gPrim->alpha = 1;
+	gPrim->betaU = real3_zero;
+	gPrim->gammaLL = real3s3_ident;
 
 ]]..self:template(initCond.code),
 	}

@@ -432,7 +432,8 @@ real4s4 calc_EinsteinLL(
 
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-<? if false then ?>
+<? if true then ?>
+	real4s4 const gLL = gLLs[index];
 	real4s4 const gUU = gUUs[index];
 
 	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
