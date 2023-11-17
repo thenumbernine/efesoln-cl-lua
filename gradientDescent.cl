@@ -57,82 +57,35 @@ kernel void calc_dPhi_dgPrims(
 	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
 
 	/*
-	∂g_ab/∂g_pq = δ_a^p δ_b^q
-
 	∂/∂g_pq δ^a_b = 0
-	∂/∂g_pq (g^ac g_cb) = 0
-	∂/∂g_pq g^ac g_cb + g^ac ∂/∂g_pq g_cb = 0
-	∂/∂g_pq g^ac g_cb g^bd = -g^ac ∂/∂g_pq g_cb g^bd
-	∂/∂g_pq g^ad = -g^ac ∂/∂g_pq g_cb g^bd
-	∂/∂g_pq g^ad = -g^ac ∂_c^p ∂_b^q g^bd
-	∂/∂g_pq g^ad = -g^ap g^qd
+	∂/∂g_pq(x) g_ab(x') = δ_a^p δ_b^q δ(x - x')
+	∂/∂g_pq(x) g^ad(x') = -g^ap(x) g^qd(x) δ(x - x')
+
+	D_c(g_ab(x)) = C_m g_ab(x + m dx^c) ≈ g_ab,c
+	∂/∂g_pq(x) D_c(g_ab(x')) 
+		= ∂/∂g_pq(g_ab) C_(x'^c - x^c)
+		= δ_a^p δ_b^q C_(x'^c - x^c)
+
+	... where C_(x'^c - x^c) is the coefficient of the derivative based on (x'^c - x^c) / h, or 0 if any of the other coefficients don't match
+
+	∂/∂g_pq(x) Γ_abc(x') 
+		= 1/2 ∂/∂g_pq(x) (D_c(g_ab(x')) + D_b(g_ac(x')) - D_a(g_bc(x')))
+		= 1/2 ∂/∂g_pq(x) (
+			  δ_a^p δ_b^q C_(x'^c - x^c)
+			+ δ_a^p δ_c^q C_(x'^b - x^b)
+			- δ_b^p δ_c^q C_(x'^a - x^a)
+		)
 
 	∂/∂g_pq Γ^a_bc 
-	= 1/2 ∂/∂g_pq g^au (g_ub,c + g_uc,b - g_bc,u)
-	= 1/2 (∂/∂g_pq g^au) (g_ub,c + g_uc,b - g_bc,u)
-		+ 1/2 g^au (∂/∂g_pq g_ub,c + ∂/∂g_pq g_uc,b - ∂/∂g_pq g_bc,u)
-	= 1/2 (∂/∂g_pq g^au) (g_ub,c + g_uc,b - g_bc,u)
-		+ 1/2 g^au ((δ_u^p δ_b^q),c + (δ_u^p δ_c^q),b - (δ_b^p δ_c^q),u)
-	= -1/2 (g^ae ∂/∂g_pq g_ef g^fu) (g_ub,c + g_uc,b - g_bc,u)
-	= -1/2 g^ap g^qu (g_ub,c + g_uc,b - g_bc,u)
-	= -g^ap Γ^q_bc
+	= -g^ap Γ^q_bc based on the limit, however for finite-difference it has another value ...
+	∂/∂g_pq(x) Γ^a_bc(x')
+	= -g^ap(x') Γ^q_bc(x') δ(x - x') + g^ad(x') ∂/∂g_pq(x) Γ_dbc(x') 
+
 
 	dRicciLL_dgLL.pq.ab := ∂R_ab/∂g_pq
-	= ∂/∂g_pq R^c_acb
-	= ∂/∂g_pq (Γ^c_ab,c - Γ^c_ac,b + Γ^c_ec Γ^e_ab - Γ^c_eb Γ^e_ac)
-	= ∂/∂g_pq Γ^c_ab,c - ∂/∂g_pq Γ^c_ac,b 
-		+ ∂/∂g_pq Γ^c_ec Γ^e_ab 
-		+ Γ^c_ec ∂/∂g_pq Γ^e_ab 
-		- ∂/∂g_pq Γ^c_eb Γ^e_ac
-		- Γ^c_eb ∂/∂g_pq Γ^e_ac
-	= -(g^cp Γ^q_ab),c + (g^cp Γ^q_ac),b 
-		- g^cp Γ^q_ec Γ^e_ab 
-		- g^ep Γ^q_ab Γ^c_ec
-		+ g^cp Γ^q_eb Γ^e_ac
-		+ g^ep Γ^q_ac Γ^c_eb
-	= -g^cp_,c Γ^q_ab 
-		- g^cp Γ^q_ab,c
-		+ g^cp_,b Γ^q_ac 
-		+ g^cp Γ^q_ac,b
-		- Γ^e_ab Γ^qp_e
-		- Γ^q_ab Γ^cp_c
-		+ Γ^q_eb Γ^ep_a
-		+ Γ^q_ac Γ^cp_b
-	= -g^cp_,c Γ^q_ab 
-		+ g^cp_,b Γ^q_ac 
-		- Γ^q_ab Γ^cp_c
-		+ Γ^q_ac Γ^cp_b
-		
-		- g^cp Γ^q_ab,c
-		+ g^cp Γ^q_ac,b
-		- g^cp Γ^q_ec Γ^e_ab 
-		+ g^cp Γ^q_eb Γ^e_ac
-	= g^cu g_uv,c g^vp Γ^q_ab 
-		- g^cu g_uv,b g^vp Γ^q_ac 
-		- Γ^q_ab Γ^cp_c
-		+ Γ^q_ac Γ^cp_b
-		
-		- g^cp R^q_acb
-	
-	... using g_ab,c = Γ_acb + Γ_bca
-
-	= g^cu (Γ_ucv + Γ_vcu) g^vp Γ^q_ab 
-		- g^cu (Γ_ubv + Γ_vbu) g^vp Γ^q_ac 
-		- Γ^q_ab Γ^cp_c
-		+ Γ^q_ac Γ^cp_b
-		
-		- g^cp R^q_acb
-
-	= Γ^cp_c Γ^q_ab 
-		+ Γ^pc_c Γ^q_ab
-		- Γ^cp_b Γ^q_ac
-		- Γ^pc_b Γ^q_ac
-		- Γ^q_ab Γ^cp_c
-		+ Γ^q_ac Γ^cp_b
-		
-		- g^cp R^q_acb
-	
 	= Γ^pc_c Γ^q_ba - Γ^pc_b Γ^q_ca - g^cp R^q_acb
+	(work done in efe.html)
+
 	*/
 	real4s4x4s4 const dRicciLL_dgLL = (real4s4x4s4){
 <? for p=0,stDim-1 do 

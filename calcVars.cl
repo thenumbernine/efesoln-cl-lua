@@ -184,7 +184,56 @@ end
 	return gPrim;
 }
 
+real4s4 calc_gLL_from_gPrim(
+	gPrim_t const gPrim
+) {
+	real const alpha = gPrim.alpha;
+	real3 const betaU = gPrim.betaU;
+	real3s3 const gammaLL = gPrim.gammaLL;
+	
+	real const alphaSq = alpha * alpha;
+	real3 const betaL = real3s3_real3_mul(gammaLL, betaU);
+	real const betaSq = real3_dot(betaL, betaU);
+	
+	real4s4 gLL;
+	gLL.s00 = -alphaSq + betaSq;
+<?
+for i=0,sDim-1 do 
+?>	gLL.s0<?=i+1?> = betaL.s<?=i?>;
+<?	for j=i,sDim-1 do
+?>	gLL.s<?=i+1?><?=j+1?> = gammaLL.s<?=i?><?=j?>;
+<?	end
+end
+?>
+	return gLL;
+}
+
+real4s4 calc_gUU_from_gPrim(
+	gPrim_t const gPrim
+) {
+	real const alpha = gPrim.alpha;
+	real const invAlphaSq = 1. / (alpha * alpha);
+	real3 const betaU = gPrim.betaU;
+
+	real3s3 const gammaLL = gPrim.gammaLL;
+	real const det_gammaLL = real3s3_det(gammaLL);
+	real3s3 const gammaUU = real3s3_inv(det_gammaLL, gammaLL);
+
+	real4s4 gUU;
+	gUU.s00 = -invAlphaSq;
+<?
+for i=0,sDim-1 do
+?>	gUU.s0<?=i+1?> = betaU.s<?=i?> * invAlphaSq;
+<?	for j=i,sDim-1 do
+?>	gUU.s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - betaU.s<?=i?> * betaU.s<?=j?> * invAlphaSq;
+<?	end
+end
+?>
+	return gUU;
+}
+
 real4s4 calc_gLL_flat() {
+#if 1	
 	return (real4s4){
 <?
 for a=0,3 do
@@ -193,17 +242,22 @@ for a=0,3 do
 <?	end
 end
 ?>	};
+#else //doesn't work so well
+	int4 i = globalInt4();
+	real3 const x = getX(i);
+	return calc_gLL_from_gPrim(calc_gPrim_flat(x));
+#endif
 }
 
+// for _zero, the constant access is much faster than making a new struct in-place
 constant real4s4 const gLL_flat = (real4s4){
 <?
 for a=0,3 do
 	for b=a,3 do
-?>	.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
+?>		.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
 <?	end
 end
-?>};
-
+?>	};
 
 // init
 
@@ -212,7 +266,7 @@ kernel void init_gPrims(
 ) {
 	initKernel();
 	real3 const x = getX(i);
-	gPrims[index] = calc_gPrim_flat(x);
+	gPrims[index] = <?=solver.initConds[solver.initCond].code?>(x);
 }
 
 kernel void init_TPrims(
@@ -252,40 +306,9 @@ kernel void calc_gLLs_and_gUUs(
 	global gPrim_t const * const gPrims
 ) {
 	initKernel();
-
 	gPrim_t const gPrim = gPrims[index];
-	real const alpha = gPrim.alpha;
-	real3 const betaU = gPrim.betaU;
-	real3s3 const gammaLL = gPrim.gammaLL;
-
-	real const alphaSq = alpha * alpha;
-	real const invAlphaSq = 1. / alphaSq;
-	real3 const betaL = real3s3_real3_mul(gammaLL, betaU);
-	real const betaSq = real3_dot(betaL, betaU);
-
-	global real4s4 * const gLL = gLLs + index;
-	gLL->s00 = -alphaSq + betaSq;
-<?
-for i=0,sDim-1 do 
-?>	gLL->s0<?=i+1?> = betaL.s<?=i?>;
-<?	for j=i,sDim-1 do
-?>	gLL->s<?=i+1?><?=j+1?> = gammaLL.s<?=i?><?=j?>;
-<?	end
-end
-?>
-	real const det_gammaLL = real3s3_det(gammaLL);
-	real3s3 const gammaUU = real3s3_inv(det_gammaLL, gammaLL);
-
-	global real4s4 * const gUU = gUUs + index;
-	gUU->s00 = -invAlphaSq;
-<?
-for i=0,sDim-1 do
-?>	gUU->s0<?=i+1?> = betaU.s<?=i?> * invAlphaSq;
-<?	for j=i,sDim-1 do
-?>	gUU->s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - betaU.s<?=i?> * betaU.s<?=j?> * invAlphaSq;
-<?	end
-end
-?>
+	gLLs[index] = calc_gLL_from_gPrim(gPrim);
+	gUUs[index] = calc_gUU_from_gPrim(gPrim);
 }
 
 kernel void calc_GammaULLs(

@@ -432,7 +432,7 @@ real4s4 calc_EinsteinLL(
 
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-<? if false then -- used 2nd-deriv finite-difference stencil
+<? if true then -- used 2nd-deriv finite-difference stencil
 ?>
 	real4s4 const gLL = gLLs[index];
 	real4s4 const gUU = gUUs[index];
