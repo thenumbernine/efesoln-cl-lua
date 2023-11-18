@@ -716,6 +716,7 @@ texCLBuf[index] = real3_len(x);
 real3 const x = getX(i);
 <?=solver:finiteDifference{
 	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
+	getBoundary = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
@@ -725,7 +726,7 @@ texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx));
 real3 const x = getX(i);
 <?=solver:finiteDifference{
 	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
-	getBoundary = function() return "" end,
+	getBoundary = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
