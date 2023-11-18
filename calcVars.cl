@@ -418,7 +418,7 @@ kernel void solveAL(
 --[[ TODO this is 2nd order, and the middle is missing, because it's an inverse to a discrete Laplacian solved with Jacobi iteration
 =solver:finiteDifference{
 	bufferName = "TPrims",
-	getValue = function(index) return "TPrims["..index.."].JU" end,
+	getValue = function(args) return "TPrims["..args.index.."].JU" end,
 	valueType = "real4",
 } 
 --]]

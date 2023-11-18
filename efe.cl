@@ -438,7 +438,7 @@ real4s4 calc_EinsteinLL(
 	bufferName = "gLLs",
 	srcType = "4s4",
 	resultName = "d2gLLLL",
-	boundaryCode = "real4s4_zero",
+	getBoundary = function(args) return "real4s4_zero" end,
 } ?>
 	real4s4 const RicciLL = {
 <? for a=0,stDim-1 do

@@ -287,36 +287,37 @@ end
 function EFESolver:finiteDifference(args)
 	return template([[<?
 local range = require 'ext.range'
-local bufferName = args.bufferName
 local srcType = args.srcType
-local getValue = args.getValue or function(index)
-	return bufferName.."["..index.."]"
+local getValue = args.getValue or function(args)
+	return args.bufferName.."["..args.index.."]"
 end
 -- for if you want to getValue based on "i" instead of "index" ...
 -- hmm this is ugly
-local getValueForI = args.getValueForI
 local dstType = srcType == "" and "real4" or "real4x"..srcType
 local resultName = args.resultName
-local boundaryCode = args.boundaryCode or "real"..srcType.."_zero"
+local getBoundary = args.getBoundary or function(args)
+	return "real"..srcType.."_zero"
+end
 local d1coeffs = assert(derivCoeffs[1][order])
 ?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
 	<? for i=0,sDim-1 do ?>{
-		<? for j,coeff in pairs(d1coeffs) do ?>{
+		<? for j,coeff in pairs(d1coeffs) do 
+			args.i = "i - (int4)("
+				..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
+				..")"
+			args.index = "index - stepsize.s"..i.." * "..j
+		?>{
 			real<?=srcType?> const yL = (i.s<?=i?> - <?=j?> < 0)
-				? <?=boundaryCode?>		// lhs
-				: <?=getValueForI
-					and getValueForI("i - (int4)("
-						..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
-						..")")
-					or getValue("index - stepsize.s"..i.." * "..j)?>;
-
-			real<?=srcType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
-				? <?=boundaryCode?>		// rhs
-				: <?=getValueForI
-					and getValueForI("i + (int4)("
-						..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
-						..")")
-					or getValue("index + stepsize.s"..i.." * "..j)?>;
+				? <?=getBoundary(args)?>		// lhs
+				: <?=getValue(args)?>;
+<?
+			args.i = "i + (int4)("
+				..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
+				..")"
+			args.index = "index + stepsize.s"..i.." * "..j
+?>			real<?=srcType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
+				? <?=getBoundary(args)?>		// rhs
+				: <?=getValue(args)?>;
 
 			<?=resultName?>.s<?=i+1?> = real<?=srcType?>_add(
 				<?=resultName?>.s<?=i+1?>,
@@ -339,14 +340,15 @@ end
 -- 2nd deriv
 function EFESolver:finiteDifference2(args)
 	return template([[<?
-local bufferName = args.bufferName
 local srcType = args.srcType
-local getValue = args.getValue or function(index)
-	return bufferName.."["..index.."]"
+local getValue = args.getValue or function(args)
+	return args.bufferName.."["..args.index.."]"
 end
 local dstType = "real4s4x"..srcType
 local resultName = args.resultName
-local boundaryCode = args.boundaryCode or "real"..srcType.."_zero"
+local getBoundary = args.getBoundary or function(args)
+	return "real"..srcType.."_zero"
+end
 local d1coeffs = assert(derivCoeffs[1][order])
 local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for order "..order)
 ?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
@@ -354,14 +356,17 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 		<? for j=i,sDim-1 do ?>{
 <? if i == j then -- 2nd-deriv kernel
 ?>
-			<? for k,coeff in pairs(d2coeffs) do ?>{
+			<? for k,coeff in pairs(d2coeffs) do 
+				args.index = "index - stepsize.s"..i.." * "..k
+			?>{
 				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0)
-					? <?=boundaryCode?>		// lhs
-					: <?=getValue("index - stepsize.s"..i.." * "..k)?>;
-
-				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= size.s<?=i?>)
-					? <?=boundaryCode?>		// rhs
-					: <?=getValue("index + stepsize.s"..i.." * "..k)?>;
+					? <?=getBoundary(args)?>		// lhs
+					: <?=getValue(args)?>;
+<?
+				args.index = "index + stepsize.s"..i.." * "..k
+?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= size.s<?=i?>)
+					? <?=getBoundary(args)?>		// rhs
+					: <?=getValue(args)?>;
 
 				<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 					<?=resultName?>.s<?=i+1?><?=j+1?>,
@@ -375,19 +380,24 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 <? else	-- two 1st-deriv kernels
 ?>
 			<? for k,coeff_k in pairs(d1coeffs) do ?>{
-				<? for l,coeff_l in pairs(d1coeffs) do ?>{
+				<? for l,coeff_l in pairs(d1coeffs) do 
+					args.index = "index - stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
+				?>{
 					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0)
-						? <?=boundaryCode?>		// lhs+lhs
-						: <?=getValue("index - stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l)?>;
-					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
-						? <?=boundaryCode?>		// lhs+rhs
-						: <?=getValue("index - stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l)?>;
-					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> - <?=l?> < 0)
-						? <?=boundaryCode?>		// lhs+rhs
-						: <?=getValue("index + stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l)?>;
-					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
-						? <?=boundaryCode?>		// rhs+rhs
-						: <?=getValue("index + stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l)?>;
+						? <?=getBoundary(args)?>		// lhs+lhs
+						: <?=getValue(args)?>;
+<?					args.index = "index - stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
+?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
+						? <?=getBoundary(args)?>		// lhs+rhs
+						: <?=getValue(args)?>;
+<?					args.index = "index + stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
+?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> - <?=l?> < 0)
+						? <?=getBoundary(args)?>		// lhs+rhs
+						: <?=getValue(args)?>;
+<?					args.index = "index + stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
+?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
+						? <?=getBoundary(args)?>		// rhs+rhs
+						: <?=getValue(args)?>;
 
 					<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 						<?=resultName?>.s<?=i+1?><?=j+1?>,
@@ -705,7 +715,7 @@ texCLBuf[index] = real3_len(x);
 		{['test |D[f(x)]|'] = [[
 real3 const x = getX(i);
 <?=solver:finiteDifference{
-	getValueForI = function(i) return ".5 * real3_lenSq(getX("..i.."))" end,
+	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
@@ -714,7 +724,8 @@ texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx));
 		{['test |D[f(x)] - ∇f(x)|'] = [[
 real3 const x = getX(i);
 <?=solver:finiteDifference{
-	getValueForI = function(i) return ".5 * real3_lenSq(getX("..i.."))" end,
+	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
+	getBoundary = function() return "" end,
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
