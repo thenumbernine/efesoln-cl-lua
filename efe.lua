@@ -667,75 +667,43 @@ typedef char int8_t;
 	-- |a^i| = c^2 |Γ^i_tt|
 	:append{
 		{['|Gamma^i_tt|'] = [[
-	real4x4s4 const GammaULL = GammaULLs[index];
-	texCLBuf[index] = real3_len(_real3(
-		GammaULL.s1.s00,
-		GammaULL.s2.s00,
-		GammaULL.s3.s00
-	));
+texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index]));
 ]]},
 		{['numerical gravity'] = [[
-	real4x4s4 const GammaULL = GammaULLs[index];
-	texCLBuf[index] = real3_len(_real3(
-		GammaULL.s1.s00,
-		GammaULL.s2.s00,
-		GammaULL.s3.s00
-	)) * c * c;
+texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
 ]]},
 	}
 	:append(self.body.density and {
 		{['analytical gravity'] = [[
-	real3 const x = getX(i);
-	real const r = real3_len(x);
-	real const matterRadius = min(r, (real)<?=solver.body.radius?>);
-	real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-	real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
-	real const dm_dr = 0;
-	texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
-		* c * c;	//+9 at earth surface, without matter derivatives
+real3 const x = getX(i);
+real const r = real3_len(x);
+real const matterRadius = min(r, (real)<?=solver.body.radius?>);
+real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
+real const dm_dr = 0;
+texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
 ]]},
 	} or nil)
 	:append{
 		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
-		{['|EFE_ti|*c'] = [[
-	global real4s4 const * const EFE = EFEs + index;
-	texCLBuf[index] = sqrt(0.
-<? for i=0,sDim-1 do ?>
-		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
-<? end ?>) * c;
-]]},
-		{['|EFE_ij| (kg/m s^2))'] = [[
-	global real4s4 const * const EFE = EFEs + index;
-	texCLBuf[index] = ((0.
-<? for i=0,sDim-1 do
-	for j=0,sDim-1 do
-	?>	+ EFE->s<?=sym(i+1,j+1)?> * gLLs[index].s<?=sym(i+1,j+1)?>
-<?	end
-end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
-]]},
+		{['|EFE_ti|*c'] = [[texCLBuf[index] = real3_len(real4s4_i0(EFEs[index])) * c;]]},
+		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
+		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
-	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	texCLBuf[index] = sqrt(real4s4_dot(EinsteinLL, EinsteinLL));
+real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+texCLBuf[index] = real4s4_norm(EinsteinLL);
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
-	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
+real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
-	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	texCLBuf[index] = sqrt(0.
-<? for i=0,sDim-1 do ?>
-		+ EinsteinLL.s0<?=i+1?> * EinsteinLL.s0<?=i+1?>
-<? end ?>) * c;
+real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL.s0<?=i+1?>)) * c;
 ]]},
 		{['|Einstein_ij| (kg/(m s^2))'] = [[
-	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
-	texCLBuf[index] = ((0.
-<? for i=0,sDim-1 do
-	for j=0,sDim-1 do
-	?> + EinsteinLL.s<?=sym(i+1,j+1)?> * gLLs[index].s<?=sym(i+1,j+1)?>
-<?	end
-end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
+real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 	}
 :mapi(function(kv)
@@ -1146,8 +1114,8 @@ function EFESolver:refreshKernels()
 end
 
 function EFESolver:refreshDisplayKernel()
-	self.updateDisplayVarKernel = self:kernel{
-		name = 'display_'..tostring(displayVar):sub(10),
+	self.updateDisplayKernel = self:kernel{
+		name = 'display',
 		body = template(self.displayCode, {
 			sDim = self.sDim,
 			sym = sym,
@@ -1165,7 +1133,7 @@ function EFESolver:refreshDisplayKernel()
 			self.texCLBuf,
 		},
 	}
-	self.updateDisplayVarKernel:compile()
+	self.updateDisplayKernel:compile()
 	self:updateTex()
 end
 
@@ -1403,7 +1371,7 @@ function EFESolver:updateAux()
 end
 
 function EFESolver:updateTex()
-	self.updateDisplayVarKernel()
+	self.updateDisplayKernel()
 
 	-- TODO run a reduce on the display var stuff
 	-- get the min and max

@@ -94,6 +94,24 @@ static inline real real3s3_det(real3s3 const m) {
 		- m.s00 * m.s12 * m.s12;
 }
 
+static inline real real3s3_dot(real3s3 const a) {
+	return 0.<?
+for i=0,2 do
+	for j=0,2 do
+?> + a.s<?=sym(i,j)?> * a.s<?=sym(i,j)?><?
+	end
+end
+?>;
+}
+
+static inline real real3s3_normSq(real3s3 const a) {
+	return real3s3_dot(a,a);
+}
+
+static inline real real3s3_norm(real3s3 const a) {
+	return sqrt(real3s3_normSq(a));
+}
+
 static inline real3s3 real3s3_inv(real const d, real3s3 const m) {
 	return (real3s3){
 		.xx = (m.yy * m.zz - m.yz * m.yz) / d,
@@ -115,13 +133,24 @@ static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 
 <?makeZero{vec='real4s4', inner='real', dim=4, sym=true}?>
 
-static inline real real4s4_dot(real4s4 const a, real4s4 const b) {
+static inline real real4s4_dot(
+	real4s4 const a,
+	real4s4 const b
+) {
 	return 0.<?
 for a=0,3 do
 	for b=0,3 do 
 ?> + a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?><?
 	end 
 end ?>;
+}
+
+static inline real real4s4_normSq(real4s4 const a) {
+	return real4s4_dot(a, a);
+}
+
+static inline real real4s4_norm(real4s4 const a) {
+	return sqrt(real4s4_normSq(a));
 }
 
 static inline real4s4 real4s4_outer(real4 const v) {
@@ -182,7 +211,10 @@ static inline real4s4 real4s4_mul_add(
 }
 
 //a_i = b_ij c_j
-static inline real4 real4s4_real4_mul(real4s4 const m, real4 const v) {
+static inline real4 real4s4_real4_mul(
+	real4s4 const m,
+	real4 const v
+) {
 	return (real4){
 <? for i=0,3 do
 ?>		0. <? 
@@ -191,22 +223,6 @@ static inline real4 real4s4_real4_mul(real4s4 const m, real4 const v) {
 	end ?>,
 <? end 
 ?>	};
-}
-
-static inline real real4s4_det(real4s4 const m) {
-	return
-		m.s03 * m.s12 * m.s12 * m.s03 - m.s02 * m.s13 * m.s12 * m.s03 -
-		m.s03 * m.s11 * m.s22 * m.s03 + m.s01 * m.s13 * m.s22 * m.s03 +
-		m.s02 * m.s11 * m.s23 * m.s03 - m.s01 * m.s12 * m.s23 * m.s03 -
-		m.s03 * m.s12 * m.s02 * m.s13 + m.s02 * m.s13 * m.s02 * m.s13 +
-		m.s03 * m.s01 * m.s22 * m.s13 - m.s00 * m.s13 * m.s22 * m.s13 -
-		m.s02 * m.s01 * m.s23 * m.s13 + m.s00 * m.s12 * m.s23 * m.s13 +
-		m.s03 * m.s11 * m.s02 * m.s23 - m.s01 * m.s13 * m.s02 * m.s23 -
-		m.s03 * m.s01 * m.s12 * m.s23 + m.s00 * m.s13 * m.s12 * m.s23 +
-		m.s01 * m.s01 * m.s23 * m.s23 - m.s00 * m.s11 * m.s23 * m.s23 -
-		m.s02 * m.s11 * m.s02 * m.s33 + m.s01 * m.s12 * m.s02 * m.s33 +
-		m.s02 * m.s01 * m.s12 * m.s33 - m.s00 * m.s12 * m.s12 * m.s33 -
-		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
 }
 
 //a_ij = b_ik c_kj
@@ -228,6 +244,41 @@ static inline real4x4 real4s4_real4s4_mul(
 ?>		),
 <? end 
 ?>	};
+}
+
+static real3 real4s4_i0(
+	real4s4 const a
+) {
+	return _real3(a.s01, a.s02, a.s03);
+}
+
+static real3 real4s4_ij(
+	real4s4 const a
+) {
+	return (real3s3){
+<?
+for i=0,2 do
+	for j=i,2 do
+?>		.s<?=i..j?> = a.s<?=i+1?><?=j+1?>,
+<?	end
+end
+?>	};
+}
+
+static inline real real4s4_det(real4s4 const m) {
+	return
+		m.s03 * m.s12 * m.s12 * m.s03 - m.s02 * m.s13 * m.s12 * m.s03 -
+		m.s03 * m.s11 * m.s22 * m.s03 + m.s01 * m.s13 * m.s22 * m.s03 +
+		m.s02 * m.s11 * m.s23 * m.s03 - m.s01 * m.s12 * m.s23 * m.s03 -
+		m.s03 * m.s12 * m.s02 * m.s13 + m.s02 * m.s13 * m.s02 * m.s13 +
+		m.s03 * m.s01 * m.s22 * m.s13 - m.s00 * m.s13 * m.s22 * m.s13 -
+		m.s02 * m.s01 * m.s23 * m.s13 + m.s00 * m.s12 * m.s23 * m.s13 +
+		m.s03 * m.s11 * m.s02 * m.s23 - m.s01 * m.s13 * m.s02 * m.s23 -
+		m.s03 * m.s01 * m.s12 * m.s23 + m.s00 * m.s13 * m.s12 * m.s23 +
+		m.s01 * m.s01 * m.s23 * m.s23 - m.s00 * m.s11 * m.s23 * m.s23 -
+		m.s02 * m.s11 * m.s02 * m.s33 + m.s01 * m.s12 * m.s02 * m.s33 +
+		m.s02 * m.s01 * m.s12 * m.s33 - m.s00 * m.s12 * m.s12 * m.s33 -
+		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
 }
 
 //a_ij = b_ik c_kj
@@ -279,6 +330,10 @@ static inline real4x4s4 real4x4s4_sub(real4x4s4 const a, real4x4s4 const b) {
 ?>		.s<?=a?> = real4s4_sub(a.s<?=a?>, b.s<?=a?>),
 <? end 
 ?>	};
+}
+
+static inline real4x4s4 real4x4s4_i00(real4x4s4 const a) {
+	return _real3(a.s1.s00, a.s2.s00, a.s3.s00);
 }
 
 //b_i = a^j_ji
