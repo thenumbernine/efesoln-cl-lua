@@ -825,7 +825,11 @@ end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 			local bufs, funcs = next(kv)
 			return table.map(funcs, function(kv)
 				local k,v = next(kv)
-				return {name=k, argsIn=bufs, body=v}
+				return {
+					name = k,
+					argsIn = bufs,
+					body = v,
+				}
 			end)
 		end):unpack()
 	)
@@ -1238,10 +1242,17 @@ function EFESolver:refreshDisplayVarKernel()
 				sym = sym,
 				solver = self,
 			}),
-			argsIn = displayVar.argsIn and table.map(displayVar.argsIn, function(arg)
-				return self[arg]
-			end) or nil,
-			argsOut = {self.texCLBuf},
+			argsIn = table{
+				self.TPrims,
+				self.gPrims,
+				self.gLLs,
+				self.gUUs,
+				self.GammaULLs,
+				self.EFEs,
+			},
+			argsOut = {
+				self.texCLBuf,
+			},
 		}
 	))
 	self.updateDisplayVarKernel:compile()
