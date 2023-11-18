@@ -638,57 +638,53 @@ typedef char int8_t;
 	-- once buffers are initialized, make displayVars
 	--converts solver buffers to float[]
 	self.displayVars = table()
-	:append(
-		table.map({
-			{[{'TPrims'}] = table()
-				:append(self.body.useMatter and {
-					{['rho (kg/m^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G;'},
+	:append(self.body.useMatter and {
+		{['rho (kg/m^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G;'},
 --[P] in 1/m^2
 --[P c^2 / G] in 1/m^2 * kg/m = kg/m^3
 --[P c^4 / G] in 1/m^2 * kg/m * m^2/s^2 = kg/(m s^2)
-					{['P (kg/(m s^2))'] = 'texCLBuf[index] = TPrims[index].P * c * c * c * c / G;'},
-					{['eInt (m^2/s^2)'] = 'texCLBuf[index] = TPrims[index].eInt * c * c;'},
-				} or nil)
-				:append(self.body.useMatter and self.body.useVel and {
-					{['v (m/s)'] = 'texCLBuf[index] = TPrims[index].v * c;'},
-				} or nil)
-				:append(self.body.useEM and {
-					{['|E|'] = 'texCLBuf[index] = real3_len(TPrims[index].E);'},
-					{['div E'] = makeDiv'E'},
-					{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
-					{['div B'] = makeDiv'B'},
-				} or nil)
-			},
-			{[{'gPrims'}] = {
-				{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
-				{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
-				{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
-				{['alpha'] = 'texCLBuf[index] = gPrims[index].alpha;'},
-				{['beta^x'] = 'texCLBuf[index] = gPrims[index].betaU.s0;'},
-				{['beta^y'] = 'texCLBuf[index] = gPrims[index].betaU.s1;'},
-				{['beta^z'] = 'texCLBuf[index] = gPrims[index].betaU.s2;'},
-				{['gamma_xx'] = 'texCLBuf[index] = gPrims[index].gammaLL.s00;'},
-				{['gamma_xy'] = 'texCLBuf[index] = gPrims[index].gammaLL.s01;'},
-				{['gamma_xz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s02;'},
-				{['gamma_yy'] = 'texCLBuf[index] = gPrims[index].gammaLL.s11;'},
-				{['gamma_yz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s12;'},
-				{['gamma_zz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s22;'},
-			}},
-			-- u'^i = -Γ^i_ab u^a u^b
-			-- for weak-field, (u^i)^2 ≈ 0, u^t ≈ 1
-			-- u'^i = -Γ^i_tt
-			-- a^i = c^2 u'^i = -c^2 Γ^i_tt
-			-- |a^i| = c^2 |Γ^i_tt|
-			{[{'GammaULLs'}] = {
-				{['|Gamma^i_tt|'] = [[
+		{['P (kg/(m s^2))'] = 'texCLBuf[index] = TPrims[index].P * c * c * c * c / G;'},
+		{['eInt (m^2/s^2)'] = 'texCLBuf[index] = TPrims[index].eInt * c * c;'},
+	} or nil)
+	:append(self.body.useMatter and self.body.useVel and {
+		{['v (m/s)'] = 'texCLBuf[index] = TPrims[index].v * c;'},
+	} or nil)
+	:append(self.body.useEM and {
+		{['|E|'] = 'texCLBuf[index] = real3_len(TPrims[index].E);'},
+		{['div E'] = makeDiv'E'},
+		{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
+		{['div B'] = makeDiv'B'},
+	} or nil)
+	:append{
+		{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
+		{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
+		{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
+		{['alpha'] = 'texCLBuf[index] = gPrims[index].alpha;'},
+		{['beta^x'] = 'texCLBuf[index] = gPrims[index].betaU.s0;'},
+		{['beta^y'] = 'texCLBuf[index] = gPrims[index].betaU.s1;'},
+		{['beta^z'] = 'texCLBuf[index] = gPrims[index].betaU.s2;'},
+		{['gamma_xx'] = 'texCLBuf[index] = gPrims[index].gammaLL.s00;'},
+		{['gamma_xy'] = 'texCLBuf[index] = gPrims[index].gammaLL.s01;'},
+		{['gamma_xz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s02;'},
+		{['gamma_yy'] = 'texCLBuf[index] = gPrims[index].gammaLL.s11;'},
+		{['gamma_yz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s12;'},
+		{['gamma_zz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s22;'},
+	}
+	-- u'^i = -Γ^i_ab u^a u^b
+	-- for weak-field, (u^i)^2 ≈ 0, u^t ≈ 1
+	-- u'^i = -Γ^i_tt
+	-- a^i = c^2 u'^i = -c^2 Γ^i_tt
+	-- |a^i| = c^2 |Γ^i_tt|
+	:append{
+		{['|Gamma^i_tt|'] = [[
 	real4x4s4 const GammaULL = GammaULLs[index];
 	texCLBuf[index] = real3_len(_real3(
 		GammaULL.s1.s00,
 		GammaULL.s2.s00,
 		GammaULL.s3.s00
 	));
-]]},			
-				{['numerical gravity'] = [[
+]]},
+		{['numerical gravity'] = [[
 	real4x4s4 const GammaULL = GammaULLs[index];
 	texCLBuf[index] = real3_len(_real3(
 		GammaULL.s1.s00,
@@ -696,9 +692,9 @@ typedef char int8_t;
 		GammaULL.s3.s00
 	)) * c * c;
 ]]},
-			}},
-			{[{}] = self.body.density and {
-				{['analytical gravity'] = [[
+	}
+	:append(self.body.density and {
+		{['analytical gravity'] = [[
 	real3 const x = getX(i);
 	real const r = real3_len(x);
 	real const matterRadius = min(r, (real)<?=solver.body.radius?>);
@@ -708,17 +704,17 @@ typedef char int8_t;
 	texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r)
 		* c * c;	//+9 at earth surface, without matter derivatives
 ]]},
-			} or {}},
-			{[{'EFEs'}] = {
-				{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
-				{['|EFE_ti|*c'] = [[
+	} or nil)
+	:append{
+		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
+		{['|EFE_ti|*c'] = [[
 	global real4s4 const * const EFE = EFEs + index;
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do ?>
 		+ EFE->s0<?=i+1?> * EFE->s0<?=i+1?>
 <? end ?>) * c;
 ]]},
-				{['|EFE_ij| (kg/m s^2))'] = [[
+		{['|EFE_ij| (kg/m s^2))'] = [[
 	global real4s4 const * const EFE = EFEs + index;
 	texCLBuf[index] = ((0.
 <? for i=0,sDim-1 do
@@ -727,24 +723,22 @@ typedef char int8_t;
 <?	end
 end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 ]]},
-			}},
-			{[{'gLLs', 'gUUs', 'GammaULLs'}] = {
-				{['|Einstein_ab|'] = [[
+		{['|Einstein_ab|'] = [[
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(real4s4_dot(EinsteinLL, EinsteinLL));
 ]]},
-				{['Einstein_tt (kg/m^3)'] = [[
+		{['Einstein_tt (kg/m^3)'] = [[
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
-				{['|Einstein_ti|*c'] = [[
+		{['|Einstein_ti|*c'] = [[
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = sqrt(0.
 <? for i=0,sDim-1 do ?>
 		+ EinsteinLL.s0<?=i+1?> * EinsteinLL.s0<?=i+1?>
 <? end ?>) * c;
 ]]},
-				{['|Einstein_ij| (kg/(m s^2))'] = [[
+		{['|Einstein_ij| (kg/(m s^2))'] = [[
 	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 	texCLBuf[index] = ((0.
 <? for i=0,sDim-1 do
@@ -754,85 +748,80 @@ end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 
-				{['g_tt'] = [[texCLBuf[index] = gLLs[index].s00;]]},
-				{['g_tx'] = [[texCLBuf[index] = gLLs[index].s01;]]},
-				{['g_ty'] = [[texCLBuf[index] = gLLs[index].s02;]]},
-				{['g_tz'] = [[texCLBuf[index] = gLLs[index].s03;]]},
-				{['g_xx'] = [[texCLBuf[index] = gLLs[index].s11;]]},
-				{['g_xy'] = [[texCLBuf[index] = gLLs[index].s12;]]},
-				{['g_xz'] = [[texCLBuf[index] = gLLs[index].s13;]]},
-				{['g_yy'] = [[texCLBuf[index] = gLLs[index].s22;]]},
-				{['g_yz'] = [[texCLBuf[index] = gLLs[index].s23;]]},
-				{['g_zz'] = [[texCLBuf[index] = gLLs[index].s33;]]},
+		{['g_tt'] = [[texCLBuf[index] = gLLs[index].s00;]]},
+		{['g_tx'] = [[texCLBuf[index] = gLLs[index].s01;]]},
+		{['g_ty'] = [[texCLBuf[index] = gLLs[index].s02;]]},
+		{['g_tz'] = [[texCLBuf[index] = gLLs[index].s03;]]},
+		{['g_xx'] = [[texCLBuf[index] = gLLs[index].s11;]]},
+		{['g_xy'] = [[texCLBuf[index] = gLLs[index].s12;]]},
+		{['g_xz'] = [[texCLBuf[index] = gLLs[index].s13;]]},
+		{['g_yy'] = [[texCLBuf[index] = gLLs[index].s22;]]},
+		{['g_yz'] = [[texCLBuf[index] = gLLs[index].s23;]]},
+		{['g_zz'] = [[texCLBuf[index] = gLLs[index].s33;]]},
 
-				{['g^tt'] = [[texCLBuf[index] = gLLs[index].s00;]]},
-				{['g^tx'] = [[texCLBuf[index] = gLLs[index].s01;]]},
-				{['g^ty'] = [[texCLBuf[index] = gLLs[index].s02;]]},
-				{['g^tz'] = [[texCLBuf[index] = gLLs[index].s03;]]},
-				{['g^xx'] = [[texCLBuf[index] = gLLs[index].s11;]]},
-				{['g^xy'] = [[texCLBuf[index] = gLLs[index].s12;]]},
-				{['g^xz'] = [[texCLBuf[index] = gLLs[index].s13;]]},
-				{['g^yy'] = [[texCLBuf[index] = gLLs[index].s22;]]},
-				{['g^yz'] = [[texCLBuf[index] = gLLs[index].s23;]]},
-				{['g^zz'] = [[texCLBuf[index] = gLLs[index].s33;]]},
-			
-				{['Gamma^t_tt'] = [[texCLBuf[index] = GammaULLs[index].s0.s00;]]},
-				{['Gamma^t_tx'] = [[texCLBuf[index] = GammaULLs[index].s0.s01;]]},
-				{['Gamma^t_ty'] = [[texCLBuf[index] = GammaULLs[index].s0.s02;]]},
-				{['Gamma^t_tz'] = [[texCLBuf[index] = GammaULLs[index].s0.s03;]]},
-				{['Gamma^t_xx'] = [[texCLBuf[index] = GammaULLs[index].s0.s11;]]},
-				{['Gamma^t_xy'] = [[texCLBuf[index] = GammaULLs[index].s0.s12;]]},
-				{['Gamma^t_xz'] = [[texCLBuf[index] = GammaULLs[index].s0.s13;]]},
-				{['Gamma^t_yy'] = [[texCLBuf[index] = GammaULLs[index].s0.s22;]]},
-				{['Gamma^t_yz'] = [[texCLBuf[index] = GammaULLs[index].s0.s23;]]},
-				{['Gamma^t_zz'] = [[texCLBuf[index] = GammaULLs[index].s0.s33;]]},
+		{['g^tt'] = [[texCLBuf[index] = gLLs[index].s00;]]},
+		{['g^tx'] = [[texCLBuf[index] = gLLs[index].s01;]]},
+		{['g^ty'] = [[texCLBuf[index] = gLLs[index].s02;]]},
+		{['g^tz'] = [[texCLBuf[index] = gLLs[index].s03;]]},
+		{['g^xx'] = [[texCLBuf[index] = gLLs[index].s11;]]},
+		{['g^xy'] = [[texCLBuf[index] = gLLs[index].s12;]]},
+		{['g^xz'] = [[texCLBuf[index] = gLLs[index].s13;]]},
+		{['g^yy'] = [[texCLBuf[index] = gLLs[index].s22;]]},
+		{['g^yz'] = [[texCLBuf[index] = gLLs[index].s23;]]},
+		{['g^zz'] = [[texCLBuf[index] = gLLs[index].s33;]]},
+	
+		{['Gamma^t_tt'] = [[texCLBuf[index] = GammaULLs[index].s0.s00;]]},
+		{['Gamma^t_tx'] = [[texCLBuf[index] = GammaULLs[index].s0.s01;]]},
+		{['Gamma^t_ty'] = [[texCLBuf[index] = GammaULLs[index].s0.s02;]]},
+		{['Gamma^t_tz'] = [[texCLBuf[index] = GammaULLs[index].s0.s03;]]},
+		{['Gamma^t_xx'] = [[texCLBuf[index] = GammaULLs[index].s0.s11;]]},
+		{['Gamma^t_xy'] = [[texCLBuf[index] = GammaULLs[index].s0.s12;]]},
+		{['Gamma^t_xz'] = [[texCLBuf[index] = GammaULLs[index].s0.s13;]]},
+		{['Gamma^t_yy'] = [[texCLBuf[index] = GammaULLs[index].s0.s22;]]},
+		{['Gamma^t_yz'] = [[texCLBuf[index] = GammaULLs[index].s0.s23;]]},
+		{['Gamma^t_zz'] = [[texCLBuf[index] = GammaULLs[index].s0.s33;]]},
 
-				{['Gamma^x_tt'] = [[texCLBuf[index] = GammaULLs[index].s1.s00;]]},
-				{['Gamma^x_tx'] = [[texCLBuf[index] = GammaULLs[index].s1.s01;]]},
-				{['Gamma^x_ty'] = [[texCLBuf[index] = GammaULLs[index].s1.s02;]]},
-				{['Gamma^x_tz'] = [[texCLBuf[index] = GammaULLs[index].s1.s03;]]},
-				{['Gamma^x_xx'] = [[texCLBuf[index] = GammaULLs[index].s1.s11;]]},
-				{['Gamma^x_xy'] = [[texCLBuf[index] = GammaULLs[index].s1.s12;]]},
-				{['Gamma^x_xz'] = [[texCLBuf[index] = GammaULLs[index].s1.s13;]]},
-				{['Gamma^x_yy'] = [[texCLBuf[index] = GammaULLs[index].s1.s22;]]},
-				{['Gamma^x_yz'] = [[texCLBuf[index] = GammaULLs[index].s1.s23;]]},
-				{['Gamma^x_zz'] = [[texCLBuf[index] = GammaULLs[index].s1.s33;]]},
-	
-				{['Gamma^y_tt'] = [[texCLBuf[index] = GammaULLs[index].s2.s00;]]},
-				{['Gamma^y_tx'] = [[texCLBuf[index] = GammaULLs[index].s2.s01;]]},
-				{['Gamma^y_ty'] = [[texCLBuf[index] = GammaULLs[index].s2.s02;]]},
-				{['Gamma^y_tz'] = [[texCLBuf[index] = GammaULLs[index].s2.s03;]]},
-				{['Gamma^y_xx'] = [[texCLBuf[index] = GammaULLs[index].s2.s11;]]},
-				{['Gamma^y_xy'] = [[texCLBuf[index] = GammaULLs[index].s2.s12;]]},
-				{['Gamma^y_xz'] = [[texCLBuf[index] = GammaULLs[index].s2.s13;]]},
-				{['Gamma^y_yy'] = [[texCLBuf[index] = GammaULLs[index].s2.s22;]]},
-				{['Gamma^y_yz'] = [[texCLBuf[index] = GammaULLs[index].s2.s23;]]},
-				{['Gamma^y_zz'] = [[texCLBuf[index] = GammaULLs[index].s2.s33;]]},
-	
-				{['Gamma^z_tt'] = [[texCLBuf[index] = GammaULLs[index].s3.s00;]]},
-				{['Gamma^z_tx'] = [[texCLBuf[index] = GammaULLs[index].s3.s01;]]},
-				{['Gamma^z_ty'] = [[texCLBuf[index] = GammaULLs[index].s3.s02;]]},
-				{['Gamma^z_tz'] = [[texCLBuf[index] = GammaULLs[index].s3.s03;]]},
-				{['Gamma^z_xx'] = [[texCLBuf[index] = GammaULLs[index].s3.s11;]]},
-				{['Gamma^z_xy'] = [[texCLBuf[index] = GammaULLs[index].s3.s12;]]},
-				{['Gamma^z_xz'] = [[texCLBuf[index] = GammaULLs[index].s3.s13;]]},
-				{['Gamma^z_yy'] = [[texCLBuf[index] = GammaULLs[index].s3.s22;]]},
-				{['Gamma^z_yz'] = [[texCLBuf[index] = GammaULLs[index].s3.s23;]]},
-				{['Gamma^z_zz'] = [[texCLBuf[index] = GammaULLs[index].s3.s33;]]},
-	
-			}},
-		}, function(kv)
-			local bufs, funcs = next(kv)
-			return table.map(funcs, function(kv)
-				local k,v = next(kv)
-				return {
-					name = k,
-					argsIn = bufs,
-					body = v,
-				}
-			end)
-		end):unpack()
-	)
+		{['Gamma^x_tt'] = [[texCLBuf[index] = GammaULLs[index].s1.s00;]]},
+		{['Gamma^x_tx'] = [[texCLBuf[index] = GammaULLs[index].s1.s01;]]},
+		{['Gamma^x_ty'] = [[texCLBuf[index] = GammaULLs[index].s1.s02;]]},
+		{['Gamma^x_tz'] = [[texCLBuf[index] = GammaULLs[index].s1.s03;]]},
+		{['Gamma^x_xx'] = [[texCLBuf[index] = GammaULLs[index].s1.s11;]]},
+		{['Gamma^x_xy'] = [[texCLBuf[index] = GammaULLs[index].s1.s12;]]},
+		{['Gamma^x_xz'] = [[texCLBuf[index] = GammaULLs[index].s1.s13;]]},
+		{['Gamma^x_yy'] = [[texCLBuf[index] = GammaULLs[index].s1.s22;]]},
+		{['Gamma^x_yz'] = [[texCLBuf[index] = GammaULLs[index].s1.s23;]]},
+		{['Gamma^x_zz'] = [[texCLBuf[index] = GammaULLs[index].s1.s33;]]},
+
+		{['Gamma^y_tt'] = [[texCLBuf[index] = GammaULLs[index].s2.s00;]]},
+		{['Gamma^y_tx'] = [[texCLBuf[index] = GammaULLs[index].s2.s01;]]},
+		{['Gamma^y_ty'] = [[texCLBuf[index] = GammaULLs[index].s2.s02;]]},
+		{['Gamma^y_tz'] = [[texCLBuf[index] = GammaULLs[index].s2.s03;]]},
+		{['Gamma^y_xx'] = [[texCLBuf[index] = GammaULLs[index].s2.s11;]]},
+		{['Gamma^y_xy'] = [[texCLBuf[index] = GammaULLs[index].s2.s12;]]},
+		{['Gamma^y_xz'] = [[texCLBuf[index] = GammaULLs[index].s2.s13;]]},
+		{['Gamma^y_yy'] = [[texCLBuf[index] = GammaULLs[index].s2.s22;]]},
+		{['Gamma^y_yz'] = [[texCLBuf[index] = GammaULLs[index].s2.s23;]]},
+		{['Gamma^y_zz'] = [[texCLBuf[index] = GammaULLs[index].s2.s33;]]},
+
+		{['Gamma^z_tt'] = [[texCLBuf[index] = GammaULLs[index].s3.s00;]]},
+		{['Gamma^z_tx'] = [[texCLBuf[index] = GammaULLs[index].s3.s01;]]},
+		{['Gamma^z_ty'] = [[texCLBuf[index] = GammaULLs[index].s3.s02;]]},
+		{['Gamma^z_tz'] = [[texCLBuf[index] = GammaULLs[index].s3.s03;]]},
+		{['Gamma^z_xx'] = [[texCLBuf[index] = GammaULLs[index].s3.s11;]]},
+		{['Gamma^z_xy'] = [[texCLBuf[index] = GammaULLs[index].s3.s12;]]},
+		{['Gamma^z_xz'] = [[texCLBuf[index] = GammaULLs[index].s3.s13;]]},
+		{['Gamma^z_yy'] = [[texCLBuf[index] = GammaULLs[index].s3.s22;]]},
+		{['Gamma^z_yz'] = [[texCLBuf[index] = GammaULLs[index].s3.s23;]]},
+		{['Gamma^z_zz'] = [[texCLBuf[index] = GammaULLs[index].s3.s33;]]},
+	}
+	:mapi(function(kv)
+		local k,v = next(kv)
+		return {
+			name = k,
+			argsIn = bufs,
+			body = v,
+		}
+	end)
 	self.displayVarNames = table.map(self.displayVars, function(displayVar) return displayVar.name end)
 
 	self.updateMethod = table.find(self.updateMethods, config.solver) or 1
