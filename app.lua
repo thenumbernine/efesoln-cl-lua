@@ -173,11 +173,11 @@ function App:event(event, eventPtr)
 			rightShiftDown = event.type == sdl.SDL_KEYDOWN
 		elseif canHandleKeyboard and event.type == sdl.SDL_KEYDOWN then
 			if event.key.keysym.sym == sdl.SDLK_UP then
-				self.solver.displayVar = math.max(0, self.solver.displayVar - 1)
-				self.solver:refreshDisplayVarKernel()
+				self.solver.displayVar = math.max(1, self.solver.displayVar - 1)
+				self.solver:refreshDisplayVar()
 			elseif event.key.keysym.sym == sdl.SDLK_DOWN then
-				self.solver.displayVar = math.min(#self.solver.displayVars-1, self.solver.displayVar + 1)
-				self.solver:refreshDisplayVarKernel()
+				self.solver.displayVar = math.min(#self.solver.displayVars, self.solver.displayVar + 1)
+				self.solver:refreshDisplayVar()
 			elseif event.key.keysym.sym == sdl.SDLK_SPACE then
 				self.updateMethod = not self.updateMethod
 			elseif event.key.keysym.sym == ('u'):byte() then
@@ -347,8 +347,22 @@ function App:updateGUI()
 	ig.igText('iteration: '..self.solver.iteration)
 
 	if ig.luatableCombo('display', self.solver, 'displayVar', self.solver.displayVarNames) then
-		self.solver:refreshDisplayVarKernel()
+		self.solver:refreshDisplayVar()
 	end
+
+	--local size = ig.igGetWindowSize()
+	if ig.luatableInputTextMultiline('code', self.solver, 'displayCode',
+		ig.ImVec2(0,0),--ig.ImVec2(size.x, size.y - 56),
+		bit.bor(
+			ig.ImGuiInputTextFlags_EnterReturnsTrue,
+			ig.ImGuiInputTextFlags_AllowTabInput
+		))
+	or ig.igButton('refresh')
+	then
+		self.solver:refreshDisplayKernel()
+	end
+
+
 	ig.igText(('%.3e to %.3e'):format(self.minValue, self.maxValue))
 
 	local gradImageSize = ig.ImVec2(128, 32)

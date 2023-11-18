@@ -659,16 +659,6 @@ typedef char int8_t;
 		{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
 		{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
 		{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
-		{['alpha'] = 'texCLBuf[index] = gPrims[index].alpha;'},
-		{['beta^x'] = 'texCLBuf[index] = gPrims[index].betaU.s0;'},
-		{['beta^y'] = 'texCLBuf[index] = gPrims[index].betaU.s1;'},
-		{['beta^z'] = 'texCLBuf[index] = gPrims[index].betaU.s2;'},
-		{['gamma_xx'] = 'texCLBuf[index] = gPrims[index].gammaLL.s00;'},
-		{['gamma_xy'] = 'texCLBuf[index] = gPrims[index].gammaLL.s01;'},
-		{['gamma_xz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s02;'},
-		{['gamma_yy'] = 'texCLBuf[index] = gPrims[index].gammaLL.s11;'},
-		{['gamma_yz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s12;'},
-		{['gamma_zz'] = 'texCLBuf[index] = gPrims[index].gammaLL.s22;'},
 	}
 	-- u'^i = -Γ^i_ab u^a u^b
 	-- for weak-field, (u^i)^2 ≈ 0, u^t ≈ 1
@@ -747,74 +737,8 @@ end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 <?	end
 end ?>) / 3.) / (8. * M_PI) * c * c * c * c / G;
 ]]},
-
-		{['g_tt'] = [[texCLBuf[index] = gLLs[index].s00;]]},
-		{['g_tx'] = [[texCLBuf[index] = gLLs[index].s01;]]},
-		{['g_ty'] = [[texCLBuf[index] = gLLs[index].s02;]]},
-		{['g_tz'] = [[texCLBuf[index] = gLLs[index].s03;]]},
-		{['g_xx'] = [[texCLBuf[index] = gLLs[index].s11;]]},
-		{['g_xy'] = [[texCLBuf[index] = gLLs[index].s12;]]},
-		{['g_xz'] = [[texCLBuf[index] = gLLs[index].s13;]]},
-		{['g_yy'] = [[texCLBuf[index] = gLLs[index].s22;]]},
-		{['g_yz'] = [[texCLBuf[index] = gLLs[index].s23;]]},
-		{['g_zz'] = [[texCLBuf[index] = gLLs[index].s33;]]},
-
-		{['g^tt'] = [[texCLBuf[index] = gLLs[index].s00;]]},
-		{['g^tx'] = [[texCLBuf[index] = gLLs[index].s01;]]},
-		{['g^ty'] = [[texCLBuf[index] = gLLs[index].s02;]]},
-		{['g^tz'] = [[texCLBuf[index] = gLLs[index].s03;]]},
-		{['g^xx'] = [[texCLBuf[index] = gLLs[index].s11;]]},
-		{['g^xy'] = [[texCLBuf[index] = gLLs[index].s12;]]},
-		{['g^xz'] = [[texCLBuf[index] = gLLs[index].s13;]]},
-		{['g^yy'] = [[texCLBuf[index] = gLLs[index].s22;]]},
-		{['g^yz'] = [[texCLBuf[index] = gLLs[index].s23;]]},
-		{['g^zz'] = [[texCLBuf[index] = gLLs[index].s33;]]},
-	
-		{['Gamma^t_tt'] = [[texCLBuf[index] = GammaULLs[index].s0.s00;]]},
-		{['Gamma^t_tx'] = [[texCLBuf[index] = GammaULLs[index].s0.s01;]]},
-		{['Gamma^t_ty'] = [[texCLBuf[index] = GammaULLs[index].s0.s02;]]},
-		{['Gamma^t_tz'] = [[texCLBuf[index] = GammaULLs[index].s0.s03;]]},
-		{['Gamma^t_xx'] = [[texCLBuf[index] = GammaULLs[index].s0.s11;]]},
-		{['Gamma^t_xy'] = [[texCLBuf[index] = GammaULLs[index].s0.s12;]]},
-		{['Gamma^t_xz'] = [[texCLBuf[index] = GammaULLs[index].s0.s13;]]},
-		{['Gamma^t_yy'] = [[texCLBuf[index] = GammaULLs[index].s0.s22;]]},
-		{['Gamma^t_yz'] = [[texCLBuf[index] = GammaULLs[index].s0.s23;]]},
-		{['Gamma^t_zz'] = [[texCLBuf[index] = GammaULLs[index].s0.s33;]]},
-
-		{['Gamma^x_tt'] = [[texCLBuf[index] = GammaULLs[index].s1.s00;]]},
-		{['Gamma^x_tx'] = [[texCLBuf[index] = GammaULLs[index].s1.s01;]]},
-		{['Gamma^x_ty'] = [[texCLBuf[index] = GammaULLs[index].s1.s02;]]},
-		{['Gamma^x_tz'] = [[texCLBuf[index] = GammaULLs[index].s1.s03;]]},
-		{['Gamma^x_xx'] = [[texCLBuf[index] = GammaULLs[index].s1.s11;]]},
-		{['Gamma^x_xy'] = [[texCLBuf[index] = GammaULLs[index].s1.s12;]]},
-		{['Gamma^x_xz'] = [[texCLBuf[index] = GammaULLs[index].s1.s13;]]},
-		{['Gamma^x_yy'] = [[texCLBuf[index] = GammaULLs[index].s1.s22;]]},
-		{['Gamma^x_yz'] = [[texCLBuf[index] = GammaULLs[index].s1.s23;]]},
-		{['Gamma^x_zz'] = [[texCLBuf[index] = GammaULLs[index].s1.s33;]]},
-
-		{['Gamma^y_tt'] = [[texCLBuf[index] = GammaULLs[index].s2.s00;]]},
-		{['Gamma^y_tx'] = [[texCLBuf[index] = GammaULLs[index].s2.s01;]]},
-		{['Gamma^y_ty'] = [[texCLBuf[index] = GammaULLs[index].s2.s02;]]},
-		{['Gamma^y_tz'] = [[texCLBuf[index] = GammaULLs[index].s2.s03;]]},
-		{['Gamma^y_xx'] = [[texCLBuf[index] = GammaULLs[index].s2.s11;]]},
-		{['Gamma^y_xy'] = [[texCLBuf[index] = GammaULLs[index].s2.s12;]]},
-		{['Gamma^y_xz'] = [[texCLBuf[index] = GammaULLs[index].s2.s13;]]},
-		{['Gamma^y_yy'] = [[texCLBuf[index] = GammaULLs[index].s2.s22;]]},
-		{['Gamma^y_yz'] = [[texCLBuf[index] = GammaULLs[index].s2.s23;]]},
-		{['Gamma^y_zz'] = [[texCLBuf[index] = GammaULLs[index].s2.s33;]]},
-
-		{['Gamma^z_tt'] = [[texCLBuf[index] = GammaULLs[index].s3.s00;]]},
-		{['Gamma^z_tx'] = [[texCLBuf[index] = GammaULLs[index].s3.s01;]]},
-		{['Gamma^z_ty'] = [[texCLBuf[index] = GammaULLs[index].s3.s02;]]},
-		{['Gamma^z_tz'] = [[texCLBuf[index] = GammaULLs[index].s3.s03;]]},
-		{['Gamma^z_xx'] = [[texCLBuf[index] = GammaULLs[index].s3.s11;]]},
-		{['Gamma^z_xy'] = [[texCLBuf[index] = GammaULLs[index].s3.s12;]]},
-		{['Gamma^z_xz'] = [[texCLBuf[index] = GammaULLs[index].s3.s13;]]},
-		{['Gamma^z_yy'] = [[texCLBuf[index] = GammaULLs[index].s3.s22;]]},
-		{['Gamma^z_yz'] = [[texCLBuf[index] = GammaULLs[index].s3.s23;]]},
-		{['Gamma^z_zz'] = [[texCLBuf[index] = GammaULLs[index].s3.s33;]]},
 	}
-	:mapi(function(kv)
+:mapi(function(kv)
 		local k,v = next(kv)
 		return {
 			name = k,
@@ -1218,34 +1142,37 @@ function EFESolver:refreshKernels()
 	print'done compiling code!'
 
 	self.displayVar = 1
-	self:refreshDisplayVarKernel()
+	self:refreshDisplayVar()
 end
 
-function EFESolver:refreshDisplayVarKernel()
-	local displayVar = self.displayVars[self.displayVar]
-	self.updateDisplayVarKernel = self:kernel(table(
-		displayVar, {
-			name = 'display_'..tostring(displayVar):sub(10),
-			body = template(displayVar.body, {
-				sDim = self.sDim,
-				sym = sym,
-				solver = self,
-			}),
-			argsIn = table{
-				self.TPrims,
-				self.gPrims,
-				self.gLLs,
-				self.gUUs,
-				self.GammaULLs,
-				self.EFEs,
-			},
-			argsOut = {
-				self.texCLBuf,
-			},
-		}
-	))
+function EFESolver:refreshDisplayKernel()
+	self.updateDisplayVarKernel = self:kernel{
+		name = 'display_'..tostring(displayVar):sub(10),
+		body = template(self.displayCode, {
+			sDim = self.sDim,
+			sym = sym,
+			solver = self,
+		}),
+		argsIn = table{
+			self.TPrims,
+			self.gPrims,
+			self.gLLs,
+			self.gUUs,
+			self.GammaULLs,
+			self.EFEs,
+		},
+		argsOut = {
+			self.texCLBuf,
+		},
+	}
 	self.updateDisplayVarKernel:compile()
 	self:updateTex()
+end
+
+function EFESolver:refreshDisplayVar()
+	local displayVar = self.displayVars[self.displayVar]
+	self.displayCode = displayVar.body
+	self:refreshDisplayKernel()
 end
 
 function EFESolver:resetState()
