@@ -319,13 +319,13 @@ kernel void calc_GammaULLs(
 	initKernel();
 
 	//g_ab,c := dgLLL.c.ab
-<?= solver:finiteDifference{
+<?=solver:finiteDifference{
 	bufferName = "gLLs",
 	srcType = "4s4",
 	resultName = "dgLLL",
 	--boundaryCode = "calc_gLL_flat()",
 	boundaryCode = "gLL_flat",
-} ?>
+}?>
 
 	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
@@ -416,7 +416,7 @@ kernel void solveAL(
 
 <? 
 --[[ TODO this is 2nd order, and the middle is missing, because it's an inverse to a discrete Laplacian solved with Jacobi iteration
-= solver:finiteDifference{
+=solver:finiteDifference{
 	bufferName = "TPrims",
 	getValue = function(index) return "TPrims["..index.."].JU" end,
 	valueType = "real4",

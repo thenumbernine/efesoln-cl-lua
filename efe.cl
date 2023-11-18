@@ -10,6 +10,14 @@ constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 #define new_real_zero() 0.
 #define real_zero new_real_zero()
 
+#define real_add(a,b) ((a) + (b))
+#define real_sub(a,b) ((a) - (b))
+#define real_mul(a,b) ((a) * (b))
+#define real_real_mul real_mul
+#define real_dot real_mul
+#define real_div(a,b) ((a) / (b))
+#define real_real_div real_div
+
 <?
 local range = require 'ext.range'
 local table = require 'ext.table'
@@ -46,10 +54,59 @@ end
 
 <?makeZero{vec='real3', inner='real', dim=3}?>
 
-//a_i b_i
-static inline real real3_dot(real3 const a, real3 const b) {
-	return a.x * b.x + a.y * b.y + a.z * b.z;
+<?
+local function makeops(ctype, fieldtype, fields)
+	for _,op in ipairs{"add", "sub"} do
+?>
+static inline <?=ctype?> <?=ctype?>_<?=op?>(<?=ctype?> const a, <?=ctype?> const b) {
+	return (<?=ctype?>){
+<? 		for _,field in ipairs(fields) do
+?>	.<?=field?> = <?=fieldtype?>_<?=op?>(a.<?=field?>, b.<?=field?>),
+<? 		end
+?>	};
 }
+<?	end
+	for _,op in ipairs{"mul", "div"} do
+?>
+static inline <?=ctype?> <?=ctype?>_real_<?=op?>(<?=ctype?> const a, real const b) {
+	return (<?=ctype?>){
+<? 		for _,field in ipairs(fields) do
+?>	.<?=field?> = <?=fieldtype?>_real_<?=op?>(a.<?=field?>, b),
+<? 		end
+?>	};
+}
+<?	end
+?>
+
+static inline <?=ctype?> <?=ctype?>_mul_add(<?=ctype?> const a, <?=ctype?> const b, real const c) {
+	return <?=ctype?>_add(a, <?=ctype?>_real_mul(b, c));
+}
+
+static inline real <?=ctype?>_dot(<?=ctype?> const a, <?=ctype?> const b) {
+	return real_zero
+<?	for _,field in ipairs(fields) do
+?>		+ <?=fieldtype?>_dot(a.<?=field?>, b.<?=field?>)
+<?	end
+?>	;
+}
+
+// "length" name for vectors
+static inline real <?=ctype?>_lenSq(<?=ctype?> const a) {
+	return <?=ctype?>_dot(a, a);
+}
+static inline real <?=ctype?>_len(<?=ctype?> const a) {
+	return sqrt(<?=ctype?>_lenSq(a));
+}
+
+// "norm" name for vectors and tensors
+#define <?=ctype?>_normSq <?=ctype?>_lenSq
+#define <?=ctype?>_norm <?=ctype?>_len
+
+<?
+end
+?>
+
+<?makeops("real3", "real", {"x", "y", "z"})?> 
 
 //ε_ijk a_j b_k
 static inline real3 real3_cross(real3 const a, real3 const b) {
@@ -59,24 +116,14 @@ static inline real3 real3_cross(real3 const a, real3 const b) {
 		a.x * b.y - a.y * b.x);
 }
 
-static inline real real3_lenSq(real3 const a) {
-	return real3_dot(a,a);
-}
+#define real4_zero ((real4)(real_zero, real_zero, real_zero, real_zero))
 
-static inline real real3_len(real3 const a) {
-	return sqrt(real3_lenSq(a));
-}
-
-static inline real3 real3_real_mul(real3 const a, real const s) {
-	return _real3(a.x * s, a.y * s, a.z * s);
-}
-
-static inline real3 real3_add(real3 const a, real3 const b) {
-	return _real3(a.x + b.x, a.y + b.y, a.z + b.z);
-}
-
-static inline real3 real3_sub(real3 const a, real3 const b) {
-	return _real3(a.x - b.x, a.y - b.y, a.z - b.z);
+// ok weird convention ...
+// for spacetime vars, real3 is xyz, real4 is used such that .s0123 == txyz (time dimension first)
+// but for opencl vars (i, etc), real4 is named xyzw (time dimension last)
+// this is going to assume the former (spacetime vars)
+static inline real3 real4_to_real3(real4 const a) {
+	return _real3(a.s1, a.s2, a.s3);
 }
 
 #define real3s3_ident ((real3s3){\
@@ -94,23 +141,7 @@ static inline real real3s3_det(real3s3 const m) {
 		- m.s00 * m.s12 * m.s12;
 }
 
-static inline real real3s3_dot(real3s3 const a) {
-	return 0.<?
-for i=0,2 do
-	for j=0,2 do
-?> + a.s<?=sym(i,j)?> * a.s<?=sym(i,j)?><?
-	end
-end
-?>;
-}
-
-static inline real real3s3_normSq(real3s3 const a) {
-	return real3s3_dot(a,a);
-}
-
-static inline real real3s3_norm(real3s3 const a) {
-	return sqrt(real3s3_normSq(a));
-}
+<?makeops("real3s3", "real", {"s00", "s01", "s02", "s11", "s12", "s22"})?>
 
 static inline real3s3 real3s3_inv(real const d, real3s3 const m) {
 	return (real3s3){
@@ -133,25 +164,7 @@ static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 
 <?makeZero{vec='real4s4', inner='real', dim=4, sym=true}?>
 
-static inline real real4s4_dot(
-	real4s4 const a,
-	real4s4 const b
-) {
-	return 0.<?
-for a=0,3 do
-	for b=0,3 do 
-?> + a.s<?=sym(a,b)?> * b.s<?=sym(a,b)?><?
-	end 
-end ?>;
-}
-
-static inline real real4s4_normSq(real4s4 const a) {
-	return real4s4_dot(a, a);
-}
-
-static inline real real4s4_norm(real4s4 const a) {
-	return sqrt(real4s4_normSq(a));
-}
+<?makeops("real4s4", "real", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 static inline real4s4 real4s4_outer(real4 const v) {
 	return (real4s4){
@@ -161,53 +174,6 @@ static inline real4s4 real4s4_outer(real4 const v) {
 <? 	end
 end
 ?>	};
-}
-
-static inline real4s4 real4s4_real_mul(
-	real4s4 const a,
-	real const s
-) {
-	return (real4s4){
-<?
-for a=0,3 do
-	for b=a,3 do 
-?>		.s<?=a?><?=b?> = a.s<?=a?><?=b?> * s,
-<?	end
-end
-?>	};
-}
-
-static inline real4s4 real4s4_add(
-	real4s4 const a,
-	real4s4 const b
-) {
-	return (real4s4){
-<?
-for a=0,3 do
-	for b=a,3 do 
-?>		.s<?=a?><?=b?> = a.s<?=a?><?=b?> + b.s<?=a?><?=b?>,
-<?	end
-end
-?>	};
-}
-
-static inline real4s4 real4s4_sub(real4s4 const a, real4s4 const b) {
-	return (real4s4){
-<?
-for a=0,3 do
-	for b=a,3 do 
-?>		.s<?=a?><?=b?> = a.s<?=a?><?=b?> - b.s<?=a?><?=b?>,
-<?	end
-end
-?>	};
-}
-
-static inline real4s4 real4s4_mul_add(
-	real4s4 const a,
-	real4s4 const b,
-	real const c
-) {
-	return real4s4_add(a, real4s4_real_mul(b, c));
 }
 
 //a_i = b_ij c_j
@@ -252,7 +218,7 @@ static real3 real4s4_i0(
 	return _real3(a.s01, a.s02, a.s03);
 }
 
-static real3 real4s4_ij(
+static real3s3 real4s4_ij(
 	real4s4 const a
 ) {
 	return (real3s3){
@@ -307,32 +273,9 @@ end ?>;
 }
 
 <?makeZero{vec='real4x4s4', inner='real4s4', dim=4}?>
+<?makeops("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
 
-static inline real4x4s4 real4x4s4_real_mul(real4x4s4 const a, real const s) {
-	return (real4x4s4){
-<? for a=0,3 do
-?>		.s<?=a?> = real4s4_real_mul(a.s<?=a?>, s),
-<? end 
-?>	};
-}
-
-static inline real4x4s4 real4x4s4_add(real4x4s4 const a, real4x4s4 const b) {
-	return (real4x4s4){
-<? for a=0,3 do 
-?>		.s<?=a?> = real4s4_add(a.s<?=a?>, b.s<?=a?>),
-<? end 
-?>	};
-}
-
-static inline real4x4s4 real4x4s4_sub(real4x4s4 const a, real4x4s4 const b) {
-	return (real4x4s4){
-<? for a=0,3 do 
-?>		.s<?=a?> = real4s4_sub(a.s<?=a?>, b.s<?=a?>),
-<? end 
-?>	};
-}
-
-static inline real4x4s4 real4x4s4_i00(real4x4s4 const a) {
+static inline real3 real4x4s4_i00(real4x4s4 const a) {
 	return _real3(a.s1.s00, a.s2.s00, a.s3.s00);
 }
 
@@ -406,23 +349,10 @@ end
 ?>	};
 }
 
-<?makeZero{vec='real4s4x4s4', inner='real4s4', dim=4, sym=true}?>
+<?makeZero{vec="real4s4x4s4", inner="real4s4", dim=4, sym=true}?>
+<?makeops("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
-static inline real4s4x4s4 real4s4x4s4_add(
-	real4s4x4s4 const a,
-	real4s4x4s4 const b
-) {
-	return (real4s4x4s4){
-<? 
-for a=0,3 do
-	for b=a,3 do
-?>		.s<?=a..b?> = real4s4_add(a.s<?=a..b?>, b.s<?=a..b?>),
-<? 	end
-end 
-?>	};
-}
-
-<?makeZero{vec='real4x4x4s4', inner='real4x4s4', dim=4}?>
+<?makeZero{vec="real4x4x4s4", inner="real4x4s4", dim=4}?>
 
 constant int const stDim = <?=stDim?>;	
 constant int const sDim = <?=sDim?>;
@@ -439,10 +369,12 @@ constant real3 const inv_dx = _real3(<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
 
-#define getX(i) _real3( \
-	xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),	\
-	xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),	\
-	xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
+static inline real3 getX(int4 i) {
+	return _real3(
+		xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),
+		xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),
+		xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
+}
 
 //[1/m^2]
 real4x4x4s4 calc_dGammaLULL(
@@ -456,11 +388,11 @@ real4x4x4s4 calc_dGammaLULL(
 	int index = indexForInt4ForSize(i, size.x, size.y, size.z);
 
 	//Γ^b_cd,a = dGammaLULL.a.b.cd
-<?= solver:finiteDifference{
+<?=solver:finiteDifference{
 	bufferName = "GammaULLs",
 	srcType = "4x4s4",
 	resultName = "dGammaLULL",
-} ?>
+}?>
 
 	return dGammaLULL;
 }

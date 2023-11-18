@@ -286,12 +286,16 @@ end
 -- 1st deriv
 function EFESolver:finiteDifference(args)
 	return template([[<?
+local range = require 'ext.range'
 local bufferName = args.bufferName
 local srcType = args.srcType
 local getValue = args.getValue or function(index)
 	return bufferName.."["..index.."]"
 end
-local dstType = "real4x"..srcType
+-- for if you want to getValue based on "i" instead of "index" ...
+-- hmm this is ugly
+local getValueForI = args.getValueForI
+local dstType = srcType == "" and "real4" or "real4x"..srcType
 local resultName = args.resultName
 local boundaryCode = args.boundaryCode or "real"..srcType.."_zero"
 local d1coeffs = assert(derivCoeffs[1][order])
@@ -300,11 +304,19 @@ local d1coeffs = assert(derivCoeffs[1][order])
 		<? for j,coeff in pairs(d1coeffs) do ?>{
 			real<?=srcType?> const yL = (i.s<?=i?> - <?=j?> < 0)
 				? <?=boundaryCode?>		// lhs
-				: <?=getValue("index - stepsize.s"..i.." * "..j)?>;
+				: <?=getValueForI
+					and getValueForI("i - (int4)("
+						..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
+						..")")
+					or getValue("index - stepsize.s"..i.." * "..j)?>;
 
 			real<?=srcType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
 				? <?=boundaryCode?>		// rhs
-				: <?=getValue("index + stepsize.s"..i.." * "..j)?>;
+				: <?=getValueForI
+					and getValueForI("i + (int4)("
+						..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
+						..")")
+					or getValue("index + stepsize.s"..i.." * "..j)?>;
 
 			<?=resultName?>.s<?=i+1?> = real<?=srcType?>_add(
 				<?=resultName?>.s<?=i+1?>,
@@ -634,57 +646,27 @@ typedef char int8_t;
 })
 	end
 
-	-- this needs to be updated every time self.body changes
-	-- once buffers are initialized, make displayVars
-	--converts solver buffers to float[]
+	--[[
+	List of predefined display vars
+	Once buffers are initialized, make displayVars
+	converts solver buffers to float[]
+	--]]
 	self.displayVars = table()
-	:append(self.body.useMatter and {
-		{['rho (kg/m^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G;'},
---[P] in 1/m^2
---[P c^2 / G] in 1/m^2 * kg/m = kg/m^3
---[P c^4 / G] in 1/m^2 * kg/m * m^2/s^2 = kg/(m s^2)
-		{['P (kg/(m s^2))'] = 'texCLBuf[index] = TPrims[index].P * c * c * c * c / G;'},
-		{['eInt (m^2/s^2)'] = 'texCLBuf[index] = TPrims[index].eInt * c * c;'},
-	} or nil)
-	:append(self.body.useMatter and self.body.useVel and {
-		{['v (m/s)'] = 'texCLBuf[index] = TPrims[index].v * c;'},
-	} or nil)
-	:append(self.body.useEM and {
-		{['|E|'] = 'texCLBuf[index] = real3_len(TPrims[index].E);'},
-		{['div E'] = makeDiv'E'},
-		{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
-		{['div B'] = makeDiv'B'},
-	} or nil)
 	:append{
 		{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
 		{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
 		{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
-	}
 	-- u'^i = -Γ^i_ab u^a u^b
 	-- for weak-field, (u^i)^2 ≈ 0, u^t ≈ 1
 	-- u'^i = -Γ^i_tt
 	-- a^i = c^2 u'^i = -c^2 Γ^i_tt
 	-- |a^i| = c^2 |Γ^i_tt|
-	:append{
 		{['|Gamma^i_tt|'] = [[
 texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index]));
 ]]},
 		{['numerical gravity'] = [[
 texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
 ]]},
-	}
-	:append(self.body.density and {
-		{['analytical gravity'] = [[
-real3 const x = getX(i);
-real const r = real3_len(x);
-real const matterRadius = min(r, (real)<?=solver.body.radius?>);
-real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
-real const dm_dr = 0;
-texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
-]]},
-	} or nil)
-	:append{
 		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
 		{['|EFE_ti|*c'] = [[texCLBuf[index] = real3_len(real4s4_i0(EFEs[index])) * c;]]},
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
@@ -705,8 +687,71 @@ texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL.s0<?=i+1?>)) * c;
 real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
+		
+		--[[
+		testing how well gradient-descent works for finite-difference stuff 
+		Phi(x) = 1/2 |x|^2
+		dPhi(x)/dx^i = x^i
+		--]]
+		{['test f(x)'] = [[
+real3 const x = getX(i);
+texCLBuf[index] = .5 * real3_lenSq(x);
+]]},
+		{['test |∇f(x)|'] = [[
+real3 const x = getX(i);
+texCLBuf[index] = real3_len(x);
+]]},
+		-- hmmmm this isn't looking very accurate ...
+		{['test |D[f(x)]|'] = [[
+real3 const x = getX(i);
+<?=solver:finiteDifference{
+	getValueForI = function(i) return ".5 * real3_lenSq(getX("..i.."))" end,
+	srcType = "",
+	resultName = "dPhi_dx",
+}?>
+texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx));
+]]},
+		{['test |D[f(x)] - ∇f(x)|'] = [[
+real3 const x = getX(i);
+<?=solver:finiteDifference{
+	getValueForI = function(i) return ".5 * real3_lenSq(getX("..i.."))" end,
+	srcType = "",
+	resultName = "dPhi_dx",
+}?>
+texCLBuf[index] = real3_len(real3_sub(real4_to_real3(dPhi_dx), getX(i)));
+]]},
+
 	}
-:mapi(function(kv)
+	-- body-specific:
+	:append(self.body.useMatter and {
+		{['rho (kg/m^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G;'},
+		--[P] in 1/m^2
+		--[P c^2 / G] in 1/m^2 * kg/m = kg/m^3
+		--[P c^4 / G] in 1/m^2 * kg/m * m^2/s^2 = kg/(m s^2)
+		{['P (kg/(m s^2))'] = 'texCLBuf[index] = TPrims[index].P * c * c * c * c / G;'},
+		{['eInt (m^2/s^2)'] = 'texCLBuf[index] = TPrims[index].eInt * c * c;'},
+	} or nil)
+	:append(self.body.useMatter and self.body.useVel and {
+		{['v (m/s)'] = 'texCLBuf[index] = TPrims[index].v * c;'},
+	} or nil)
+	:append(self.body.useEM and {
+		{['|E|'] = 'texCLBuf[index] = real3_len(TPrims[index].E);'},
+		{['div E'] = makeDiv'E'},
+		{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
+		{['div B'] = makeDiv'B'},
+	} or nil)
+	:append(self.body.density and {
+		{['analytical gravity'] = [[
+real3 const x = getX(i);
+real const r = real3_len(x);
+real const matterRadius = min(r, (real)<?=solver.body.radius?>);
+real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
+real const dm_dr = 0;
+texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
+]]},
+	} or nil)
+	:mapi(function(kv)
 		local k,v = next(kv)
 		return {
 			name = k,
