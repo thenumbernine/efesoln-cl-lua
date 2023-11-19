@@ -59,19 +59,26 @@ $\frac{\partial}{\partial \beta^m} [g_{uv}] = u(i)\downarrow \overset{v(j)\right
 $\frac{\partial}{\partial \gamma_{mn}} [g_{uv}] = u(i)\downarrow \overset{v(j)\rightarrow}{\left[ \matrix{ \beta^m \beta^n & \beta^m \delta^j_n \\ \beta^m \delta^n_i & \delta^m_i \delta^n_j} \right]}$<br>
 <br>
 
-Derivative of inverse wrt metric:<br>
+<b>Derivative of metric wrt metric:</b><br>
+$\frac{\partial}{\partial g_{uv}(x')} g_{ab}(x)$<br>
+$= \delta_a^u \delta_b^v \delta(x - x')$<br>
+...by symmetry of metric:<br>
+$= \delta_a^v \delta_b^u \delta(x - x')$<br>
+<br>
+
+<b>Derivative of inverse wrt metric:</b><br>
 $\delta^b_a = g^{bc} g_{ca}$<br>
 $0 = \partial \delta^b_a = \partial g^{bc} g_{ca} + g^{bc} \partial g_{ca}$<br>
 $g^{bc} \partial g_{ca} = -\partial g^{bc} g_{ca}$<br>
 $\partial g^{ab} = -g^{ac} \partial g_{cd} g^{db}$<br>
-$\frac{\partial g^{ab}}{\partial g_{cd}} = -g^{ac} g^{db}$<br>
+$\frac{\partial g^{ab}(x)}{\partial g_{uv}(x')} = -g^{au}(x) g^{vb}(x) \delta(x - x')$<br>
 The index is correct for asymmetric $g_{ab}$.<br>
 <br>
 
-Derivative of determinant wrt metric, using Jacobi's formula:<br>
+<b>Derivative of determinant wrt metric, using Jacobi's formula:</b><br>
 $\partial det A = tr(adj(A) \partial A) = det A \cdot tr(A^{-T} \partial A)$<br>
-so $\frac{\partial g}{\partial g_{ef}} = g g^{ba} \frac{\partial g_{ab}}{\partial g_{ef}}$
-$= g g^{fe}$<br>
+$\frac{\partial g(x)}{\partial g_{uv}(x')} = g(x) g^{ba}(x) \frac{\partial g_{ab}(x)}{\partial g_{uv}(x')}$
+$= g(x) g^{fe}(x) \delta(x - x')$<br>
 <br>
 
 <b>Levi-Civita tensor:</b><br>
@@ -88,21 +95,14 @@ $ = -\frac{1}{2 \sqrt{-g}} g g^{fe} \bar\epsilon_{abcd}$<br>
 $ = \frac{1}{2} \sqrt{-g} g^{fe} \bar\epsilon_{abcd}$<br>
 <br>
 
-<b>Metric derivative, discretized:</b><br>
-1st order finite-difference kernel along the j'th axis, with finite-difference step-size h:<br>
-$\frac{\partial}{\partial x^j} g_{ab}(x) \approx \frac{1}{2 h} \left( g_{ab}(x + \Delta \hat{x}^j) - g_{ab}(x - \Delta \hat{x}^j) \right)$<br>
+<b>Metric derivative wrt metric:</b><br>
+$\frac{\partial}{\partial g_{uv}} g_{ab,c}$<br>
+$= \partial_c ( \frac{\partial}{\partial g_{uv}} g_{ab} )$<br>
+$= \partial_c ( \delta^u_a \delta^b_v )$<br>
+$= 0$<br>
 <br>
 
-Derivative wrt metric:<br>
-$\frac{\partial}{\partial g_{ef}(x)} \frac{\partial g_{ab}(x)}{\partial x} = 0$<br>
-$\frac{\partial}{\partial g_{ef}(x + \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} = \frac{1}{2} \delta^e_a \delta^f_b$<br>
-$\frac{\partial}{\partial g_{ef}(x - \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} = -\frac{1}{2} \delta^e_a \delta^f_b$<br>
-<br>
-
-For 1st order spatial derivatives, $\frac{\partial}{\partial x} g_{ab}(x)$ references cells 1 cell away.<br>
-<br>
-
-Arbitrary finite-difference kernel:<br>
+<b>Metric derivative, finite-difference:</b><br>
 $\frac{\partial}{\partial x^j} g_{ab}(x) \approx \frac{1}{h} \Sigma_k \phi_k g_{ab}(x + k \Delta \hat{x}^j)$<br>
 <a href="https://en.wikipedia.org/wiki/Finite_difference_coefficient">https://en.wikipedia.org/wiki/Finite_difference_coefficient</a>:<br>
 ... 1st-order: $\phi_{\pm 1} = \pm \frac{1}{2}$<br>
@@ -114,6 +114,8 @@ $\frac{\partial}{\partial x^j} g_{ab}(x) \approx \frac{1}{h} \Sigma_k \phi_k g_{
 $\frac{\partial}{\partial g_{ef}(x + k \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} \approx \phi_k \delta^e_a \delta^f_b$<br>
 <br>
 
+For nth-order spatial derivatives, $\frac{\partial}{\partial x} g_{ab}(x)$ references cells n cell away.<br>
+<br>
 
 <b>Christoffel symbols of the first kind:</b><br>
 $\Gamma_{abc} = \frac{1}{2} (
