@@ -15,7 +15,7 @@ kernel void calc_partial_gPrim_of_Phis(
 	real4s4 const gUU = gUUs[index];
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-<? if true then -- used 2nd-deriv finite-difference stencil
+<? if false then -- used 2nd-deriv finite-difference stencil
 ?>
 	//partial_xU2_of_gLL.cd.ab := g_ab,cd
 <?= solver:finiteDifference2{
@@ -105,7 +105,34 @@ kernel void calc_partial_gPrim_of_Phis(
 	//Gaussian := R = R^a_a
 	real const Gaussian = real4x4_tr(RicciUL);
 
-	//real4s4x4x4s4 const partial_gLL_GammaULL
+	//partial_gLL_GammaULL.pq.a.bc =: ∂/∂g_pq(x) Γ_abc
+	real4s4x4x4s4 const partial_gLL_GammaULL = (real4s4x4x4s4){
+<?
+for p=0,stDim-1 do
+	for q=p,stDim-1 do
+		if p == q then
+?>		.s<?=p..q?> = real4x4s4_add<?=2*order+1?>(
+<?			for offset = -order,order do
+?>				real4x4s4_mul(
+					GammaULL[index + stepsize.s<?=p?> * offset],
+					<?=d2coeffs[order][math.abs(offset)]?>
+				),
+<?			end
+		else
+?>		.s<?=p..q?> = real4x4s4_add<?=order^2?>(
+<?			for offset_p = -order,order do
+				for offset_q = -order,order do
+?>				real4x4s4_mul(
+					GammaULL[index + stepsize.s<?=p?> * offset_p + stepsize.s<?=q?> * offset_q],
+					<?=d1coeffs[order][offset_p] * d1coeffs[order][offset_q]?>
+				),
+<?				end
+			end
+?>		),
+<?		end
+	end
+end
+?>	};
 
 	/*
 	... if we use g_ab,cd and don't limit h->0 our ∂/∂g_pq(x) D_c(g_ab(x')) 's ...
