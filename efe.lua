@@ -300,35 +300,32 @@ local getBoundary = args.getBoundary or function(args)
 end
 local d1coeffs = assert(derivCoeffs[1][order])
 ?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
-	<? for i=0,sDim-1 do ?>{
-		<? for j,coeff in pairs(d1coeffs) do
-			args.i = "i - (int4)("
-				..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
-				..")"
-			args.index = "index - stepsize.s"..i.." * "..j
-		?>{
-			real<?=srcType?> const yL = (i.s<?=i?> - <?=j?> < 0)
-				? <?=getBoundary(args)?>		// lhs
-				: <?=getValue(args)?>;
-<?
+<? 
+for i=0,sDim-1 do
+	for offset_i,coeff in pairs(d1coeffs) do 
+?>	<?=resultName?>.s<?=i+1?> = real<?=srcType?>_add(
+		<?=resultName?>.s<?=i+1?>,
+		real<?=srcType?>_real_mul(
+			real<?=srcType?>_sub(
+<?			-- setup rhs index
 			args.i = "i + (int4)("
-				..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
+				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
 				..")"
-			args.index = "index + stepsize.s"..i.." * "..j
-?>			real<?=srcType?> const yR = (i.s<?=i?> + <?=j?> >= size.s<?=i?>)
-				? <?=getBoundary(args)?>		// rhs
-				: <?=getValue(args)?>;
-
-			<?=resultName?>.s<?=i+1?> = real<?=srcType?>_add(
-				<?=resultName?>.s<?=i+1?>,
-				real<?=srcType?>_real_mul(
-					real<?=srcType?>_sub(yR, yL),
-					<?=coeff?> * inv_dx.s<?=i?>
-				)
-			);
-		}<? end ?>
-	}<? end ?>
-<?
+			args.index = "index + stepsize.s"..i.." * "..offset_i
+?>				(i.s<?=i?> + <?=offset_i?> >= size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>,
+<?			-- setup lhs index
+			args.i = "i - (int4)("
+				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
+				..")"
+			args.index = "index - stepsize.s"..i.." * "..offset_i
+?>				(i.s<?=i?> - <?=offset_i?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>
+			),
+			<?=coeff?> * inv_dx.s<?=i?>
+		)
+	);
+<?	end
+end
+?>
 ]], {
 		args = args,
 		derivCoeffs = derivCoeffs,
@@ -359,15 +356,9 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 			<? for k,coeff in pairs(d2coeffs) do
 				args.index = "index - stepsize.s"..i.." * "..k
 			?>{
-				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0)
-					? <?=getBoundary(args)?>		// lhs
-					: <?=getValue(args)?>;
-<?
-				args.index = "index + stepsize.s"..i.." * "..k
-?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= size.s<?=i?>)
-					? <?=getBoundary(args)?>		// rhs
-					: <?=getValue(args)?>;
-
+				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+<?				args.index = "index + stepsize.s"..i.." * "..k
+?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 				<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 					<?=resultName?>.s<?=i+1?><?=j+1?>,
 					real<?=srcType?>_real_mul(
@@ -383,22 +374,13 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 				<? for l,coeff_l in pairs(d1coeffs) do
 					args.index = "index - stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
 				?>{
-					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0)
-						? <?=getBoundary(args)?>		// lhs+lhs
-						: <?=getValue(args)?>;
+					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?					args.index = "index - stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
-						? <?=getBoundary(args)?>		// lhs+rhs
-						: <?=getValue(args)?>;
+?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?					args.index = "index + stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> - <?=l?> < 0)
-						? <?=getBoundary(args)?>		// lhs+rhs
-						: <?=getValue(args)?>;
+?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?					args.index = "index + stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> + <?=l?> >= size.s<?=j?>)
-						? <?=getBoundary(args)?>		// rhs+rhs
-						: <?=getValue(args)?>;
-
+?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> + <?=l?> >= size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 					<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 						<?=resultName?>.s<?=i+1?><?=j+1?>,
 						real<?=srcType?>_real_mul(
