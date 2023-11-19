@@ -364,47 +364,50 @@ static inline real4x4x4 real4x4s4_real4s4_mul21(
 ?>	};
 }
 
-//b_ij = a^k_ikj
-static inline real4s4 real4x4x4s4_tr13(real4x4x4s4 const a) {
-	return (real4s4){
-<? for a=0,3 do 
-	for b=a,3 do
-?>		.s<?=a..b?> = 0. <?
-		for c=0,3 do 
-?> + a.s<?=c?>.s<?=a?>.s<?=sym(c,b)?><? 
-		end ?>,
-<? 	end
-end 
-?>	};
-}
-
 <?makeZero{vec="real4s4x4s4", inner="real4s4", dim=4, sym=true}?>
 <?makeops("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 <?makeZero{vec="real4x4x4s4", inner="real4x4s4", dim=4}?>
 
-static inline real4x4x4s4 real4s4_real4s4x4s4_mul(
+static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
 	real4s4 const a,
-	real4s4x4s4 const b
+	real4x4x4x4 const b
 ) {
-	return (real4x4x4s4){
+	return (real4x4x4x4){
 <? for a=0,3 do
-?>		.s<?=a?> = (real4x4s4){
+?>		.s<?=a?> = (real4x4x4){
 <?	for b=0,3 do
-?>			.s<?=b?> = (real4s4){
+?>			.s<?=b?> = (real4x4){
 <?		for c=0,3 do
-			for d=c,3 do
-?>				.s<?=c..d?> = 0.<?
+?>				.s<?=c?> = (real4)(
+<?			for d=0,3 do
+?>					0.<?
 				for e=0,3 do
-?> + a.s<?=sym(a,e)?> * b.s<?=sym(e,b)?>.s<?=c..d?><?
+?> + a.s<?=sym(a,e)?> * b.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?><?
 				end
-?>,
+?>				<?=d<3 and "," or ""?>
 <?			end
-		end
+?>				),
+<?		end
 ?>			},
-<? end
+<? 	end
 ?>		},
 <? end
+?>	};
+}
+
+//b_ij = a^k_ikj
+// assuming b_ij = b_ji i.e. a_ijkl = a_klij
+static inline real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const a) {
+	return (real4s4){
+<? for a=0,3 do 
+	for b=a,3 do
+?>		.s<?=a..b?> = 0. <?
+		for c=0,3 do 
+?> + a.s<?=c?>.s<?=a?>.s<?=c?>.s<?=b?><? 
+		end ?>,
+<? 	end
+end 
 ?>	};
 }
 

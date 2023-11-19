@@ -15,7 +15,7 @@ kernel void calc_dPhi_dgPrims(
 	real4s4 const gUU = gUUs[index];
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-<? if true then -- used 2nd-deriv finite-difference stencil
+<? if false then -- used 2nd-deriv finite-difference stencil
 -- TODO this is diverging
 ?>
 	//g_ab,cd := dgLLL.cd.ab
@@ -33,22 +33,110 @@ kernel void calc_dPhi_dgPrims(
 	//RiemannLLLL.ab.cd := R_abcd 
 	//= (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	//= (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
-	real4s4x4s4 const RiemannLLLL = (real4s4x4s4){
+	// TODO antisymmetric storage
+	// but this requires inserting -1's for reading/writing ...
+	real4x4x4x4 const RiemannLLLL = (real4x4x4x4){
 <? for a=0,stDim-1 do
-	for b=a,stDim-1 do
-?>		.s<?=a..b?> = (real4s4){
+?>		.s<?=a?> = (real4x4x4){
+<?	for b=a,stDim-1 do
+?>			.s<?=b?> = (real4x4){
 <?		for c=0,stDim-1 do
-			for d=c,stDim-1 do
-?>			.s<?=c..d?> =
-				  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
-				+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
-				- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
-				- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
+?>				.s<?=c?> = (real4)(
+<?			for d=c,stDim-1 do
+?>					  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
+					+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
+					- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
+					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
 <?				for e=0,stDim-1 do
-?>				+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
-				- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
+?>					+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
+					- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
 <?				end
-?>			,
+?>					,
+<?			end
+?>				),
+<?		end
+?>			},
+<?	end
+?>		},
+<? end
+?>	};
+
+	//RiemannULLL.a.b.cd := R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
+	//TODO antisymmetric storage
+	real4x4x4x4 const RiemannULLL = real4s4_real4x4x4x4_mul(gUU, RiemannLLLL);
+
+	//RicciLL.ab := R_ab = R^c_acb
+	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
+
+	//RicciUL.a.b := R^a_b = g^ac R_cb
+	real4x4 const RicciUL = real4s4_real4s4_mul(gUU, RicciLL);
+
+	//RicciUU.ab := R^ab = R^a_c g^cb
+	real4s4 const RicciUU = real4x4_real4s4_to_real4s4_mul(RicciUL, gUU);
+
+	//Gaussian := R = R^a_a
+	real const Gaussian = real4x4_tr(RicciUL);
+
+	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
+	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
+
+	/*
+	... if we use g_ab,cd and don't limit h->0 our ∂/∂g_pq(x) D_c(g_ab(x')) 's ...
+	dRicciLL_dgLL.pq.ab := ∂R_ab/∂g_pq
+	= ∂/∂g_pq ( g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab )
+	= ∂/∂g_pq ( g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + g^cd g^ef (Γ_cea Γ_dbf - Γ_cef Γ_dba))
+	=	  ∂/∂g_pq g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab)
+		+ g^uv (∂/∂g_pq g_au,bv + ∂/∂g_pq g_bv,au - ∂/∂g_pq g_ab,uv - ∂/∂g_pq g_uv,ab)
+		+ (
+			  ∂/∂g_pq g^cd g^ef
+			+ g^cd ∂/∂g_pq g^ef
+		) (Γ_cea Γ_dbf - Γ_cef Γ_dba)
+		+ g^cd g^ef (
+			  ∂/∂g_pq Γ_cea Γ_dbf + Γ_cea ∂/∂g_pq Γ_dbf
+			- ∂/∂g_pq Γ_cef Γ_dba - Γ_cef ∂/∂g_pq Γ_dba
+		)
+	=	- g^pu g^qv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab)
+		+ g^uv (
+			  ∂/∂g_pq D2[g_au]_bv
+			+ ∂/∂g_pq D2[g_bv]_au
+			- ∂/∂g_pq D2[g_ab]_uv
+			- ∂/∂g_pq D2[g_uv]_ab
+		)
+		- (
+			  g^cp g^dq g^ef
+			+ g^ep g^fq g^cd
+		) (Γ_cea Γ_dbf - Γ_cef Γ_dba)
+		+ g^cd g^ef (
+			  Γ_dbf ∂/∂g_pq Γ_cea + Γ_cea ∂/∂g_pq Γ_dbf
+			- Γ_dba ∂/∂g_pq Γ_cef - Γ_cef ∂/∂g_pq Γ_dba
+		)
+
+	=	- g^cp R^q_acb
+		- g^cp g^qe g^fg (Γ_caf Γ_ebg - Γ_cfg Γ_eab)
+		+ g^uv (
+			  ∂/∂g_pq D2[g_au]_bv
+			+ ∂/∂g_pq D2[g_bv]_au
+			- ∂/∂g_pq D2[g_ab]_uv
+			- ∂/∂g_pq D2[g_uv]_ab
+		)
+		+ g^cd g^ef (
+			  Γ_dbf ∂/∂g_pq Γ_cea + Γ_cea ∂/∂g_pq Γ_dbf
+			- Γ_dba ∂/∂g_pq Γ_cef - Γ_cef ∂/∂g_pq Γ_dba
+		)
+	*/
+	real4s4x4s4 const dRicciLL_dgLL = (real4s4x4s4){
+<? for p=0,stDim-1 do
+	for q=p,stDim-1 do
+?>		.s<?=p..q?> = (real4s4){
+<?		for a=0,stDim-1 do
+			for b=a,stDim-1 do
+?>			.s<?=a..b?> = 0.<?
+				for c=0,stDim-1 do ?>
+				- gUU.s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=c?>.s<?=b?>
+
+				+ GammaUUL.s<?=p?>.s<?=c?>.s<?=c?> * GammaULL.s<?=q?>.s<?=sym(b,a)?>
+				- GammaUUL.s<?=p?>.s<?=c?>.s<?=b?> * GammaULL.s<?=q?>.s<?=sym(c,a)?>
+<?				end ?>,
 <?			end
 		end
 ?>		},
@@ -56,8 +144,6 @@ kernel void calc_dPhi_dgPrims(
 end
 ?>	};
 
-	//RiemannULLL.a.b.cd := R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
-	real4x4x4s4 const RiemannULLL = real4s4_real4s4x4s4_mul(gUU, RiemannLLLL);
 
 <? else -- only use 1st-deriv finite-difference stencils (and difference-of-difference for 2nd-deriv)
 ?>
@@ -66,32 +152,32 @@ end
 	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
 
 	//RiemannULLL.a.b.cd := R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
-	real4x4x4s4 const RiemannULLL = (real4x4x4s4){
+	real4x4x4x4 const RiemannULLL = (real4x4x4x4){
 <? for a=0,stDim-1 do
-?>		.s<?=a?> = (real4x4s4){
+?>		.s<?=a?> = (real4x4x4){
 <?	for b=0,stDim-1 do
-?>			.s<?=b?> = (real4s4){
+?>			.s<?=b?> = (real4x4){
 <?		for c=0,stDim-1 do
-			for d=c,stDim-1 do
-?>				.s<?=c..d?> =
-					  dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
+?>				.s<?=c?> = (real4)(
+<?			for d=0,stDim-1 do
+?>					  dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
 					- dGammaLULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?><?
-				for e=0,stDim-1 do ?>
-					+ GammaULL.s<?=a?>.s<?=sym(e,c)?> * GammaULL.s<?=e?>.s<?=sym(b,d)?>
-					- GammaULL.s<?=a?>.s<?=sym(e,d)?> * GammaULL.s<?=e?>.s<?=sym(b,c)?><?
-				end ?>,
+				for e=0,stDim-1 do
+?>					+ GammaULL.s<?=a?>.s<?=sym(e,c)?> * GammaULL.s<?=e?>.s<?=sym(b,d)?>
+					- GammaULL.s<?=a?>.s<?=sym(e,d)?> * GammaULL.s<?=e?>.s<?=sym(b,c)?>
+<?				end
+?>					<?=d<3 and "," or ""?>
 <?			end
-		end
+?>				),
+<?		end
 ?>			},
-<? end
+<? 	end
 ?>		},
 <? end
 ?>	};
 
-<? end ?>
-
 	//RicciLL.ab := R_ab = R^c_acb
-	real4s4 const RicciLL = real4x4x4s4_tr13(RiemannULLL);
+	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
 
 	//RicciUL.a.b := R^a_b = g^ac R_cb
 	real4x4 const RicciUL = real4s4_real4s4_mul(gUU, RicciLL);
@@ -134,61 +220,19 @@ end
 	dRicciLL_dgLL.pq.ab := ∂R_ab/∂g_pq
 	= Γ^pc_c Γ^q_ba - Γ^pc_b Γ^q_ca - g^cp R^q_acb
 	(work done in efe.html)
-
-	... or if we use g_ab,cd and don't limit h->0 our ∂/∂g_pq(x) D_c(g_ab(x')) 's ...
-	dRicciLL_dgLL.pq.ab := ∂R_ab/∂g_pq
-	= ∂/∂g_pq ( g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab )
-	= ∂/∂g_pq ( g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + g^cd g^ef (Γ_cea Γ_dbf - Γ_cef Γ_dba))
-	=	  ∂/∂g_pq g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab)
-		+ g^uv (∂/∂g_pq g_au,bv + ∂/∂g_pq g_bv,au - ∂/∂g_pq g_ab,uv - ∂/∂g_pq g_uv,ab)
-		+ (
-			  ∂/∂g_pq g^cd g^ef
-			+ g^cd ∂/∂g_pq g^ef
-		) (Γ_cea Γ_dbf - Γ_cef Γ_dba)
-		+ g^cd g^ef (
-			  ∂/∂g_pq Γ_cea Γ_dbf + Γ_cea ∂/∂g_pq Γ_dbf
-			- ∂/∂g_pq Γ_cef Γ_dba - Γ_cef ∂/∂g_pq Γ_dba
-		)
-	=	- g^pu g^qv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab)
-		+ g^uv (
-			  ∂/∂g_pq D2[g_au]_bv
-			+ ∂/∂g_pq D2[g_bv]_au
-			- ∂/∂g_pq D2[g_ab]_uv
-			- ∂/∂g_pq D2[g_uv]_ab
-		)
-		- (
-			  g^cp g^dq g^ef
-			+ g^ep g^fq g^cd
-		) (Γ_cea Γ_dbf - Γ_cef Γ_dba)
-		+ g^cd g^ef (
-			  Γ_dbf ∂/∂g_pq Γ_cea + Γ_cea ∂/∂g_pq Γ_dbf
-			- Γ_dba ∂/∂g_pq Γ_cef - Γ_cef ∂/∂g_pq Γ_dba
-		)
-
-	=	- g^cp R^q_acb
-		- g^cp g^qe g^fg (Γ_cfa Γ_ebg - Γ_cfg Γ_eba)
-		+ g^uv (
-			  ∂/∂g_pq D2[g_au]_bv
-			+ ∂/∂g_pq D2[g_bv]_au
-			- ∂/∂g_pq D2[g_ab]_uv
-			- ∂/∂g_pq D2[g_uv]_ab
-		)
-		+ g^cd g^ef (
-			  Γ_dbf ∂/∂g_pq Γ_cea + Γ_cea ∂/∂g_pq Γ_dbf
-			- Γ_dba ∂/∂g_pq Γ_cef - Γ_cef ∂/∂g_pq Γ_dba
-		)
 	*/
 	real4s4x4s4 const dRicciLL_dgLL = (real4s4x4s4){
-<? for p=0,stDim-1 do
+<?
+for p=0,stDim-1 do
 	for q=p,stDim-1 do
 ?>		.s<?=p..q?> = (real4s4){
 <?		for a=0,stDim-1 do
 			for b=a,stDim-1 do
-?>			.s<?=a..b?> = 0.<?
-				for c=0,stDim-1 do ?>
+?>			.s<?=a..b?> = 0.
+<?				for c=0,stDim-1 do ?>
 				+ GammaUUL.s<?=p?>.s<?=c?>.s<?=c?> * GammaULL.s<?=q?>.s<?=sym(b,a)?>
 				- GammaUUL.s<?=p?>.s<?=c?>.s<?=b?> * GammaULL.s<?=q?>.s<?=sym(c,a)?>
-				- gUU.s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=sym(c,b)?><?
+				- gUU.s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=c?>.s<?=b?><?
 				end ?>,
 <?			end
 		end
@@ -196,6 +240,8 @@ end
 <?	end
 end
 ?>	};
+
+<? end ?>
 
 	//g^ab ∂R_ab/∂g_pq
 	real4s4 const gUU_dRicciLL_dgLL = (real4s4){
