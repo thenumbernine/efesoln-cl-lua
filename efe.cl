@@ -116,7 +116,18 @@ static inline real3 real3_cross(real3 const a, real3 const b) {
 		a.x * b.y - a.y * b.x);
 }
 
-#define real4_zero ((real4)(real_zero, real_zero, real_zero, real_zero))
+#define new_real4_zero() ((real4)(real_zero, real_zero, real_zero, real_zero))
+#define real4_zero new_real4_zero()
+
+#define real4_add(a,b)	((a) + (b))
+#define real4_sub(a,b)	((a) - (b))
+#define real4_mul(a,b)	((a) * (b))
+#define real4_real_mul	real4_mul
+#define real4_dot		dot
+#define real4_div(a,b)	((a) / (b))
+#define real4_real_div	real4_div
+
+
 
 // ok weird convention ...
 // for spacetime vars, real3 is xyz, real4 is used such that .s0123 == txyz (time dimension first)
@@ -162,7 +173,9 @@ static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 	};
 }
 
-<?makeZero{vec='real4s4', inner='real', dim=4, sym=true}?>
+<?makeops("real4x4", "real4", {"s0", "s1", "s2", "s3"})?>
+
+<?makeZero{vec="real4s4", inner="real", dim=4, sym=true}?>
 
 <?makeops("real4s4", "real", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
@@ -181,14 +194,14 @@ static inline real4 real4s4_real4_mul(
 	real4s4 const m,
 	real4 const v
 ) {
-	return (real4){
+	return (real4)(
 <? for i=0,3 do
 ?>		0. <? 
 	for j=0,3 do 
 ?> + m.s<?=sym(i,j)?> * v.s<?=j?><? 
-	end ?>,
+	end ?><?=i < 3 and "," or ""?>
 <? end 
-?>	};
+?>	);
 }
 
 //a_ij = b_ik c_kj
@@ -301,6 +314,8 @@ for a=0,3 do
 end ?>;
 }
 
+<?makeops("real4x4x4", "real4x4", {"s0", "s1", "s2", "s3"})?>
+
 <?makeZero{vec='real4x4s4', inner='real4s4', dim=4}?>
 <?makeops("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
 
@@ -316,7 +331,7 @@ static inline real4 real4x4s4_tr12(real4x4s4 const a) {
 	for j=0,3 do 
 ?> + a.s<?=j?>.s<?=sym(j,i)?><? 
 	end
-?><?=i<3 and "," or ""?>
+?><?=i < 3 and "," or ""?>
 <? end
 ?>	);
 }
@@ -369,6 +384,8 @@ static inline real4x4x4 real4x4s4_real4s4_mul21(
 
 <?makeZero{vec="real4x4x4s4", inner="real4x4s4", dim=4}?>
 
+<?makeops("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
+
 static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
 	real4s4 const a,
 	real4x4x4x4 const b
@@ -385,7 +402,7 @@ static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
 				for e=0,3 do
 ?> + a.s<?=sym(a,e)?> * b.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?><?
 				end
-?>				<?=d<3 and "," or ""?>
+?>				<?=d < 3 and "," or ""?>
 <?			end
 ?>				),
 <?		end

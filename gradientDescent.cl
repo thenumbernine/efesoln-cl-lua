@@ -15,8 +15,7 @@ kernel void calc_dPhi_dgPrims(
 	real4s4 const gUU = gUUs[index];
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-<? if false then -- used 2nd-deriv finite-difference stencil
--- TODO this is diverging
+<? if true then -- used 2nd-deriv finite-difference stencil
 ?>
 	//g_ab,cd := dgLLL.cd.ab
 <?= solver:finiteDifference2{
@@ -43,7 +42,8 @@ kernel void calc_dPhi_dgPrims(
 ?>					  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
 					+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
 					- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
-					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>,
+					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
+					<?=d < 3 and "," or ""?>
 <?			end
 ?>				),
 <?		end
@@ -67,7 +67,7 @@ kernel void calc_dPhi_dgPrims(
 ?>					+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
 					- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
 <?				end
-?>					,
+?>					<?=d < 3 and "," or ""?>
 <?			end
 ?>				),
 <?		end
@@ -82,24 +82,7 @@ kernel void calc_dPhi_dgPrims(
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// TODO antisymmetric storage
 	// but this requires inserting -1's for reading/writing ...
-	real4x4x4x4 const RiemannLLLL = (real4x4x4x4){
-<? for a=0,stDim-1 do
-?>		.s<?=a?> = (real4x4x4){
-<?	for b=0,stDim-1 do
-?>			.s<?=b?> = (real4x4){
-<?		for c=0,stDim-1 do
-?>				.s<?=c?> = (real4)(
-<?			for d=0,stDim-1 do
-?>					.5 * dg_asym_LLLL.<?=a?>.<?=b?>.<?=c?>.<?=d?>
-					+ GammaSq_asym_LLLL.<?=a?>.<?=b?>.<?=c?>.<?=d?>,
-<?			end
-?>				),
-<?		end
-?>			},
-<?	end
-?>		},
-<? end
-?>	};
+	real4x4x4x4 const RiemannLLLL = real4x4x4x4_mul_add(GammaSq_asym_LLLL, dg_asym_LLLL, .5);
 
 	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
@@ -152,7 +135,7 @@ kernel void calc_dPhi_dgPrims(
 		)
 
 	=	- g^cp R^q_acb
-		- g^cp g^qe g^fg (Γ_efb Γ_cag - Γ_cfg Γ_eab)
+		- g^cp g^qe g^fg (Γ_efb Γ_cag - Γ_cfg Γ_eab)		<- same as the Γ^2 term in the g_ab,cd formulation of R^q_acb ...)
 		+ g^uv (
 			  ∂/∂g_pq D2[g_au]_bv
 			+ ∂/∂g_pq D2[g_bv]_au
@@ -170,10 +153,15 @@ kernel void calc_dPhi_dgPrims(
 ?>		.s<?=p..q?> = (real4s4){
 <?		for a=0,stDim-1 do
 			for b=a,stDim-1 do
-?>			.s<?=a..b?> = 0.<?
-				for c=0,stDim-1 do ?>
-				- gUU.s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=c?>.s<?=b?>
+?>			.s<?=a..b?> = 0.
+<?				for c=0,stDim-1 do
+?>				- gUU.s<?=sym(c,p)?> * (
+					RiemannULLL.s<?=q?>.s<?=a?>.s<?=c?>.s<?=b?>
 
+<?					for e=0,stDim-1 do
+?>					+ gUU.s<?=sym(q,e)?> * GammaSq_asym_LLLL.s<?=e?>.s<?=a?>.s<?=c?>.s<?=b?>
+<?					end
+?>				)
 				+ GammaUUL.s<?=p?>.s<?=c?>.s<?=c?> * GammaULL.s<?=q?>.s<?=sym(b,a)?>
 				- GammaUUL.s<?=p?>.s<?=c?>.s<?=b?> * GammaULL.s<?=q?>.s<?=sym(c,a)?>
 <?				end ?>,
@@ -206,7 +194,7 @@ end
 ?>					+ GammaULL.s<?=a?>.s<?=sym(e,c)?> * GammaULL.s<?=e?>.s<?=sym(b,d)?>
 					- GammaULL.s<?=a?>.s<?=sym(e,d)?> * GammaULL.s<?=e?>.s<?=sym(b,c)?>
 <?				end
-?>					<?=d<3 and "," or ""?>
+?>					<?=d < 3 and "," or ""?>
 <?			end
 ?>				),
 <?		end
