@@ -1,7 +1,7 @@
 // here is the code used for updating weights based on the EFE
 
-kernel void calc_dPhi_dgPrims(
-	global gPrim_t * const dPhi_dgPrims,
+kernel void calc_partial_gPrim_of_Phis(
+	global gPrim_t * const partial_gPrim_of_Phis,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4s4 const * const gLLs,
@@ -29,8 +29,9 @@ kernel void calc_dPhi_dgPrims(
 	//GammaLLL.a.bc := Γ_abc = g_au Γ^u_bc
 	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
 
-	//both are [ab][cd] and (ac)(bd)
 	//dg_asym_LLLL.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
+	// TODO antisymmetric storage
+	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab 
 	real4x4x4x4 const dg_asym_LLLL = (real4x4x4x4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (real4x4x4){
@@ -54,6 +55,7 @@ kernel void calc_dPhi_dgPrims(
 ?>	};
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
+	// TODO antisymmetric storage
 	real4x4x4x4 const GammaSq_asym_LLLL = (real4x4x4x4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (real4x4x4){
@@ -77,16 +79,19 @@ kernel void calc_dPhi_dgPrims(
 <? end
 ?>	};
 
+	// linear transform, not necessarily tensoral (since neither is anyways)
+	real4x4x4x4 const dg_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, dg_asym_LLLL);
+	real4x4x4x4 const GammaSq_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, GammaSq_asym_LLLL);
+
 	//RiemannLLLL.ab.cd := R_abcd 
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// TODO antisymmetric storage
 	// but this requires inserting -1's for reading/writing ...
-	real4x4x4x4 const RiemannLLLL = real4x4x4x4_mul_add(GammaSq_asym_LLLL, dg_asym_LLLL, .5);
 
 	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
-	real4x4x4x4 const RiemannULLL = real4s4_real4x4x4x4_mul(gUU, RiemannLLLL);
+	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, dg_asym_ULLL, .5);
 
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
@@ -100,54 +105,44 @@ kernel void calc_dPhi_dgPrims(
 	//Gaussian := R = R^a_a
 	real const Gaussian = real4x4_tr(RicciUL);
 
-	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
-	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
+	//real4s4x4x4s4 const partial_gLL_GammaULL
 
 	/*
 	... if we use g_ab,cd and don't limit h->0 our ∂/∂g_pq(x) D_c(g_ab(x')) 's ...
-	dRicciLL_dgLL.pq.ab := ∂R_ab/∂g_pq
-	= ∂/∂g_pq ( g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab )
-	= ∂/∂g_pq ( g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + g^cd g^ef (Γ_cea Γ_dbf - Γ_cef Γ_dba))
-	=	  ∂/∂g_pq g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab)
-		+ g^uv (∂/∂g_pq g_au,bv + ∂/∂g_pq g_bv,au - ∂/∂g_pq g_ab,uv - ∂/∂g_pq g_uv,ab)
-		+ (
-			  ∂/∂g_pq g^cd g^ef
-			+ g^cd ∂/∂g_pq g^ef
-		) (Γ_cea Γ_dbf - Γ_cef Γ_dba)
-		+ g^cd g^ef (
-			  ∂/∂g_pq Γ_cea Γ_dbf + Γ_cea ∂/∂g_pq Γ_dbf
-			- ∂/∂g_pq Γ_cef Γ_dba - Γ_cef ∂/∂g_pq Γ_dba
-		)
-	=	- g^pu g^qv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab)
-		+ g^uv (
-			  ∂/∂g_pq D2[g_au]_bv
-			+ ∂/∂g_pq D2[g_bv]_au
-			- ∂/∂g_pq D2[g_ab]_uv
-			- ∂/∂g_pq D2[g_uv]_ab
-		)
-		- (
-			  g^cp g^dq g^ef
-			+ g^ep g^fq g^cd
-		) (Γ_cea Γ_dbf - Γ_cef Γ_dba)
-		+ g^cd g^ef (
-			  Γ_dbf ∂/∂g_pq Γ_cea + Γ_cea ∂/∂g_pq Γ_dbf
-			- Γ_dba ∂/∂g_pq Γ_cef - Γ_cef ∂/∂g_pq Γ_dba
-		)
 
-	=	- g^cp R^q_acb
-		- g^cp g^qe g^fg (Γ_efb Γ_cag - Γ_cfg Γ_eab)		<- same as the Γ^2 term in the g_ab,cd formulation of R^q_acb ...)
-		+ g^uv (
-			  ∂/∂g_pq D2[g_au]_bv
-			+ ∂/∂g_pq D2[g_bv]_au
-			- ∂/∂g_pq D2[g_ab]_uv
-			- ∂/∂g_pq D2[g_uv]_ab
+	∂/∂g_pq R_abcd
+	= ∂/∂g_pq (1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd))
+	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) 
+		+ (∂/∂g_pq g^fg) (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) 
+		- g^pf g^qg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) 
+		- Γ^p_ad Γ^q_bc + Γ^p_ac Γ^q_bd
+		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+
+	g^uv ∂/∂g_pq R_uavb
+	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub) 
+		- g^uv Γ^p_ub Γ^q_av + Γ^p_uv Γ^q_ab
+		+ g^uv g^fg ∂/∂g_pq (Γ_fub Γ_gav - Γ_fuv Γ_gab)
+	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub) 
+		- Γ^pu_b Γ^q_ua + Γ^pu_u Γ^q_ab							<- looks like the 2nd term of the Ricci eqn based on g_ab,cd
+		+ g^uv g^fg (
+			  (∂/∂g_pq Γ_fub) Γ_gav
+			+ Γ_fub (∂/∂g_pq Γ_gav)
+			- (∂/∂g_pq Γ_fuv) Γ_gab
+			- Γ_fuv (∂/∂g_pq Γ_gab)
 		)
-		+ g^cd g^ef (
-			  Γ_dbf ∂/∂g_pq Γ_cea + Γ_cea ∂/∂g_pq Γ_dbf
-			- Γ_dba ∂/∂g_pq Γ_cef - Γ_cef ∂/∂g_pq Γ_dba
-		)
+	
+	partial_gLL_of_RicciLL.pq.ab := ∂R_ab/∂g_pq
+	= ∂/∂g_pq (g^uv R_uavb)
+	= (∂/∂g_pq g^uv) R_uavb + g^uv (∂/∂g_pq R_uavb)
+	= -g^up g^vq R_uavb + g^uv (∂/∂g_pq R_uavb)
+	= -R^p_a^q_b + g^uv (∂/∂g_pq R_uavb)
+
 	*/
-	real4s4x4s4 const dRicciLL_dgLL = (real4s4x4s4){
+	real4s4x4s4 const partial_gLL_of_RicciLL = (real4s4x4s4){
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do
 ?>		.s<?=p..q?> = (real4s4){
@@ -155,15 +150,11 @@ kernel void calc_dPhi_dgPrims(
 			for b=a,stDim-1 do
 ?>			.s<?=a..b?> = 0.
 <?				for c=0,stDim-1 do
-?>				- gUU.s<?=sym(c,p)?> * (
-					RiemannULLL.s<?=q?>.s<?=a?>.s<?=c?>.s<?=b?>
+?>				- gUU.s<?=sym(c,q)?> * RiemannULLL.s<?=p?>.s<?=a?>.s<?=c?>.s<?=b?>
+				- gUU.s<?=sym(c,q)?> * GammaSq_asym_ULLL.s<?=p?>.s<?=a?>.s<?=c?>.s<?=b?>
 
-<?					for e=0,stDim-1 do
-?>					+ gUU.s<?=sym(q,e)?> * GammaSq_asym_LLLL.s<?=e?>.s<?=a?>.s<?=c?>.s<?=b?>
-<?					end
-?>				)
-				+ GammaUUL.s<?=p?>.s<?=c?>.s<?=c?> * GammaULL.s<?=q?>.s<?=sym(b,a)?>
-				- GammaUUL.s<?=p?>.s<?=c?>.s<?=b?> * GammaULL.s<?=q?>.s<?=sym(c,a)?>
+				// TODO here need partials of finite-difference stencils
+
 <?				end ?>,
 <?			end
 		end
@@ -177,7 +168,7 @@ end
 ?>
 	
 	//this is also in the Ricci computation, but should I be storing it?  is it too big?
-	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
+	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(GammaULLs);
 
 	//RiemannULLL.a.b.cd := R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
 	real4x4x4x4 const RiemannULLL = (real4x4x4x4){
@@ -188,8 +179,8 @@ end
 <?		for c=0,stDim-1 do
 ?>				.s<?=c?> = (real4)(
 <?			for d=0,stDim-1 do
-?>					  dGammaLULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
-					- dGammaLULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?><?
+?>					  partial_xU_of_GammaULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
+					- partial_xU_of_GammaULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?><?
 				for e=0,stDim-1 do
 ?>					+ GammaULL.s<?=a?>.s<?=sym(e,c)?> * GammaULL.s<?=e?>.s<?=sym(b,d)?>
 					- GammaULL.s<?=a?>.s<?=sym(e,d)?> * GammaULL.s<?=e?>.s<?=sym(b,c)?>
@@ -245,11 +236,11 @@ end
 	= -g^ap(x') Γ^q_bc(x') δ(x - x') + g^ad(x') ∂/∂g_pq(x) Γ_dbc(x')
 
 
-	dRicciLL_dgLL.pq.ab := ∂R_ab/∂g_pq
+	partial_gLL_of_RicciLL.pq.ab := ∂R_ab/∂g_pq
 	= Γ^pc_c Γ^q_ba - Γ^pc_b Γ^q_ca - g^cp R^q_acb
 	(work done in efe.html)
 	*/
-	real4s4x4s4 const dRicciLL_dgLL = (real4s4x4s4){
+	real4s4x4s4 const partial_gLL_of_RicciLL = (real4s4x4s4){
 <?
 for p=0,stDim-1 do
 	for q=p,stDim-1 do
@@ -272,16 +263,16 @@ end
 <? end ?>
 
 	//g^ab ∂R_ab/∂g_pq
-	real4s4 const gUU_dRicciLL_dgLL = (real4s4){
+	real4s4 const gUU_times_partial_gLL_of_RicciLL = (real4s4){
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do
-?>		.s<?=p..q?> = real4s4_dot(gUU, dRicciLL_dgLL.s<?=p..q?>),
+?>		.s<?=p..q?> = real4s4_dot(gUU, partial_gLL_of_RicciLL.s<?=p..q?>),
 <?	end
 end ?>
 	};
 
 	/*
-	∂G_ab/∂g_pq = dEinsteinLL_dgLL.pq.ab
+	partial_gLL_of_EinsteinLL.pq.ab := ∂/∂g_pq(G_ab)
 	= ∂/∂g_pq (R_ab - 1/2 R g_ab)
 	= ∂/∂g_pq R_ab - 1/2 ∂/∂g_pq R g_ab - 1/2 R ∂/∂g_pq g_ab
 	= ∂/∂g_pq R_ab - 1/2 g_ab ∂/∂g_pq (R_uv g^uv) - 1/2 R δ_a^p δ_b^q
@@ -289,17 +280,17 @@ end ?>
 	= ∂/∂g_pq R_ab - 1/2 g_ab (g^uv ∂/∂g_pq R_uv - R_uv g^pu g^qv) - 1/2 R δ_a^p δ_b^q
 	= ∂R_ab/∂g_pq - 1/2 (R δ_a^p δ_b^q + g_ab (g^uv ∂R_uv/∂g_pq - R^pq))
 	*/
-	real4s4x4s4 const dEinsteinLL_dgLL = (real4s4x4s4){
+	real4s4x4s4 const partial_gLL_of_EinsteinLL = (real4s4x4s4){
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do
 ?>		.s<?=p..q?> = (real4s4){
 <?		for a=0,stDim-1 do
 			for b=a,stDim-1 do
-?>			.s<?=a..b?> = dRicciLL_dgLL.s<?=p..q?>.s<?=a..b?><?
+?>			.s<?=a..b?> = partial_gLL_of_RicciLL.s<?=p..q?>.s<?=a..b?><?
 				?> - .5 * (<?
 				if p==a and q==b then ?>Gaussian<? else ?>0.<? end
 				?> + gLL.s<?=a..b?> * (<?
-					?>gUU_dRicciLL_dgLL.s<?=p..q?><?
+					?>gUU_times_partial_gLL_of_RicciLL.s<?=p..q?><?
 					?> - RicciUU.s<?=p..q?><?
 				?>)),
 <?			end
@@ -395,14 +386,14 @@ end
 
 	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
 
-	//∂Φ/∂g_pq = (G_ab - 8 π T_ab) (∂G_ab/∂g_pq - 8 π ∂T_ab/∂g_pq)
-	real4s4 dPhi_dgLL = (real4s4){
+	//partial_gLL_of_Phi.pq := ∂Φ/∂g_pq = (G_ab - 8 π T_ab) (∂G_ab/∂g_pq - 8 π ∂T_ab/∂g_pq)
+	real4s4 partial_gLL_of_Phi = (real4s4){
 <? for p=0,stDim-1 do
 	for q=p,stDim-1 do
 ?>	.s<?=p..q?> = real4s4_dot(
 			EFE,
 			real4s4_sub(
-				dEinsteinLL_dgLL.s<?=p..q?>,
+				partial_gLL_of_EinsteinLL.s<?=p..q?>,
 				d_8piTLL_dgLL.s<?=p..q?>
 			)
 		),
@@ -410,7 +401,7 @@ end
 end
 ?>	};
 
-	global gPrim_t * const dPhi_dgPrim = dPhi_dgPrims + index;
+	global gPrim_t * const partial_gPrim_of_Phi = partial_gPrim_of_Phis + index;
 	gPrim_t const gPrim = gPrims[index];
 
 	real3s3 const gammaLL = gPrim.gammaLL;
@@ -419,24 +410,24 @@ end
 
 <?
 if solver.convergeAlpha then
-?>	dPhi_dgPrim->alpha = -2. * gPrim.alpha * dPhi_dgLL.s00;
+?>	partial_gPrim_of_Phi->alpha = -2. * gPrim.alpha * partial_gLL_of_Phi.s00;
 <?
 end
 if solver.convergeBeta then
 	for m=0,sDim-1 do
-?>	dPhi_dgPrim->betaU.s<?=m?> = 2. * (dPhi_dgLL.s00 * betaL.s<?=m?>
+?>	partial_gPrim_of_Phi->betaU.s<?=m?> = 2. * (partial_gLL_of_Phi.s00 * betaL.s<?=m?>
 <?		for n=0,sDim-1 do ?>
-		+ dPhi_dgLL.s0<?=n+1?> * gammaLL.s<?=sym(n,m)?>
+		+ partial_gLL_of_Phi.s0<?=n+1?> * gammaLL.s<?=sym(n,m)?>
 <?		end ?>);
 <?	end
 end
 if solver.convergeGamma then
 	for m=0,sDim-1 do
 		for n=m,sDim-1 do
-?>	dPhi_dgPrim->gammaLL.s<?=m..n?> =
-		betaU.s<?=m?> * (dPhi_dgLL.s00 * betaU.s<?=n?>
-		+ 2. * dPhi_dgLL.s0<?=n+1?>)
-		+ dPhi_dgLL.s<?=m+1?><?=n+1?>;
+?>	partial_gPrim_of_Phi->gammaLL.s<?=m..n?> =
+		betaU.s<?=m?> * (partial_gLL_of_Phi.s00 * betaU.s<?=n?>
+		+ 2. * partial_gLL_of_Phi.s0<?=n+1?>)
+		+ partial_gLL_of_Phi.s<?=m+1?><?=n+1?>;
 <?		end
 	end
 end ?>
@@ -445,13 +436,13 @@ end ?>
 	//scale by c^4 / G ~ 1e+44
 	// which is the units of conversion
 	//c^4/G * G_ab = 8 π T_ab
-	dPhi_dgPrim->alpha *= c*c*c*c/G;
+	partial_gPrim_of_Phi->alpha *= c*c*c*c/G;
 <? for i=0,sDim-1 do
-?>	dPhi_dgPrim->betaU.s<?=i?> *= c*c*c*c/G;
+?>	partial_gPrim_of_Phi->betaU.s<?=i?> *= c*c*c*c/G;
 <? end
 for i=0,sDim-1 do
 	for j=i,sDim-1 do
-?>	dPhi_dgPrim->gammaLL.s<?=i..j?> *= c*c*c*c/G;
+?>	partial_gPrim_of_Phi->gammaLL.s<?=i..j?> *= c*c*c*c/G;
 <?	end
 end
 ?>
@@ -459,27 +450,27 @@ end
 
 kernel void update_gPrims(
 	global gPrim_t * const gPrims,
-	global gPrim_t const * const dPhi_dgPrims,
+	global gPrim_t const * const partial_gPrim_of_Phis,
 	real const updateLambda
 ) {
 	initKernel();
 	global gPrim_t * const gPrim = gPrims + index;
-	gPrim_t const dPhi_dgPrim = dPhi_dgPrims[index];
+	gPrim_t const partial_gPrim_of_Phi = partial_gPrim_of_Phis[index];
 
 <?
 if solver.convergeAlpha then
-?>	gPrim->alpha -= updateLambda * dPhi_dgPrim.alpha;
+?>	gPrim->alpha -= updateLambda * partial_gPrim_of_Phi.alpha;
 <?
 end
 if solver.convergeBeta then
 	for m=0,sDim-1 do
-?>	gPrim->betaU.s<?=m?> -= updateLambda * dPhi_dgPrim.betaU.s<?=m?>;
+?>	gPrim->betaU.s<?=m?> -= updateLambda * partial_gPrim_of_Phi.betaU.s<?=m?>;
 <?	end
 end
 if solver.convergeGamma then
 	for m=0,sDim-1 do
 		for n=m,sDim-1 do
-?>	gPrim->gammaLL.s<?=m..n?> -= updateLambda * dPhi_dgPrim.gammaLL.s<?=m..n?>;
+?>	gPrim->gammaLL.s<?=m..n?> -= updateLambda * partial_gPrim_of_Phi.gammaLL.s<?=m..n?>;
 <?		end
 	end
 end

@@ -291,11 +291,11 @@ kernel void calc_GammaULLs(
 ) {
 	initKernel();
 
-	//g_ab,c := dgLLL.c.ab
+	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
 <?=solver:finiteDifference{
 	bufferName = "gLLs",
 	srcType = "4s4",
-	resultName = "dgLLL",
+	resultName = "partial_xU_of_gLL",
 	--getBoundary = function(args) return "new_real4s4_Minkowski()" end,
 	getBoundary = function(args) return "real4s4_Minkowski" end,
 }?>
@@ -307,7 +307,7 @@ kernel void calc_GammaULLs(
 for a=0,stDim-1 do
 	for b=0,stDim-1 do
 		for c=b,stDim-1 do
-?>		.s<?=a?>.s<?=b?><?=c?> = .5 * (dgLLL.s<?=c?>.s<?=sym(a,b)?> + dgLLL.s<?=b?>.s<?=sym(a,c)?> - dgLLL.s<?=a?>.s<?=sym(b,c)?>),
+?>		.s<?=a?>.s<?=b?><?=c?> = .5 * (partial_xU_of_gLL.s<?=c?>.s<?=sym(a,b)?> + partial_xU_of_gLL.s<?=b?>.s<?=sym(a,c)?> - partial_xU_of_gLL.s<?=a?>.s<?=sym(b,c)?>),
 <?		end
 	end
 end

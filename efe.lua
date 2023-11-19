@@ -991,7 +991,7 @@ function EFESolver:initBuffers()
 
 	-- used by updateNewton:
 	self.EFEs = self:buffer{name='EFEs', type='real4s4'}	-- 10 reals per size
-	self.dPhi_dgPrims = self:buffer{name='dPhi_dgPrims', type='gPrim_t'}
+	self.partial_gPrim_of_Phis = self:buffer{name='partial_gPrim_of_Phis', type='gPrim_t'}
 
 	-- used by updateNewton's line trace
 	 self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
@@ -1117,10 +1117,10 @@ function EFESolver:refreshKernels()
 	}
 
 	-- used by updateNewton:
-	self.calc_dPhi_dgPrims = program:kernel{
-		name = 'calc_dPhi_dgPrims',
+	self.calc_partial_gPrim_of_Phis = program:kernel{
+		name = 'calc_partial_gPrim_of_Phis',
 		argsOut = {
-			self.dPhi_dgPrims,
+			self.partial_gPrim_of_Phis,
 		},
 		argsIn = {
 			self.TPrims,
@@ -1138,7 +1138,7 @@ function EFESolver:refreshKernels()
 			self.gPrims,
 		},
 		argsIn = {
-			self.dPhi_dgPrims,
+			self.partial_gPrim_of_Phis,
 		},
 	}
 
@@ -1283,9 +1283,9 @@ function EFESolver:updateNewton()
 	--]]
 
 	-- here's the newton update method
---print'calc_dPhi_dgPrims'
-	self.calc_dPhi_dgPrims()
---self:printbuf'dPhi_dgPrims'
+--print'calc_partial_gPrim_of_Phis'
+	self.calc_partial_gPrim_of_Phis()
+--self:printbuf'partial_gPrim_of_Phis'
 	-- now that we have ∂Φ/∂g_ab
 	-- trace along g_ab - λ * ∂Φ/∂g_ab
 	-- to find what λ gives us minimal residual

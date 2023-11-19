@@ -452,7 +452,7 @@ static inline real3 getX(int4 i) {
 }
 
 //[1/m^2]
-real4x4x4s4 calc_dGammaLULL(
+real4x4x4s4 calc_partial_xU_of_GammaULL(
 	global real4x4s4 const * const GammaULLs
 ) {
 	//initKernel();
@@ -462,14 +462,14 @@ real4x4x4s4 calc_dGammaLULL(
 	}
 	int index = indexForInt4ForSize(i, size.x, size.y, size.z);
 
-	//Γ^b_cd,a = dGammaLULL.a.b.cd
+	//partial_xU_of_GammaULL.a.b.cd := ∂/∂x^a(Γ^b_cd)
 <?=solver:finiteDifference{
 	bufferName = "GammaULLs",
 	srcType = "4x4s4",
-	resultName = "dGammaLULL",
+	resultName = "partial_xU_of_GammaULL",
 }?>
 
-	return dGammaLULL;
+	return partial_xU_of_GammaULL;
 }
 
 //[1/m^2]
@@ -484,9 +484,9 @@ real4s4 calc_EinsteinLL(
 	}
 	int const index = indexForInt4(i);
 	
-	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
+	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(GammaULLs);
 
-	//this Ricci calculation differs from the one in calc_dPhi_dgLLs because
+	//this Ricci calculation differs from the one in calc_partial_gLL_of_Phis because
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
 	// but this one doesn't need RiemannULLL, so we can contract one of the terms in RicciLL's calcs
 
@@ -516,6 +516,72 @@ real4s4 calc_EinsteinLL(
 	getBoundary = function(args) return "real4s4_Minkowski" end,
 } ?>
 
+<? if false then -- testing to make sure contraction of Riemann == Ricci 
+-- ... looks the same as the simplified version below ?>
+
+	//dg_asym_LLLL.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
+	// TODO antisymmetric storage
+	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab 
+	real4x4x4x4 const dg_asym_LLLL = (real4x4x4x4){
+<? for a=0,stDim-1 do
+?>		.s<?=a?> = (real4x4x4){
+<?	for b=0,stDim-1 do
+?>			.s<?=b?> = (real4x4){
+<?		for c=0,stDim-1 do
+?>				.s<?=c?> = (real4)(
+<?			for d=0,stDim-1 do
+?>					  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
+					+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
+					- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
+					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
+					<?=d < 3 and "," or ""?>
+<?			end
+?>				),
+<?		end
+?>			},
+<?	end
+?>		},
+<? end
+?>	};
+
+	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
+	// TODO antisymmetric storage
+	real4x4x4x4 const GammaSq_asym_LLLL = (real4x4x4x4){
+<? for a=0,stDim-1 do
+?>		.s<?=a?> = (real4x4x4){
+<?	for b=0,stDim-1 do
+?>			.s<?=b?> = (real4x4){
+<?		for c=0,stDim-1 do
+?>				.s<?=c?> = (real4)(
+<?			for d=0,stDim-1 do
+?>					0.
+<?				for e=0,stDim-1 do
+?>					+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
+					- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
+<?				end
+?>					<?=d < 3 and "," or ""?>
+<?			end
+?>				),
+<?		end
+?>			},
+<?	end
+?>		},
+<? end
+?>	};
+
+
+	real4x4x4x4 const dg_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, dg_asym_LLLL);
+	real4x4x4x4 const GammaSq_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, GammaSq_asym_LLLL);
+	
+	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
+	//TODO antisymmetric storage
+	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, dg_asym_ULLL, .5);
+
+	//RicciLL.ab := R_ab = R^c_acb
+	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
+
+<? else  -- testing to make sure contraction of Riemann == Ricci ?>
+
 	/*
 	R_abcd = (g_ad,cb - g_bd,ca - g_ac,bd + g_bc,da) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
@@ -542,6 +608,8 @@ real4s4 calc_EinsteinLL(
 end ?>
 	};
 
+<? end  -- testing to make sure contraction of Riemann == Ricci ?>
+
 <? else -- only use 1st-deriv finite-difference stencils (and difference-of-difference for 2nd-deriv)
 ?>
 
@@ -551,8 +619,8 @@ end ?>
 	for b=a,stDim-1 do
 ?>		.s<?=a?><?=b?> = 0.<?
 		for c=0,stDim-1 do ?>
-			+ dGammaLULL.s<?=c?>.s<?=c?>.s<?=a..b?> 
-			- dGammaLULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?> 
+			+ partial_xU_of_GammaULL.s<?=c?>.s<?=c?>.s<?=a..b?> 
+			- partial_xU_of_GammaULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?> 
 			+ Gamma12L.s<?=c?> * GammaULL.s<?=c?>.s<?=a..b?><?
 			for d=0,stDim-1 do ?>
 			- GammaULL.s<?=c?>.s<?=sym(d,b)?> * GammaULL.s<?=d?>.s<?=sym(c,a)?><?
