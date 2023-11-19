@@ -247,6 +247,35 @@ static inline real real4s4_det(real4s4 const m) {
 		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
 }
 
+real4s4 new_real4s4_Minkowski() {
+#if 1	
+	return (real4s4){
+<?
+for a=0,3 do
+	for b=a,3 do
+?>		.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
+<?	end
+end
+?>	};
+#else //doesn't work so well
+	int4 i = globalInt4();
+	real3 const x = getX(i);
+	return calc_gLL_from_gPrim(calc_gPrim_flat(x));
+#endif
+}
+
+// for _zero, the constant access is much faster than making a new struct in-place
+constant real4s4 const real4s4_Minkowski = (real4s4){
+<?
+for a=0,3 do
+	for b=a,3 do
+?>		.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
+<?	end
+end
+?>	};
+
+
+
 //a_ij = b_ik c_kj
 static inline real4s4 real4x4_real4s4_to_real4s4_mul(
 	real4x4 const a,
@@ -354,6 +383,32 @@ end
 
 <?makeZero{vec="real4x4x4s4", inner="real4x4s4", dim=4}?>
 
+static inline real4x4x4s4 real4s4_real4s4x4s4_mul(
+	real4s4 const a,
+	real4s4x4s4 const b
+) {
+	return (real4x4x4s4){
+<? for a=0,3 do
+?>		.s<?=a?> = (real4x4s4){
+<?	for b=0,3 do
+?>			.s<?=b?> = (real4s4){
+<?		for c=0,3 do
+			for d=c,3 do
+?>				.s<?=c..d?> = 0.<?
+				for e=0,3 do
+?> + a.s<?=sym(a,e)?> * b.s<?=sym(e,b)?>.s<?=c..d?><?
+				end
+?>,
+<?			end
+		end
+?>			},
+<? end
+?>		},
+<? end
+?>	};
+}
+
+
 constant int const stDim = <?=stDim?>;	
 constant int const sDim = <?=sDim?>;
 
@@ -438,13 +493,15 @@ real4s4 calc_EinsteinLL(
 	bufferName = "gLLs",
 	srcType = "4s4",
 	resultName = "d2gLLLL",
+	getBoundary = function(args) return "real4s4_Minkowski" end,
 } ?>
 
 	/*
+	R_abcd = (g_ad,cb - g_bd,ca - g_ac,bd + g_bc,da) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
-	R_ab = g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab 
+	RicciLL.ab := R_ab = g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab 
 	*/
-	real4s4 const RicciLL = {
+	real4s4 const RicciLL = (real4s4){
 <? for a=0,stDim-1 do
 	for b=a,stDim-1 do
 ?>		.s<?=a?><?=b?> = 0.<?

@@ -232,33 +232,6 @@ end
 	return gUU;
 }
 
-real4s4 calc_gLL_flat() {
-#if 1	
-	return (real4s4){
-<?
-for a=0,3 do
-	for b=a,3 do
-?>		.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
-<?	end
-end
-?>	};
-#else //doesn't work so well
-	int4 i = globalInt4();
-	real3 const x = getX(i);
-	return calc_gLL_from_gPrim(calc_gPrim_flat(x));
-#endif
-}
-
-// for _zero, the constant access is much faster than making a new struct in-place
-constant real4s4 const gLL_flat = (real4s4){
-<?
-for a=0,3 do
-	for b=a,3 do
-?>		.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
-<?	end
-end
-?>	};
-
 // init
 
 kernel void init_gPrims(
@@ -323,8 +296,8 @@ kernel void calc_GammaULLs(
 	bufferName = "gLLs",
 	srcType = "4s4",
 	resultName = "dgLLL",
-	--boundaryCode = "calc_gLL_flat()",
-	boundaryCode = "gLL_flat",
+	--getBoundary = function(args) return "new_real4s4_Minkowski()" end,
+	getBoundary = function(args) return "real4s4_Minkowski" end,
 }?>
 
 	//Γ_abc := GammaLLL.a.bc

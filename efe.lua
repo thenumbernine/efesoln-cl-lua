@@ -605,7 +605,8 @@ typedef char int8_t;
 	self.code = self.code .. '\n'
 		.. self:template(path'efe.cl':read())
 
-	path'cache_efe.cl':write(self.code)
+	path'cache':mkdir()
+	path'cache/efe.cl':write(self.code)
 
 	self.updateLambda = config.updateLambda
 
@@ -1055,7 +1056,8 @@ function EFESolver:refreshKernels()
 		path'gradientDescent.cl':read(),
 	}:concat'\n')
 
-	path'cache_calcVars.cl':write(code)
+	path'cache':mkdir()
+	path'cache/calcVars.cl':write(code)
 
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
 	local program = self:program{code=code}

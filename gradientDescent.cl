@@ -15,6 +15,53 @@ kernel void calc_dPhi_dgPrims(
 	real4s4 const gUU = gUUs[index];
 	real4x4s4 const GammaULL = GammaULLs[index];
 
+<? if true then -- used 2nd-deriv finite-difference stencil
+-- TODO this is diverging
+?>
+	//g_ab,cd := dgLLL.cd.ab
+<?= solver:finiteDifference2{
+	bufferName = "gLLs",
+	srcType = "4s4",
+	resultName = "d2gLLLL",
+	getBoundary = function(args) return "real4s4_Minkowski" end,
+} ?>
+
+	//TODO or store this?
+	//GammaLLL.a.bc := Γ_abc = g_au Γ^u_bc
+	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
+
+	//RiemannLLLL.ab.cd := R_abcd 
+	//= (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+	//= (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
+	real4s4x4s4 const RiemannLLLL = (real4s4x4s4){
+<? for a=0,stDim-1 do
+	for b=a,stDim-1 do
+?>		.s<?=a..b?> = (real4s4){
+<?		for c=0,stDim-1 do
+			for d=c,stDim-1 do
+?>			.s<?=c..d?> =
+				  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
+				+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
+				- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
+				- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
+<?				for e=0,stDim-1 do
+?>				+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
+				- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
+<?				end
+?>			,
+<?			end
+		end
+?>		},
+<?	end
+end
+?>	};
+
+	//RiemannULLL.a.b.cd := R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
+	real4x4x4s4 const RiemannULLL = real4s4_real4s4x4s4_mul(gUU, RiemannLLLL);
+
+<? else -- only use 1st-deriv finite-difference stencils (and difference-of-difference for 2nd-deriv)
+?>
+	
 	//this is also in the Ricci computation, but should I be storing it?  is it too big?
 	real4x4x4s4 const dGammaLULL = calc_dGammaLULL(GammaULLs);
 
@@ -40,6 +87,8 @@ kernel void calc_dPhi_dgPrims(
 ?>		},
 <? end
 ?>	};
+
+<? end ?>
 
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4s4_tr13(RiemannULLL);
