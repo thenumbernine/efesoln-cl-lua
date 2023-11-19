@@ -47,7 +47,7 @@ function SphericalBody:init(args)
 	real const mass = <?=self.mass?>;				//[m]
 	real const r2 = r * r;							//[m^2]
 	TPrim->rho = r < radius ? rho0 : 0;				//[1/m^2]
-	
+
 	// equation of structure from 1973 MTW Gravitation, box 23.2 eqn 5...
 	TPrim->P = r < radius ? (rho0 * (
 		(sqrt(1. - 2. * mass * r2 / radius3) - sqrt(1. - 2. * mass / radius))
@@ -301,7 +301,7 @@ end
 local d1coeffs = assert(derivCoeffs[1][order])
 ?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
 	<? for i=0,sDim-1 do ?>{
-		<? for j,coeff in pairs(d1coeffs) do 
+		<? for j,coeff in pairs(d1coeffs) do
 			args.i = "i - (int4)("
 				..range(0,3):mapi(function(ii) return ii==i and j or 0 end):concat', '
 				..")"
@@ -356,7 +356,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 		<? for j=i,sDim-1 do ?>{
 <? if i == j then -- 2nd-deriv kernel
 ?>
-			<? for k,coeff in pairs(d2coeffs) do 
+			<? for k,coeff in pairs(d2coeffs) do
 				args.index = "index - stepsize.s"..i.." * "..k
 			?>{
 				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0)
@@ -380,7 +380,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 <? else	-- two 1st-deriv kernels
 ?>
 			<? for k,coeff_k in pairs(d1coeffs) do ?>{
-				<? for l,coeff_l in pairs(d1coeffs) do 
+				<? for l,coeff_l in pairs(d1coeffs) do
 					args.index = "index - stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
 				?>{
 					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0)
@@ -411,7 +411,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					);
 				}<? end ?>
 			}<? end ?>
-<? end ?>		
+<? end ?>
 		}<? end ?>
 	}<? end ?>
 <?
@@ -697,12 +697,13 @@ texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL.s0<?=i+1?>)) * c;
 real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
-		
-		--[[
-		testing how well gradient-descent works for finite-difference stuff 
-		Phi(x) = 1/2 |x|^2
-		dPhi(x)/dx^i = x^i
-		--]]
+
+--[=[
+--[[
+testing how well gradient-descent works for finite-difference stuff
+Phi(x) = 1/2 |x|^2
+dPhi(x)/dx^i = x^i
+--]]
 		{['test f(x)'] = [[
 real3 const x = getX(i);
 texCLBuf[index] = .5 * real3_lenSq(x);
@@ -711,7 +712,6 @@ texCLBuf[index] = .5 * real3_lenSq(x);
 real3 const x = getX(i);
 texCLBuf[index] = real3_len(x);
 ]]},
-		-- hmmmm this isn't looking very accurate ...
 		{['test |D[f(x)]|'] = [[
 real3 const x = getX(i);
 <?=solver:finiteDifference{
@@ -732,9 +732,20 @@ real3 const x = getX(i);
 }?>
 texCLBuf[index] = real3_len(real3_sub(real4_to_real3(dPhi_dx), getX(i)));
 ]]},
-
+--]=]
 	}
 	-- body-specific:
+	:append(self.body.density and {
+		{['analytical gravity'] = [[
+real3 const x = getX(i);
+real const r = real3_len(x);
+real const matterRadius = min(r, (real)<?=solver.body.radius?>);
+real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
+real const dm_dr = 0;
+texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
+]]},
+	} or nil)
 	:append(self.body.useMatter and {
 		{['rho (kg/m^3)'] = 'texCLBuf[index] = TPrims[index].rho * c * c / G;'},
 		--[P] in 1/m^2
@@ -751,17 +762,6 @@ texCLBuf[index] = real3_len(real3_sub(real4_to_real3(dPhi_dx), getX(i)));
 		{['div E'] = makeDiv'E'},
 		{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
 		{['div B'] = makeDiv'B'},
-	} or nil)
-	:append(self.body.density and {
-		{['analytical gravity'] = [[
-real3 const x = getX(i);
-real const r = real3_len(x);
-real const matterRadius = min(r, (real)<?=solver.body.radius?>);
-real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
-real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
-real const dm_dr = 0;
-texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
-]]},
 	} or nil)
 	:mapi(function(kv)
 		local k,v = next(kv)
@@ -994,7 +994,7 @@ function EFESolver:initBuffers()
 
 	-- used by updateNewton's line trace
 	 self.gPrimsCopy = self:buffer{name='gPrimsCopy', type='gPrim_t'}
-	
+
 	-- used by norms of EFEs
 	 self.tmpBuf = self:buffer{name='tmpBuf', type='real4s4'}
 
@@ -1079,7 +1079,7 @@ function EFESolver:refreshKernels()
 			self.gPrims,
 		},
 	}
-	
+
 	self.calc_GammaULLs = program:kernel{
 		name = 'calc_GammaULLs',
 		argsOut = {
@@ -1090,7 +1090,7 @@ function EFESolver:refreshKernels()
 			self.gUUs,
 		},
 	}
-	
+
 	if self.useFourPotential then
 		self.solveAL = program:kernel{
 			name = 'solveAL',
@@ -1244,7 +1244,7 @@ so for distinct time coordinate:
 	K_ab = -γ_a^u γ_b^v (n_(v,u) - Γ^c_vu n_c)
 	K_ij = -α Γ^t_ij ... the 4D connection along the time coordinate
 	... if we keep going ...
-	K_ij = 
+	K_ij =
 	= -1/2 α g^tu (g_ui,j + g_uj,i - g_ij,u)
 	= -1/2 α g^tu (g_ui,j + g_uj,i - g_ij,u)
 	= -1/2 α (g^tt (g_ti,j + g_tj,i - g_ij,t) + g^tk (g_ki,j + g_kj,i - g_ij,k))
@@ -1260,7 +1260,7 @@ substitute back into harmonic slicing condition:
 	... as a constraint ...
 Φ = 1/2 |α_,t - β^k α_,k - α^3 Γ^t_ij γ_ij|^2
 
-	... then update?	
+	... then update?
 	∂g_ab/∂t = -∂Φ/∂g_ab
 --]]
 

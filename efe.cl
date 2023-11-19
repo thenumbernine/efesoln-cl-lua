@@ -439,6 +439,11 @@ real4s4 calc_EinsteinLL(
 	srcType = "4s4",
 	resultName = "d2gLLLL",
 } ?>
+
+	/*
+	R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
+	R_ab = g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab 
+	*/
 	real4s4 const RicciLL = {
 <? for a=0,stDim-1 do
 	for b=a,stDim-1 do
