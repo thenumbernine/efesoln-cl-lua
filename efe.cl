@@ -4,7 +4,7 @@
 //so we do this instead and are safe:
 #define _real3(a,b,c)            ((real3){.x=a, .y=b, .z=c})
 
-constant real const c = 299792458;			// m/s 
+constant real const c = 299792458;			// m/s
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 
 #define new_real_zero() 0.
@@ -106,7 +106,7 @@ static inline real <?=ctype?>_len(<?=ctype?> const a) {
 end
 ?>
 
-<?makeops("real3", "real", {"x", "y", "z"})?> 
+<?makeops("real3", "real", {"x", "y", "z"})?>
 
 //ε_ijk a_j b_k
 static inline real3 real3_cross(real3 const a, real3 const b) {
@@ -196,11 +196,11 @@ static inline real4 real4s4_real4_mul(
 ) {
 	return (real4)(
 <? for i=0,3 do
-?>		0. <? 
-	for j=0,3 do 
-?> + m.s<?=sym(i,j)?> * v.s<?=j?><? 
+?>		0. <?
+	for j=0,3 do
+?> + m.s<?=sym(i,j)?> * v.s<?=j?><?
 	end ?><?=i < 3 and "," or ""?>
-<? end 
+<? end
 ?>	);
 }
 
@@ -210,18 +210,18 @@ static inline real4x4 real4s4_real4s4_mul(
 	real4s4 const b
 ) {
 	return (real4x4){
-<? for a=0,3 do 
+<? for a=0,3 do
 ?>		.s<?=a?> = (real4)(
 <?
-	for b=0,3 do 
+	for b=0,3 do
 ?>			0.<?
-		for c=0,3 do 
+		for c=0,3 do
 ?> + a.s<?=sym(a,c)?> * b.s<?=sym(c,b)?><?
 		end ?><?=b < 3 and "," or ""?>
 <?
-	end 
+	end
 ?>		),
-<? end 
+<? end
 ?>	};
 }
 
@@ -261,7 +261,7 @@ static inline real real4s4_det(real4s4 const m) {
 }
 
 real4s4 new_real4s4_Minkowski() {
-#if 1	
+#if 1
 	return (real4s4){
 <?
 for a=0,3 do
@@ -296,20 +296,20 @@ static inline real4s4 real4x4_real4s4_to_real4s4_mul(
 ) {
 	return (real4s4){
 <? for a=0,3 do
-	for b=a,3 do 
+	for b=a,3 do
 ?>		.s<?=a..b?> = 0.<?
-		for c=0,3 do 
+		for c=0,3 do
 		?> + a.s<?=a?>.s<?=c?> * b.s<?=sym(c,b)?><?
 	end ?>,
 <?	end
-end 
+end
 ?>	};
 }
 
 //a = b_ii
 static inline real real4x4_tr(real4x4 const a) {
-	return 0.<? 
-for a=0,3 do 
+	return 0.<?
+for a=0,3 do
 ?> + a.s<?=a?>.s<?=a?><?
 end ?>;
 }
@@ -326,10 +326,10 @@ static inline real3 real4x4s4_i00(real4x4s4 const a) {
 //b_i = a^j_ji
 static inline real4 real4x4s4_tr12(real4x4s4 const a) {
 	return (real4)(
-<? for i=0,3 do 
-?>		0.<? 
-	for j=0,3 do 
-?> + a.s<?=j?>.s<?=sym(j,i)?><? 
+<? for i=0,3 do
+?>		0.<?
+	for j=0,3 do
+?> + a.s<?=j?>.s<?=sym(j,i)?><?
 	end
 ?><?=i < 3 and "," or ""?>
 <? end
@@ -357,7 +357,7 @@ static inline real4x4s4 real4s4_real4x4s4_mul(
 		for k=j,3 do
 ?>			.s<?=sym(j,k)?> = 0.<?
 			for l=0,3 do
-?> + a.s<?=sym(i,l)?> * b.s<?=l?>.s<?=j..k?><?			
+?> + a.s<?=sym(i,l)?> * b.s<?=l?>.s<?=j..k?><?
 			end
 ?>,
 <?		end
@@ -373,9 +373,9 @@ static inline real4x4x4 real4x4s4_real4s4_mul21(
 	real4s4 const b
 ) {
 	return (real4x4x4){
-<? for i=0,3 do 
+<? for i=0,3 do
 ?>		.s<?=i?> = real4s4_real4s4_mul(b, a.s<?=i?>),
-<? end 
+<? end
 ?>	};
 }
 
@@ -417,19 +417,19 @@ static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
 // assuming b_ij = b_ji i.e. a_ijkl = a_klij
 static inline real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const a) {
 	return (real4s4){
-<? for a=0,3 do 
+<? for a=0,3 do
 	for b=a,3 do
 ?>		.s<?=a..b?> = 0. <?
-		for c=0,3 do 
-?> + a.s<?=c?>.s<?=a?>.s<?=c?>.s<?=b?><? 
+		for c=0,3 do
+?> + a.s<?=c?>.s<?=a?>.s<?=c?>.s<?=b?><?
 		end ?>,
 <? 	end
-end 
+end
 ?>	};
 }
 
 
-constant int const stDim = <?=stDim?>;	
+constant int const stDim = <?=stDim?>;
 constant int const sDim = <?=sDim?>;
 
 constant real3 const xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
@@ -483,7 +483,7 @@ real4s4 calc_EinsteinLL(
 		return real4s4_zero;
 	}
 	int const index = indexForInt4(i);
-	
+
 	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(GammaULLs);
 
 	//this Ricci calculation differs from the one in calc_partial_gLL_of_Phis because
@@ -504,25 +504,27 @@ real4s4 calc_EinsteinLL(
 
 	//GammaLLL.a.bc := Γ_abc = g_ad Γ^d_bc
 	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
-	
+
 	//Gamma23U.a := Γ^a = Γ^au_u
 	real4 const Gamma23U = real4x4x4_tr23(GammaUUL);
 
-	//g_ab,cd := dgLLL.cd.ab
+	//partial_xU2_of_gLL.ab.cd := ∂_a ∂_b (g_cd)
+	// = ∂^2/(∂x^a ∂x^b) (g_cd)
+	// = g_cd,ab
 <?= solver:finiteDifference2{
 	bufferName = "gLLs",
 	srcType = "4s4",
-	resultName = "d2gLLLL",
+	resultName = "partial_xU2_of_gLL",
 	getBoundary = function(args) return "real4s4_Minkowski" end,
 } ?>
 
-<? if false then -- testing to make sure contraction of Riemann == Ricci 
+<? if false then -- testing to make sure contraction of Riemann == Ricci
 -- ... looks the same as the simplified version below ?>
 
-	//dg_asym_LLLL.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
+	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
-	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab 
-	real4x4x4x4 const dg_asym_LLLL = (real4x4x4x4){
+	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab
+	real4x4x4x4 const partial_xU2_of_gLL_asym = (real4x4x4x4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (real4x4x4){
 <?	for b=0,stDim-1 do
@@ -530,10 +532,10 @@ real4s4 calc_EinsteinLL(
 <?		for c=0,stDim-1 do
 ?>				.s<?=c?> = (real4)(
 <?			for d=0,stDim-1 do
-?>					  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
-					+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
-					- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
-					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
+?>					  partial_xU2_of_gLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
+					+ partial_xU2_of_gLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
+					- partial_xU2_of_gLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
+					- partial_xU2_of_gLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
 					<?=d < 3 and "," or ""?>
 <?			end
 ?>				),
@@ -570,12 +572,12 @@ real4s4 calc_EinsteinLL(
 ?>	};
 
 
-	real4x4x4x4 const dg_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, dg_asym_LLLL);
+	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4s4_real4x4x4x4_mul(gUU, partial_xU2_of_gLL_asym);
 	real4x4x4x4 const GammaSq_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, GammaSq_asym_LLLL);
-	
+
 	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
-	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, dg_asym_ULLL, .5);
+	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, gUU_times_partial_xU2_gLL_asym, .5);
 
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
@@ -585,7 +587,7 @@ real4s4 calc_EinsteinLL(
 	/*
 	R_abcd = (g_ad,cb - g_bd,ca - g_ac,bd + g_bc,da) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
-	RicciLL.ab := R_ab = g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab 
+	RicciLL.ab := R_ab = g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab
 	*/
 	real4s4 const RicciLL = (real4s4){
 <? for a=0,stDim-1 do
@@ -594,13 +596,13 @@ real4s4 calc_EinsteinLL(
 		for u=0,stDim-1 do
 			for v=0,stDim-1 do
 ?>				+ .5 * gUU.s<?=sym(u,v)?> * (
-					  d2gLLLL.s<?=sym(a,u)?>.s<?=sym(b,v)?> 
-					+ d2gLLLL.s<?=sym(b,v)?>.s<?=sym(a,u)?> 
-					- d2gLLLL.s<?=sym(a,b)?>.s<?=sym(u,v)?> 
-					- d2gLLLL.s<?=sym(u,v)?>.s<?=sym(a,b)?> 
+					  partial_xU2_of_gLL.s<?=sym(a,u)?>.s<?=sym(b,v)?>
+					+ partial_xU2_of_gLL.s<?=sym(b,v)?>.s<?=sym(a,u)?>
+					- partial_xU2_of_gLL.s<?=sym(a,b)?>.s<?=sym(u,v)?>
+					- partial_xU2_of_gLL.s<?=sym(u,v)?>.s<?=sym(a,b)?>
 				)
 				+ GammaUUL.s<?=u?>.s<?=v?>.s<?=a?> * GammaLLL.s<?=u?>.s<?=sym(v,b)?>
-<?			end 
+<?			end
 ?>			- Gamma23U.s<?=u?> * GammaLLL.s<?=u?>.s<?=sym(a,b)?>
 <?		end
 ?>,
@@ -619,13 +621,13 @@ end ?>
 	for b=a,stDim-1 do
 ?>		.s<?=a?><?=b?> = 0.<?
 		for c=0,stDim-1 do ?>
-			+ partial_xU_of_GammaULL.s<?=c?>.s<?=c?>.s<?=a..b?> 
-			- partial_xU_of_GammaULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?> 
+			+ partial_xU_of_GammaULL.s<?=c?>.s<?=c?>.s<?=a..b?>
+			- partial_xU_of_GammaULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?>
 			+ Gamma12L.s<?=c?> * GammaULL.s<?=c?>.s<?=a..b?><?
 			for d=0,stDim-1 do ?>
 			- GammaULL.s<?=c?>.s<?=sym(d,b)?> * GammaULL.s<?=d?>.s<?=sym(c,a)?><?
 			end
-		end 
+		end
 ?>,
 <?	end
 end ?>
@@ -633,7 +635,7 @@ end ?>
 <? end ?>
 
 	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
-	
+
 	return real4s4_mul_add(
 		RicciLL,
 		gLLs[index],
@@ -648,20 +650,20 @@ real4s4 calc_8piTLL(
 ) {
 	real4s4 _8piTLL = real4s4_zero;
 
-<? 
-if solver.body.useEM then 
+<?
+if solver.body.useEM then
 ?>
-	
+
 	/*
 	assume the E and B fields are upper 3-vectors
 	T_ab = F_au F_b^u - 1/4 g_ab F_uv F^uv
 	*/
 
-	real4 const EU = (real4)(0 <?for i=0,2 do ?>, TPrim.E.s<?=i?> <? end ?>); 
+	real4 const EU = (real4)(0 <?for i=0,2 do ?>, TPrim.E.s<?=i?> <? end ?>);
 	real4 const EL = real4s4_real4_mul(gLL, EU);
 	real const ESq = dot(EL, EU);
-	
-	real4 const BU = (real4)(0 <?for i=0,2 do ?>, TPrim.B.s<?=i?> <? end ?>); 
+
+	real4 const BU = (real4)(0 <?for i=0,2 do ?>, TPrim.B.s<?=i?> <? end ?>);
 	real4 const BL = real4s4_real4_mul(gLL, BU);
 	real const BSq = dot(BL, BU);
 
@@ -670,10 +672,10 @@ if solver.body.useEM then
 		real3_cross(TPrim.E, TPrim.B),
 		sqrt_det_g
 	);
-	
+
 	_8piTLL.s00 += ESq + BSq;
-<? 
-	for i=0,sDim-1 do 
+<?
+	for i=0,sDim-1 do
 ?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>;
 <? 		for j=i,sDim-1 do
 ?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL.s<?=i?><?=j?> * (ESq + BSq) <?
@@ -681,10 +683,10 @@ if solver.body.useEM then
 				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
 				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>);
 <? 		end
-	end 
+	end
 end
 if solver.body.useMatter then
-	if solver.body.useVel then 
+	if solver.body.useVel then
 ?>	//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = (real4)(0, TPrim.v.x, TPrim.v.y, TPrim.v.z);
@@ -696,7 +698,7 @@ if solver.body.useMatter then
 	<? else ?>//otherwise uL = gLL.s0
 	real4 const uL = (real4)(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
 <?
-	end 
+	end
 ?>
 
 	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)

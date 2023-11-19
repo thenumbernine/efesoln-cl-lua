@@ -17,11 +17,11 @@ kernel void calc_partial_gPrim_of_Phis(
 
 <? if true then -- used 2nd-deriv finite-difference stencil
 ?>
-	//g_ab,cd := dgLLL.cd.ab
+	//partial_xU2_of_gLL.cd.ab := g_ab,cd
 <?= solver:finiteDifference2{
 	bufferName = "gLLs",
 	srcType = "4s4",
-	resultName = "d2gLLLL",
+	resultName = "partial_xU2_of_gLL",
 	getBoundary = function(args) return "real4s4_Minkowski" end,
 } ?>
 
@@ -29,10 +29,10 @@ kernel void calc_partial_gPrim_of_Phis(
 	//GammaLLL.a.bc := Γ_abc = g_au Γ^u_bc
 	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
 
-	//dg_asym_LLLL.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
+	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
-	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab 
-	real4x4x4x4 const dg_asym_LLLL = (real4x4x4x4){
+	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab
+	real4x4x4x4 const partial_xU2_of_gLL_asym = (real4x4x4x4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (real4x4x4){
 <?	for b=0,stDim-1 do
@@ -40,10 +40,10 @@ kernel void calc_partial_gPrim_of_Phis(
 <?		for c=0,stDim-1 do
 ?>				.s<?=c?> = (real4)(
 <?			for d=0,stDim-1 do
-?>					  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
-					+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
-					- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
-					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
+?>					  partial_xU2_of_gLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
+					+ partial_xU2_of_gLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
+					- partial_xU2_of_gLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
+					- partial_xU2_of_gLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
 					<?=d < 3 and "," or ""?>
 <?			end
 ?>				),
@@ -80,10 +80,10 @@ kernel void calc_partial_gPrim_of_Phis(
 ?>	};
 
 	// linear transform, not necessarily tensoral (since neither is anyways)
-	real4x4x4x4 const dg_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, dg_asym_LLLL);
+	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4s4_real4x4x4x4_mul(gUU, partial_xU2_of_gLL_asym);
 	real4x4x4x4 const GammaSq_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, GammaSq_asym_LLLL);
 
-	//RiemannLLLL.ab.cd := R_abcd 
+	//RiemannLLLL.ab.cd := R_abcd
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// TODO antisymmetric storage
@@ -91,7 +91,7 @@ kernel void calc_partial_gPrim_of_Phis(
 
 	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
-	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, dg_asym_ULLL, .5);
+	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, gUU_times_partial_xU2_gLL_asym, .5);
 
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
@@ -112,21 +112,21 @@ kernel void calc_partial_gPrim_of_Phis(
 
 	∂/∂g_pq R_abcd
 	= ∂/∂g_pq (1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd))
-	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) 
+	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad)
 		+ (∂/∂g_pq g^fg) (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) 
+	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad)
 		- g^pf g^qg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) 
+	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad)
 		- Γ^p_ad Γ^q_bc + Γ^p_ac Γ^q_bd
 		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 
 	g^uv ∂/∂g_pq R_uavb
-	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub) 
+	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub)
 		- g^uv Γ^p_ub Γ^q_av + Γ^p_uv Γ^q_ab
 		+ g^uv g^fg ∂/∂g_pq (Γ_fub Γ_gav - Γ_fuv Γ_gab)
-	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub) 
+	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub)
 		- Γ^pu_b Γ^q_ua + Γ^pu_u Γ^q_ab							<- looks like the 2nd term of the Ricci eqn based on g_ab,cd
 		+ g^uv g^fg (
 			  (∂/∂g_pq Γ_fub) Γ_gav
@@ -134,7 +134,7 @@ kernel void calc_partial_gPrim_of_Phis(
 			- (∂/∂g_pq Γ_fuv) Γ_gab
 			- Γ_fuv (∂/∂g_pq Γ_gab)
 		)
-	
+
 	partial_gLL_of_RicciLL.pq.ab := ∂R_ab/∂g_pq
 	= ∂/∂g_pq (g^uv R_uavb)
 	= (∂/∂g_pq g^uv) R_uavb + g^uv (∂/∂g_pq R_uavb)
@@ -166,7 +166,7 @@ end
 
 <? else -- only use 1st-deriv finite-difference stencils (and difference-of-difference for 2nd-deriv)
 ?>
-	
+
 	//this is also in the Ricci computation, but should I be storing it?  is it too big?
 	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(GammaULLs);
 
@@ -302,7 +302,7 @@ end ?>
 
 	<?=TPrim_t?> const TPrim = TPrims[index];
 
-	real4s4x4s4 d_8piTLL_dgLL = real4s4x4s4_zero;
+	real4s4x4s4 partial_gLL_of_8piTLL = real4s4x4s4_zero;
 <?
 if solver.body.useEM then ?>
 	real4 const EU = (real4)(0 <? for i=0,sDim-1 do ?>, TPrim.E.s<?=i?> <? end ?>);
@@ -319,7 +319,7 @@ if solver.body.useEM then ?>
 <?
 	for e=0,stDim-1 do
 		for f=e,stDim-1 do
-?>	d_8piTLL_dgLL.s<?=e..f?>.s00 += <?
+?>	partial_gLL_of_8piTLL.s<?=e..f?>.s00 += <?
 			if e==0 or f==0 then
 				?>0<?
 			else
@@ -327,9 +327,9 @@ if solver.body.useEM then ?>
 			end
 			?>;
 <?			for i=0,sDim-1 do
-?>	d_8piTLL_dgLL.s<?=e..f?>.s0<?=i+1?> = -SL.s<?=i?> * gUU.s<?=e..f?>;
+?>	partial_gLL_of_8piTLL.s<?=e..f?>.s0<?=i+1?> = -SL.s<?=i?> * gUU.s<?=e..f?>;
 <?				for j=i,sDim-1 do
-?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=i+1?><?=j+1?> = 0.<?
+?>	partial_gLL_of_8piTLL.s<?=e..f?>.s<?=i+1?><?=j+1?> = 0.<?
 					if e==i+1 and f==j+1 then ?> + ESq + BSq <? end
 					?> + gLL.s<?=i..j?> * (<?
 					if e==0 or f==0 then
@@ -372,7 +372,7 @@ if solver.body.useMatter then
 		for f=e,stDim-1 do
 			for a=0,stDim-1 do
 				for b=a,stDim-1 do
-?>	d_8piTLL_dgLL.s<?=e..f?>.s<?=a..b?> += (0. <?
+?>	partial_gLL_of_8piTLL.s<?=e..f?>.s<?=a..b?> += (0. <?
 					if e==a then ?>+ uL.s<?=b?><? end
 					if e==b then ?>+ uL.s<?=a?><? end
 					?>) * uL.s<?=f?> * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)<?
@@ -394,7 +394,7 @@ end
 			EFE,
 			real4s4_sub(
 				partial_gLL_of_EinsteinLL.s<?=p..q?>,
-				d_8piTLL_dgLL.s<?=p..q?>
+				partial_gLL_of_8piTLL.s<?=p..q?>
 			)
 		),
 <?	end

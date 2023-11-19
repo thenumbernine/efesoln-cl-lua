@@ -1273,7 +1273,7 @@ function EFESolver:updateNewton()
 	--[[
 	iteration:
 
-	∂g_ab/∂t = -∂Φ/∂g_ab
+	∂/∂t(g_ab) = -∂Φ/∂g_ab
 	for Φ = 1/2 Sum_ab (G_ab - 8 π T_ab)^2
 
 	two approaches:
@@ -1374,7 +1374,7 @@ print(('using lambda=%.16e residual=%.16e'):format(lambda, residualRev))
 		self.update_gPrims.obj:setArg(2, lambdaPtr)
 		self.update_gPrims()
 	else	-- no line search
-		-- update gPrims from dPhi/dg_ab
+		-- update gPrims from ∂Φ/∂g_ab
 print('self.update_gPrims')
 print('lambda', self.updateLambda)
 		self.update_gPrims.obj:setArg(2, ffi.new('real[1]', self.updateLambda))

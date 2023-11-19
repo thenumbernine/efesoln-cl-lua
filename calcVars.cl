@@ -11,7 +11,7 @@ gPrim_t calc_gPrim_flat(real3 const x) {
 
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
 	gPrim_t gPrim = calc_gPrim_flat(x);
-	
+
 	real const r = real3_len(x);
 	real const radius = <?=solver.body.radius?>;
 	real const mass = <?=solver.body.mass?>;
@@ -132,7 +132,7 @@ end
 
 gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
 	gPrim_t gPrim = calc_gPrim_flat(x);
-	
+
 	real const radius = <?=solver.body.radius?>;
 	real const mass = <?=solver.body.mass?>;
 	real const density = <?=solver.body.density?>;
@@ -190,15 +190,15 @@ real4s4 calc_gLL_from_gPrim(
 	real const alpha = gPrim.alpha;
 	real3 const betaU = gPrim.betaU;
 	real3s3 const gammaLL = gPrim.gammaLL;
-	
+
 	real const alphaSq = alpha * alpha;
 	real3 const betaL = real3s3_real3_mul(gammaLL, betaU);
 	real const betaSq = real3_dot(betaL, betaU);
-	
+
 	real4s4 gLL;
 	gLL.s00 = -alphaSq + betaSq;
 <?
-for i=0,sDim-1 do 
+for i=0,sDim-1 do
 ?>	gLL.s0<?=i+1?> = betaL.s<?=i?>;
 <?	for j=i,sDim-1 do
 ?>	gLL.s<?=i+1?><?=j+1?> = gammaLL.s<?=i?><?=j?>;
@@ -303,7 +303,7 @@ kernel void calc_GammaULLs(
 	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
 	real4x4s4 const GammaLLL = (real4x4s4){
-<? 
+<?
 for a=0,stDim-1 do
 	for b=0,stDim-1 do
 		for c=b,stDim-1 do
@@ -387,13 +387,13 @@ kernel void solveAL(
 ) {
 	initKernel();
 
-<? 
+<?
 --[[ TODO this is 2nd order, and the middle is missing, because it's an inverse to a discrete Laplacian solved with Jacobi iteration
 =solver:finiteDifference{
 	bufferName = "TPrims",
 	getValue = function(args) return "TPrims["..args.index.."].JU" end,
 	valueType = "real4",
-} 
+}
 --]]
 ?>
 
