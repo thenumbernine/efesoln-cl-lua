@@ -30,23 +30,39 @@ kernel void calc_dPhi_dgPrims(
 	//GammaLLL.a.bc := Γ_abc = g_au Γ^u_bc
 	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
 
-	//RiemannLLLL.ab.cd := R_abcd 
-	//= (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-	//= (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
-	// TODO antisymmetric storage
-	// but this requires inserting -1's for reading/writing ...
-	real4x4x4x4 const RiemannLLLL = (real4x4x4x4){
+	//both are [ab][cd] and (ac)(bd)
+	//dg_asym_LLLL.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
+	real4x4x4x4 const dg_asym_LLLL = (real4x4x4x4){
 <? for a=0,stDim-1 do
 ?>		.s<?=a?> = (real4x4x4){
-<?	for b=a,stDim-1 do
+<?	for b=0,stDim-1 do
 ?>			.s<?=b?> = (real4x4){
 <?		for c=0,stDim-1 do
 ?>				.s<?=c?> = (real4)(
-<?			for d=c,stDim-1 do
+<?			for d=0,stDim-1 do
 ?>					  d2gLLLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
 					+ d2gLLLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
 					- d2gLLLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
-					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
+					- d2gLLLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>,
+<?			end
+?>				),
+<?		end
+?>			},
+<?	end
+?>		},
+<? end
+?>	};
+
+	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
+	real4x4x4x4 const GammaSq_asym_LLLL = (real4x4x4x4){
+<? for a=0,stDim-1 do
+?>		.s<?=a?> = (real4x4x4){
+<?	for b=0,stDim-1 do
+?>			.s<?=b?> = (real4x4){
+<?		for c=0,stDim-1 do
+?>				.s<?=c?> = (real4)(
+<?			for d=0,stDim-1 do
+?>					0.
 <?				for e=0,stDim-1 do
 ?>					+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
 					- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
@@ -61,7 +77,31 @@ kernel void calc_dPhi_dgPrims(
 <? end
 ?>	};
 
-	//RiemannULLL.a.b.cd := R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
+	//RiemannLLLL.ab.cd := R_abcd 
+	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
+	// TODO antisymmetric storage
+	// but this requires inserting -1's for reading/writing ...
+	real4x4x4x4 const RiemannLLLL = (real4x4x4x4){
+<? for a=0,stDim-1 do
+?>		.s<?=a?> = (real4x4x4){
+<?	for b=0,stDim-1 do
+?>			.s<?=b?> = (real4x4){
+<?		for c=0,stDim-1 do
+?>				.s<?=c?> = (real4)(
+<?			for d=0,stDim-1 do
+?>					.5 * dg_asym_LLLL.<?=a?>.<?=b?>.<?=c?>.<?=d?>
+					+ GammaSq_asym_LLLL.<?=a?>.<?=b?>.<?=c?>.<?=d?>,
+<?			end
+?>				),
+<?		end
+?>			},
+<?	end
+?>		},
+<? end
+?>	};
+
+	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
 	real4x4x4x4 const RiemannULLL = real4s4_real4x4x4x4_mul(gUU, RiemannLLLL);
 
@@ -112,7 +152,7 @@ kernel void calc_dPhi_dgPrims(
 		)
 
 	=	- g^cp R^q_acb
-		- g^cp g^qe g^fg (Γ_caf Γ_ebg - Γ_cfg Γ_eab)
+		- g^cp g^qe g^fg (Γ_efb Γ_cag - Γ_cfg Γ_eab)
 		+ g^uv (
 			  ∂/∂g_pq D2[g_au]_bv
 			+ ∂/∂g_pq D2[g_bv]_au

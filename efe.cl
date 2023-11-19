@@ -510,7 +510,7 @@ real4s4 calc_EinsteinLL(
 ?>		.s<?=a?><?=b?> = 0.<?
 		for u=0,stDim-1 do
 			for v=0,stDim-1 do
-?>				+ gUU.s<?=sym(u,v)?> * (
+?>				+ .5 * gUU.s<?=sym(u,v)?> * (
 					  d2gLLLL.s<?=sym(a,u)?>.s<?=sym(b,v)?> 
 					+ d2gLLLL.s<?=sym(b,v)?>.s<?=sym(a,u)?> 
 					- d2gLLLL.s<?=sym(a,b)?>.s<?=sym(u,v)?> 
@@ -529,7 +529,7 @@ end ?>
 ?>
 
 	real4 const Gamma12L = real4x4s4_tr12(GammaULL);
-	real4s4 const RicciLL = {
+	real4s4 const RicciLL = (real4s4){
 <? for a=0,stDim-1 do
 	for b=a,stDim-1 do
 ?>		.s<?=a?><?=b?> = 0.<?
