@@ -37,21 +37,6 @@ end
 #define real_real_div	real_div
 <?makeAdds"real"?>
 
-#define new_real4_zero() ((real4)(real_zero, real_zero, real_zero, real_zero))
-#define real4_zero new_real4_zero()
-
-#define real4_add(a,b)	((a) + (b))
-#define real4_add2		real4_add
-#define real4_sub(a,b)	((a) - (b))
-#define real4_mul(a,b)	((a) * (b))
-#define real4_real_mul	real4_mul
-#define real4_dot		dot
-#define real4_div(a,b)	((a) / (b))
-#define real4_real_div	real4_div
-<?makeAdds"real4"?>
-
-
-
 <?
 local range = require 'ext.range'
 local table = require 'ext.table'
@@ -138,6 +123,12 @@ static inline real3 real4_to_real3(real4 const a) {
 	return _real3(a.s1, a.s2, a.s3);
 }
 
+static inline real4 real3_to_real4(real3 const a) {
+	return (real4){.s0 = 0, .s1 = a.s0, .s2 = a.s1, .s3 = a.s2};
+}
+
+<?makeops("real4", "real", {"s0", "s1", "s2", "s3"})?>
+
 #define real3s3_ident ((real3s3){\
 	.xx = 1, .xy = 0, .xz = 0,\
 	.yy = 1, .yz = 0,\
@@ -193,14 +184,14 @@ static inline real4 real4s4_real4_mul(
 	real4s4 const m,
 	real4 const v
 ) {
-	return (real4)(
+	return (real4){
 <? for i=0,3 do
-?>		0. <?
+?>		.s<?=i?> = 0. <?
 	for j=0,3 do
 ?> + m.s<?=sym(i,j)?> * v.s<?=j?><?
-	end ?><?=i < 3 and "," or ""?>
+	end ?>,
 <? end
-?>	);
+?>	};
 }
 
 //a_ij = b_ik c_kj
@@ -210,16 +201,16 @@ static inline real4x4 real4s4_real4s4_mul(
 ) {
 	return (real4x4){
 <? for a=0,3 do
-?>		.s<?=a?> = (real4)(
+?>		.s<?=a?> = (real4){
 <?
 	for b=0,3 do
-?>			0.<?
+?>			.s<?=b?> = 0.<?
 		for c=0,3 do
 ?> + a.s<?=sym(a,c)?> * b.s<?=sym(c,b)?><?
-		end ?><?=b < 3 and "," or ""?>
+		end ?>,
 <?
 	end
-?>		),
+?>		},
 <? end
 ?>	};
 }
@@ -323,24 +314,24 @@ static inline real3 real4x4s4_i00(real4x4s4 const a) {
 
 //b_i = a^j_ji
 static inline real4 real4x4s4_tr12(real4x4s4 const a) {
-	return (real4)(
+	return (real4){
 <? for i=0,3 do
-?>		0.<?
+?>		.s<?=i?> = 0.<?
 	for j=0,3 do
 ?> + a.s<?=j?>.s<?=sym(j,i)?><?
 	end
-?><?=i < 3 and "," or ""?>
+?>,
 <? end
-?>	);
+?>	};
 }
 
 //b^i = a^ij_j
 static inline real4 real4x4x4_tr23(real4x4x4 const a) {
-	return (real4)(
+	return (real4){
 <? for i=0,3 do
-?>		real4x4_tr(a.s<?=i?>)<?=i < 3 and "," or ""?>
+?>		.s<?=i?> = real4x4_tr(a.s<?=i?>),
 <? end
-?>	);
+?>	};
 }
 
 //c^i_jk = a^il b_ljk
@@ -391,15 +382,15 @@ static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
 <?	for b=0,3 do
 ?>			.s<?=b?> = (real4x4){
 <?		for c=0,3 do
-?>				.s<?=c?> = (real4)(
+?>				.s<?=c?> = (real4){
 <?			for d=0,3 do
-?>					0.<?
+?>					.s<?=d?> = 0.<?
 				for e=0,3 do
 ?> + a.s<?=sym(a,e)?> * b.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?><?
 				end
-?>				<?=d < 3 and "," or ""?>
+?>					,
 <?			end
-?>				),
+?>				},
 <?		end
 ?>			},
 <? 	end
@@ -529,15 +520,15 @@ real4s4 calc_EinsteinLL(
 <?	for b=0,stDim-1 do
 ?>			.s<?=b?> = (real4x4){
 <?		for c=0,stDim-1 do
-?>				.s<?=c?> = (real4)(
+?>				.s<?=c?> = (real4){
 <?			for d=0,stDim-1 do
-?>					  partial_xU2_of_gLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
-					+ partial_xU2_of_gLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
-					- partial_xU2_of_gLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
-					- partial_xU2_of_gLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>
-					<?=d < 3 and "," or ""?>
+?>					.s<?=d?> =
+						  partial_xU2_of_gLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
+						+ partial_xU2_of_gLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
+						- partial_xU2_of_gLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
+						- partial_xU2_of_gLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>,
 <?			end
-?>				),
+?>				},
 <?		end
 ?>			},
 <?	end
@@ -553,16 +544,16 @@ real4s4 calc_EinsteinLL(
 <?	for b=0,stDim-1 do
 ?>			.s<?=b?> = (real4x4){
 <?		for c=0,stDim-1 do
-?>				.s<?=c?> = (real4)(
+?>				.s<?=c?> = (real4){
 <?			for d=0,stDim-1 do
-?>					0.
+?>					.s<?=d?> = 0.
 <?				for e=0,stDim-1 do
 ?>					+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
 					- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
 <?				end
-?>					<?=d < 3 and "," or ""?>
+?>					,
 <?			end
-?>				),
+?>				},
 <?		end
 ?>			},
 <?	end
@@ -658,11 +649,11 @@ if solver.body.useEM then
 	T_ab = F_au F_b^u - 1/4 g_ab F_uv F^uv
 	*/
 
-	real4 const EU = (real4)(0 <?for i=0,2 do ?>, TPrim.E.s<?=i?> <? end ?>);
+	real4 const EU = real3_to_real4(TPrim.E);
 	real4 const EL = real4s4_real4_mul(gLL, EU);
 	real const ESq = dot(EL, EU);
 
-	real4 const BU = (real4)(0 <?for i=0,2 do ?>, TPrim.B.s<?=i?> <? end ?>);
+	real4 const BU = real3_to_real4(TPrim.B);
 	real4 const BL = real4s4_real4_mul(gLL, BU);
 	real const BSq = dot(BL, BU);
 
@@ -688,14 +679,14 @@ if solver.body.useMatter then
 	if solver.body.useVel then
 ?>	//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
-	real4 const vU = (real4)(0, TPrim.v.x, TPrim.v.y, TPrim.v.z);
+	real4 const vU = real3_to_real4(TPrim.v);
 	real4 const vL = real4s4_real4_mul(gLL, vU);
 	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = (real4)(W, W * vU.s1, W * vU.s2, W * vU.s3);
+	real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
 	real4 const uL = real4s4_real4_mul(gLL, uU);
 	<? else ?>//otherwise uL = gLL.s0
-	real4 const uL = (real4)(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
+	real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
 <?
 	end
 ?>

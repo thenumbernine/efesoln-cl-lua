@@ -963,8 +963,24 @@ function EFESolver:getTypeCode()
 		solver = self,
 	})
 
+--[=[ ok super defines real2 real4 real8 
+-- but turns out OpenCL's float2 float4 float8 don't have [] operator ...
+-- and I need that so ...
 	return EFESolver.super.getTypeCode(self)..'\n'
 		..efe_h
+--]=]
+-- [=[ ... so just setup the 16/64 extensions and skip the real2/4/8
+	return template([[
+<? if real == 'double' then ?>
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+<? elseif real == 'half' then ?>
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+<? end ?>
+typedef <?=real?> real;
+]],	{
+		real = self.real,
+	})..efe_h
+--]=]
 end
 
 function EFESolver:initBuffers()

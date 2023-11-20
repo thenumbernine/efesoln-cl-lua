@@ -5,6 +5,12 @@ typedef union {
 } real3;
 
 typedef union {
+	real s[4];
+	struct { real s0, s1, s2, s3; };
+	struct { real t, x, y, z; };
+} real4;
+
+typedef union {
 	real s[6];
 	struct { real s00, s01, s02, s11, s12, s22; };	//useful for templated code
 	struct { real xx, xy, xz, yy, yz, zz; };
@@ -17,7 +23,7 @@ typedef union {
 } real4s4;
 
 typedef union {
-	real s[16];
+	real4 s[4];
 	struct { real4 s0, s1, s2, s3; };
 	struct { real4 t, x, y, z; };
 } real4x4;
