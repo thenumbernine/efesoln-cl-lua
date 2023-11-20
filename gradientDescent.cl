@@ -55,6 +55,8 @@ kernel void calc_partial_gPrim_of_Phis(
 ?>	};
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
+	// not the same as the popular 2 Γ^a_e[c Γ^e_d]b used for Riemann with 2 ∂/dx^[c Γ^a_d]b 
+	// instead this is the one used with 2 g_[a[b,c]d]
 	// TODO antisymmetric storage
 	real4x4x4x4 const GammaSq_asym_LLLL = (real4x4x4x4){
 <? for a=0,stDim-1 do
@@ -105,8 +107,8 @@ kernel void calc_partial_gPrim_of_Phis(
 	//Gaussian := R = R^a_a
 	real const Gaussian = real4x4_tr(RicciUL);
 
-	//partial_gLL_GammaULL.pq.a.bc =: ∂/∂g_pq(x) Γ_abc
-	real4s4x4x4s4 const partial_gLL_GammaULL = (real4s4x4x4s4){
+	//partial_gLL_of_GammaULL.pq.a.bc =: ∂/∂g_pq(x) Γ_abc
+	real4s4x4x4s4 const partial_gLL_of_GammaULL = (real4s4x4x4s4){
 <?
 for p=0,stDim-1 do
 	for q=p,stDim-1 do

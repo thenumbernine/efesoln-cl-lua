@@ -29,5 +29,5 @@ return {
 	useLineSearch = true,
 
 	-- finite-difference order
-	diffOrder = 2,
+	diffOrder = 4,
 }

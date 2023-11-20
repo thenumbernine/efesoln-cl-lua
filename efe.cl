@@ -7,16 +7,50 @@
 constant real const c = 299792458;			// m/s
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 
+<?
+local range = require 'ext.range'
+local function makeAdds(ctype)
+	local n = solver.diffOrder
+	assert(n % 2 == 0)
+	for i=4,n,2 do
+		local xs = range(0,i-1):mapi(function(j) return "x"..j end)
+?>
+#define <?=ctype?>_add<?=i?>(<?=xs:concat', '?>)\
+	<?=ctype?>_add2(\
+		<?=ctype?>_add2(x0, x1),\
+		<?=ctype?>_add<?=i-2?>(<?=xs:sub(3):concat', '?>)\
+	)
+<?	end
+end
+?>
+
 #define new_real_zero() 0.
 #define real_zero new_real_zero()
 
-#define real_add(a,b) ((a) + (b))
-#define real_sub(a,b) ((a) - (b))
-#define real_mul(a,b) ((a) * (b))
-#define real_real_mul real_mul
-#define real_dot real_mul
-#define real_div(a,b) ((a) / (b))
-#define real_real_div real_div
+#define real_add(a,b)	((a) + (b))
+#define real_add2		real_add
+#define real_sub(a,b)	((a) - (b))
+#define real_mul(a,b)	((a) * (b))
+#define real_real_mul	real_mul
+#define real_dot		real_mul
+#define real_div(a,b)	((a) / (b))
+#define real_real_div	real_div
+<?makeAdds"real"?>
+
+#define new_real4_zero() ((real4)(real_zero, real_zero, real_zero, real_zero))
+#define real4_zero new_real4_zero()
+
+#define real4_add(a,b)	((a) + (b))
+#define real4_add2		real4_add
+#define real4_sub(a,b)	((a) - (b))
+#define real4_mul(a,b)	((a) * (b))
+#define real4_real_mul	real4_mul
+#define real4_dot		dot
+#define real4_div(a,b)	((a) / (b))
+#define real4_real_div	real4_div
+<?makeAdds"real4"?>
+
+
 
 <?
 local range = require 'ext.range'
@@ -78,6 +112,9 @@ static inline <?=ctype?> <?=ctype?>_real_<?=op?>(<?=ctype?> const a, real const 
 <?	end
 ?>
 
+#define <?=ctype?>_add2 <?=ctype?>_add
+<?makeAdds(ctype)?>
+
 static inline <?=ctype?> <?=ctype?>_mul_add(<?=ctype?> const a, <?=ctype?> const b, real const c) {
 	return <?=ctype?>_add(a, <?=ctype?>_real_mul(b, c));
 }
@@ -115,19 +152,6 @@ static inline real3 real3_cross(real3 const a, real3 const b) {
 		a.z * b.x - a.x * b.z,
 		a.x * b.y - a.y * b.x);
 }
-
-#define new_real4_zero() ((real4)(real_zero, real_zero, real_zero, real_zero))
-#define real4_zero new_real4_zero()
-
-#define real4_add(a,b)	((a) + (b))
-#define real4_sub(a,b)	((a) - (b))
-#define real4_mul(a,b)	((a) * (b))
-#define real4_real_mul	real4_mul
-#define real4_dot		dot
-#define real4_div(a,b)	((a) / (b))
-#define real4_real_div	real4_div
-
-
 
 // ok weird convention ...
 // for spacetime vars, real3 is xyz, real4 is used such that .s0123 == txyz (time dimension first)
