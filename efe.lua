@@ -366,7 +366,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					<?=resultName?>.s<?=i+1?><?=j+1?>,
 					real<?=srcType?>_real_mul(
 						real<?=srcType?>_add(yR, yL),
-						<?=coeff?> * inv_dx.s<?=i?> * inv_dx.s<?=i?>
+						<?=coeff?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>
 					)
 				);
 			}<? end ?>
@@ -1026,6 +1026,7 @@ function EFESolver:template(code)
 		xmin = self.xmin,
 		xmax = self.xmax,
 		solver = self,
+		derivCoeffs = derivCoeffs,
 		c = c,
 		G = G,
 		TPrim_t = self.TPrim_t,

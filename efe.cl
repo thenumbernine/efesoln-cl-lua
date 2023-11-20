@@ -407,7 +407,6 @@ static inline real4x4x4 real4x4s4_real4s4_mul21(
 <?makeops("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 <?makeZero{vec="real4x4x4s4", inner="real4x4s4", dim=4}?>
-
 <?makeops("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
 
 static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
@@ -451,6 +450,9 @@ static inline real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const a) {
 end
 ?>	};
 }
+
+<?makeZero{vec="real4s4x4x4s4", inner="real4x4s4", dim=4, sym=true}?>
+<?makeops("real4s4x4x4s4", "real4x4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 
 constant int const stDim = <?=stDim?>;

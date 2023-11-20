@@ -114,7 +114,7 @@ $\frac{\partial}{\partial x^j} g_{ab}(x) \approx \frac{1}{h} \Sigma_k \phi_k g_{
 $\frac{\partial}{\partial g_{ef}(x + k \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} \approx \phi_k \delta^e_a \delta^f_b$<br>
 <br>
 
-For nth-order spatial derivatives, $\frac{\partial}{\partial x} g_{ab}(x)$ references cells n cell away.<br>
+For nth-order spatial derivatives, $\frac{\partial}{\partial x} g_{ab}(x)$ references n cells away.<br>
 <br>
 
 <b>Christoffel symbols of the first kind:</b><br>
@@ -138,7 +138,7 @@ $= \frac{1}{2} (
 $= 0$<br>
 <br>
 
-For 1st order spatial derivatives, $\Gamma_{abc}(x)$ references cells 1 cell away.<br>
+For nth order spatial derivatives, $\Gamma_{abc}(x)$ references n cells away.<br>
 <br>
 
 Useful identity:<br>
@@ -317,6 +317,35 @@ $=
 $<br>
 <br>
 
+in lower form it looks a bit cleaner:<br>
+$R_{abcd} =
+	  \frac{1}{2} (
+		g_{ad,bc} - g_{bd,ac} - g_{ac,bd} + g_{bc,ad}
+	)
+	+ g^{fg} \Gamma_{fad} \Gamma_{gbc}
+	- g^{fg} \Gamma_{fac} \Gamma_{gbd}
+$<br>
+$R_{abcd} =
+	  \frac{1}{2} (
+		  g_{ad,bc} + g^{fg} \Gamma_{fad} \Gamma_{gbc}
+		+ g_{bc,ad} + g^{fg} \Gamma_{fbc} \Gamma_{gad}
+		- g_{bd,ac} - g^{fg} \Gamma_{fbd} \Gamma_{gac}
+		- g_{ac,bd} - g^{fg} \Gamma_{fac} \Gamma_{gbd}
+	)
+$<br>
+
+$R_{abcd} =
+	  g_{a[d,c]b} + g^{fg} \Gamma_{fa[d} \Gamma_{g|c]b}
+	- g_{b[d,c]a} - g^{fg} \Gamma_{fb[d} \Gamma_{g|c]a}
+$<br>
+$R_{abcd} = 2 (g_{[a|[d,c]|b]} + g^{fg} \Gamma_{f[a|[d} \Gamma_{g|c]|b]})$<br>
+... or if you really need to not mix valence of antisymmetric indexes ...<br>
+$R_{abcd} = 2 \delta^{[u}_a \delta^{v]}_b (g_{a[d,c]b} + g^{fg} \Gamma_{fa[d} \Gamma_{g|c]b})$<br>
+... or if you really want to see indexes next to one another ...<br>
+$R_{abcd} = 2 \delta^{[u}_a \delta^{v]}_b (g_{u[d,c]v} + \Gamma_{fu[d} {\Gamma^f}_{c]v})$<br>
+<br>
+
+Back to ${R^a}_{bcd}$:<br>
 If we were to replace all $\Gamma_{abc}$'s in terms of $g_{ab}$:<br>
 $= \frac{1}{2} {g^{ae}}_{,c} (g_{eb,d} + g_{ed,b} - g_{bd,e})
 	+ \frac{1}{2} g^{ae} (g_{eb,dc} + g_{ed,bc} - g_{bd,ec})
@@ -544,8 +573,6 @@ $= \frac{1}{2 h} \left( {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(
 	- {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) + {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
 	+ 2 {\Gamma^c}_{d[c} (x) {\Gamma^d}_{b]a} (x)
 $<br>
-Here I could use the simplified version to directly replace the 2nd derivatives of $g_{ab}$ with finite second derivatives, but the math gets more messy.  I might do that later.
-Avoiding this causes the second derivative to use two separate samples from a 5-cell window rather than a 3-cell window.<br>
 <br>
 
 Discretized derivatives:<br>
