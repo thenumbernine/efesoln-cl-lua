@@ -55,41 +55,18 @@ end
 <?
 local range = require 'ext.range'
 local table = require 'ext.table'
-local function makeZero(args)
-	local vec = args.vec
-	local inner = args.inner
-	local fields = args.fields
-	if not fields then
-		local dim = args.dim
-		if dim then
-			if args.sym then
-				fields = table.append(range(0,dim-1):mapi(function(i)
-					return range(i,dim-1):mapi(function(j)
-						return 's'..i..j
-					end)
-				end):unpack())
-			else
-				fields = range(0,dim-1):mapi(function(i) return 's'..i end)
-			end
-		end
-	end
-	if not fields then error("idk how to make this") end
--- using a macro goes noticeably slower so ...
--- however using a 'constant' cannot initialize its fields with other 'constant's ...
-?>#define new_<?=vec?>_zero() ((<?=vec?>){\
-<? for _,field in ipairs(fields) do
-?>	.<?=field?> = new_<?=inner?>_zero(),\
-<? end
-?>})
-constant <?=vec?> const <?=vec?>_zero = new_<?=vec?>_zero();
-<?
-end
 ?>
-
-<?makeZero{vec='real3', inner='real', dim=3}?>
 
 <?
 local function makeops(ctype, fieldtype, fields)
+?>
+#define new_<?=ctype?>_zero() ((<?=ctype?>){\
+<? for _,field in ipairs(fields) do --\
+?>	.<?=field?> = new_<?=fieldtype?>_zero(),\
+<? end --\
+?>})
+constant <?=ctype?> const <?=ctype?>_zero = new_<?=ctype?>_zero();
+<?
 	for _,op in ipairs{"add", "sub"} do
 ?>
 static inline <?=ctype?> <?=ctype?>_<?=op?>(<?=ctype?> const a, <?=ctype?> const b) {
@@ -198,8 +175,6 @@ static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 }
 
 <?makeops("real4x4", "real4", {"s0", "s1", "s2", "s3"})?>
-
-<?makeZero{vec="real4s4", inner="real", dim=4, sym=true}?>
 
 <?makeops("real4s4", "real", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
@@ -340,7 +315,6 @@ end ?>;
 
 <?makeops("real4x4x4", "real4x4", {"s0", "s1", "s2", "s3"})?>
 
-<?makeZero{vec='real4x4s4', inner='real4s4', dim=4}?>
 <?makeops("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
 
 static inline real3 real4x4s4_i00(real4x4s4 const a) {
@@ -403,10 +377,8 @@ static inline real4x4x4 real4x4s4_real4s4_mul21(
 ?>	};
 }
 
-<?makeZero{vec="real4s4x4s4", inner="real4s4", dim=4, sym=true}?>
 <?makeops("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
-<?makeZero{vec="real4x4x4s4", inner="real4x4s4", dim=4}?>
 <?makeops("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
 
 static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
@@ -451,7 +423,8 @@ end
 ?>	};
 }
 
-<?makeZero{vec="real4s4x4x4s4", inner="real4x4s4", dim=4, sym=true}?>
+<?makeops("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
+
 <?makeops("real4s4x4x4s4", "real4x4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 
