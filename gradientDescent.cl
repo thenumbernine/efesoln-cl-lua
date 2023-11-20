@@ -231,30 +231,24 @@ end
 	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(GammaULLs);
 
 	//RiemannULLL.a.b.cd := R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
-	real4x4x4x4 const RiemannULLL = (real4x4x4x4){
-<? for a=0,stDim-1 do
-?>		.s<?=a?> = (real4x4x4){
-<?	for b=0,stDim-1 do
-?>			.s<?=b?> = (real4x4){
-<?		for c=0,stDim-1 do
-?>				.s<?=c?> = (real4){
-<?			for d=0,stDim-1 do
-?>					.s<?=d?> =
-						partial_xU_of_GammaULL.s<?=c?>.s<?=a?>.s<?=sym(b,d)?>
-						- partial_xU_of_GammaULL.s<?=d?>.s<?=a?>.s<?=sym(b,c)?><?
-				for e=0,stDim-1 do
-?>						+ GammaULL.s<?=a?>.s<?=sym(e,c)?> * GammaULL.s<?=e?>.s<?=sym(b,d)?>
-						- GammaULL.s<?=a?>.s<?=sym(e,d)?> * GammaULL.s<?=e?>.s<?=sym(b,c)?>
-<?				end
-?>						,
-<?			end
-?>				},
-<?		end
-?>			},
-<? 	end
-?>		},
-<? end
-?>	};
+	real4x4x4x4 RiemannULLL;
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = 0; c < stDim; ++c) {
+				for (int d = 0; d < stDim; ++d) {
+					real sum = 
+						  partial_xU_of_GammaULL.s[c].s[a].s[sym4[b][d]]
+						- partial_xU_of_GammaULL.s[d].s[a].s[sym4[b][c]];
+					for (int e = 0; e < stDim; ++e) {
+						sum += 
+							  GammaULL.s[a].s[sym4[e][c]] * GammaULL.s[e].s[sym4[b][d]]
+							- GammaULL.s[a].s[sym4[e][d]] * GammaULL.s[e].s[sym4[b][c]];
+					}
+					RiemannULLL.s[a].s[b].s[c].s[d] = sum;
+				}
+			}
+		}
+	}
 
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
@@ -301,36 +295,36 @@ end
 	= Γ^pc_c Γ^q_ba - Γ^pc_b Γ^q_ca - g^cp R^q_acb
 	(work done in efe.html)
 	*/
-	real4s4x4s4 const partial_gLL_of_RicciLL = (real4s4x4s4){
-<?
-for p=0,stDim-1 do
-	for q=p,stDim-1 do
-?>		.s<?=p..q?> = (real4s4){
-<?		for a=0,stDim-1 do
-			for b=a,stDim-1 do
-?>			.s<?=a..b?> = 0.
-<?				for c=0,stDim-1 do ?>
-				+ GammaUUL.s<?=p?>.s<?=c?>.s<?=c?> * GammaULL.s<?=q?>.s<?=sym(b,a)?>
-				- GammaUUL.s<?=p?>.s<?=c?>.s<?=b?> * GammaULL.s<?=q?>.s<?=sym(c,a)?>
-				- gUU.s<?=sym(c,p)?> * RiemannULLL.s<?=q?>.s<?=a?>.s<?=c?>.s<?=b?><?
-				end ?>,
-<?			end
-		end
-?>		},
-<?	end
-end
-?>	};
+	real4s4x4s4 partial_gLL_of_RicciLL;
+	for (int p = 0; p < stDim; ++p) {
+		for (int q = p; q < stDim; ++q) {
+			int const pq = sym4[p][q];
+			for (int a = 0; a < stDim; ++a) {
+				for (int b = a; b < stDim; ++b) {
+					int const ab = sym4[a][b];
+					real sum = 0;
+					for (int c = 0; c < stDim; ++c) {
+						sum +=
+							  GammaUUL.s[p].s[c].s[c] * GammaULL.s[q].s[sym4[b][a]]
+							- GammaUUL.s[p].s[c].s[b] * GammaULL.s[q].s[sym4[c][a]]
+							- gUU.s[sym4[c][p]] * RiemannULLL.s[q].s[a].s[c].s[b];
+					}
+					partial_gLL_of_RicciLL.s[pq].s[ab] = sum;
+				}
+			}
+		}
+	}
 
 <? end ?>
 
 	//g^ab ∂R_ab/∂g_pq
-	real4s4 const gUU_times_partial_gLL_of_RicciLL = (real4s4){
-<? for p=0,stDim-1 do
-	for q=p,stDim-1 do
-?>		.s<?=p..q?> = real4s4_dot(gUU, partial_gLL_of_RicciLL.s<?=p..q?>),
-<?	end
-end ?>
-	};
+	real4s4 gUU_times_partial_gLL_of_RicciLL;
+	for (int p = 0; p < stDim; ++p) {
+		for (int q = p; q < stDim; ++q) {
+			int const pq = sym4[p][q];
+			gUU_times_partial_gLL_of_RicciLL.s[pq] = real4s4_dot(gUU, partial_gLL_of_RicciLL.s[pq]);
+		}
+	}
 
 	/*
 	partial_gLL_of_EinsteinLL.pq.ab := ∂/∂g_pq(G_ab)
