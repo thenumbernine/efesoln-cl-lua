@@ -552,29 +552,22 @@ real4s4 calc_EinsteinLL(
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// TODO antisymmetric storage
-	real4x4x4x4 const GammaSq_asym_LLLL = (real4x4x4x4){
-<? for a=0,stDim-1 do
-?>		.s<?=a?> = (real4x4x4){
-<?	for b=0,stDim-1 do
-?>			.s<?=b?> = (real4x4){
-<?		for c=0,stDim-1 do
-?>				.s<?=c?> = (real4){
-<?			for d=0,stDim-1 do
-?>					.s<?=d?> = 0.
-<?				for e=0,stDim-1 do
-?>					+ GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
-					- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>
-<?				end
-?>					,
-<?			end
-?>				},
-<?		end
-?>			},
-<?	end
-?>		},
-<? end
-?>	};
-
+	real4x4x4x4 GammaSq_asym_LLLL;
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = 0; c < stDim; ++c) {
+				for (int d = 0; d < stDim; ++d) {
+					real sum = 0;
+					for (int e = 0; e < stDim; ++e) {
+						sum += 
+							  GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
+							- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>;
+					}
+					GammaSq_asym_LLLL.s[a].s[b].s[c].s[d] = sum;
+				}
+			}
+		}
+	}
 
 	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4s4_real4x4x4x4_mul(gUU, partial_xU2_of_gLL_asym);
 	real4x4x4x4 const GammaSq_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, GammaSq_asym_LLLL);
