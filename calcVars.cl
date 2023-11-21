@@ -36,14 +36,14 @@ gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
 	gPrim.alpha = r > radius
 		? sqrt(1 - 2*mass/r)
 		: (1.5 * sqrt(1 - 2*mass/radius) - .5 * sqrt(1 - 2*mass*r*r/(radius*radius*radius)));
-<?
-for i=0,sDim-1 do
-?>	gPrim.betaU.s<?=i?> = 0;
-<?	for j=i,sDim-1 do
-?>	gPrim.gammaLL.s<?=i..j?> = <?if i==j then?>1. + <?end?>x.s<?=i?>/r * x.s<?=j?>/r * 2*m/(r - 2*m);
-<?	end
-end
-?>
+
+	for (int i = 0; i < sDim; ++i) {
+		gPrim.betaU.s[i] = 0;
+		for (int j = i; j < sDim; ++j) {
+			gPrim.gammaLL.s[sym3[i][j]] = (i == j ? 1. : 0.) + x.s[i]/r * x.s[j]/r * 2*m/(r - 2*m);	
+		}
+	}
+	
 	/*
 	dr^2's coefficient
 	spherical: 1/(1 - 2M/r) = 1/((r - 2M)/r) = r/(r - 2M)
@@ -197,14 +197,13 @@ real4s4 calc_gLL_from_gPrim(
 
 	real4s4 gLL;
 	gLL.s00 = -alphaSq + betaSq;
-<?
-for i=0,sDim-1 do
-?>	gLL.s0<?=i+1?> = betaL.s<?=i?>;
-<?	for j=i,sDim-1 do
-?>	gLL.s<?=i+1?><?=j+1?> = gammaLL.s<?=i?><?=j?>;
-<?	end
-end
-?>
+	for (int i = 0; i < sDim; ++i) {
+		gLL.s[sym4[0][i+1]] = betaL.s[i];
+		for (int j = i; j < sDim; ++j) {
+			gLL.s[sym4[i+1][j+1]] = gammaLL.s[sym3[i][j]];
+		}
+	}
+	
 	return gLL;
 }
 

@@ -1,19 +1,5 @@
 // here is the code used for updating weights based on the EFE
 
-constant int const sym3[3][3] = {
-	{0, 1, 2},
-	{1, 3, 4},
-	{2, 4, 5},
-};
-
-
-constant int const sym4[4][4] = {
-	{0, 1, 2, 3},
-	{1, 4, 5, 6},
-	{2, 5, 7, 8},
-	{3, 6, 8, 9},
-};
-
 kernel void calc_partial_gPrim_of_Phis(
 	global gPrim_t * const partial_gPrim_of_Phis,
 	global <?=TPrim_t?> const * const TPrims,
@@ -357,11 +343,11 @@ end
 if solver.body.useEM then ?>
 	real4 const EU = real3_to_real4(TPrim.E);
 	real4 const EL = real4s4_real4_mul(gLL, EU);
-	real const ESq = dot(EL, EU);
+	real const ESq = real4_dot(EL, EU);
 
 	real4 const BU = real3_to_real4(TPrim.B);
 	real4 const BL = real4s4_real4_mul(gLL, BU);
-	real const BSq = dot(BL, BU);
+	real const BSq = real4_dot(BL, BU);
 
 	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
 	real3 const SL = real3_real_mul(real3_cross(TPrim.E, TPrim.B), sqrt_det_g);
@@ -373,14 +359,14 @@ if solver.body.useEM then ?>
 				partial_gLL_of_8piTLL.s[ef].s00 += TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1];
 			}
 			for (int i = 0; i < sDim; ++i) {
-				partial_gLL_of_8piTLL.s[ef].s[sym4(0,i+1)] -= SL.s[i] * gUU.s[ef];
+				partial_gLL_of_8piTLL.s[ef].s[sym4[0][i+1]] -= SL.s[i] * gUU.s[ef];
 				for (int j = i; j < sDim; ++j) {
 
 					real sum = 0;
 					if (e == i+1 && f == j+1) sum += ESq + BSq;
 					
 					if (e > 0 && f > 0) {
-						sum += gLL.s[sym4(i+1, j+1)] * (TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1]);
+						sum += gLL.s[sym4[i+1][j+1]] * (TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1]);
 					}
 					if (e == i+1) {
 						sum -= 2. * (EU.s[f] * EL.s[j+1] + BU.s[f] * BL.s[j+1]);
@@ -389,7 +375,7 @@ if solver.body.useEM then ?>
 						sum -= 2. * (EU.s[f] * EL.s[i+1] + BU.s[f] * BL.s[i+1]);
 					}
 
-					partial_gLL_of_8piTLL.s[ef].s[sym4(i+1, j+1)] += sum;
+					partial_gLL_of_8piTLL.s[ef].s[sym4[i+1][j+1]] += sum;
 				}
 			}
 		}
@@ -398,17 +384,20 @@ if solver.body.useEM then ?>
 end
 
 if solver.body.useMatter then
-	if solver.body.useVel then ?>//if we're using velocity ...
+	if solver.body.useVel then -- if we're using velocity ...
+?>
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = real3_to_real4(TPrim.v);
 	real4 const vL = real4s4_real4_mul(gLL, vU);
-	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
+	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
 	real4 const uL = real4s4_real4_mul(gLL, uU);
-	<? else ?>//otherwise uL = gLL.s0
+<?
+	else -- otherwise uL = gLL.s0
+?>	
 	real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
-	<?
+<?
 	end
 ?>
 	for (int e = 0; e < stDim; ++e) {

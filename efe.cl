@@ -7,6 +7,20 @@
 constant real const c = 299792458;			// m/s
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 
+constant int const sym3[3][3] = {
+	{0, 1, 2},
+	{1, 3, 4},
+	{2, 4, 5},
+};
+
+
+constant int const sym4[4][4] = {
+	{0, 1, 2, 3},
+	{1, 4, 5, 6},
+	{2, 5, 7, 8},
+	{3, 6, 8, 9},
+};
+
 <?
 local range = require 'ext.range'
 local function makeAdds(ctype)
@@ -651,11 +665,11 @@ if solver.body.useEM then
 
 	real4 const EU = real3_to_real4(TPrim.E);
 	real4 const EL = real4s4_real4_mul(gLL, EU);
-	real const ESq = dot(EL, EU);
+	real const ESq = real4_dot(EL, EU);
 
 	real4 const BU = real3_to_real4(TPrim.B);
 	real4 const BL = real4s4_real4_mul(gLL, BU);
-	real const BSq = dot(BL, BU);
+	real const BSq = real4_dot(BL, BU);
 
 	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
 	real3 const SL = real3_real_mul(
@@ -664,16 +678,14 @@ if solver.body.useEM then
 	);
 
 	_8piTLL.s00 += ESq + BSq;
-<?
-	for i=0,sDim-1 do
-?>	_8piTLL.s0<?=i+1?> += -2. * SL.s<?=i?>;
-<? 		for j=i,sDim-1 do
-?>	_8piTLL.s<?=i+1?><?=j+1?> += gLL.s<?=i?><?=j?> * (ESq + BSq) <?
-			?>- 2. * (<?
-				?>EL.s<?=i+1?> * EL.s<?=j+1?> <?
-				?>+ BL.s<?=i+1?> * BL.s<?=j+1?>);
-<? 		end
-	end
+	for (int i = 0; i < sDim; ++i) {
+		_8piTLL.s[sym4[0][i+1]] += -2. * SL.s[i];
+		for (int j = i; j < sDim; ++j) {
+			_8piTLL.s[sym4[i+1][j+1]] += gLL.s[sym4[i+1][j+1]] * (ESq + BSq) 
+				- 2. * (EL.s[i+1] * EL.s[j+1] + BL.s[i+1] * BL.s[j+1]);
+		}
+	}
+<? 
 end
 if solver.body.useMatter then
 	if solver.body.useVel then
@@ -681,7 +693,7 @@ if solver.body.useMatter then
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = real3_to_real4(TPrim.v);
 	real4 const vL = real4s4_real4_mul(gLL, vU);
-	real const vLenSq = dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
+	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
 	real4 const uL = real4s4_real4_mul(gLL, uU);
