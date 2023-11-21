@@ -528,27 +528,20 @@ real4s4 calc_EinsteinLL(
 	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
 	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab
-	real4x4x4x4 const partial_xU2_of_gLL_asym = (real4x4x4x4){
-<? for a=0,stDim-1 do
-?>		.s<?=a?> = (real4x4x4){
-<?	for b=0,stDim-1 do
-?>			.s<?=b?> = (real4x4){
-<?		for c=0,stDim-1 do
-?>				.s<?=c?> = (real4){
-<?			for d=0,stDim-1 do
-?>					.s<?=d?> =
-						  partial_xU2_of_gLL.s<?=sym(a,d)?>.s<?=sym(b,c)?>
-						+ partial_xU2_of_gLL.s<?=sym(b,c)?>.s<?=sym(a,d)?>
-						- partial_xU2_of_gLL.s<?=sym(b,d)?>.s<?=sym(a,c)?>
-						- partial_xU2_of_gLL.s<?=sym(a,c)?>.s<?=sym(b,d)?>,
-<?			end
-?>				},
-<?		end
-?>			},
-<?	end
-?>		},
-<? end
-?>	};
+	real4x4x4x4 partial_xU2_of_gLL_asym;
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = 0; c < stDim; ++c) {
+				for (int d = 0; d < stDim; ++d) {
+					partial_xU2_of_gLL_asym.s[a].s[b].s[c].s[d] =
+						  partial_xU2_of_gLL.s[sym4[a][d]].s[sym4[b][c]]
+						+ partial_xU2_of_gLL.s[sym4[b][c]].s[sym4[a][d]]
+						- partial_xU2_of_gLL.s[sym4[b][d]].s[sym4[a][c]]
+						- partial_xU2_of_gLL.s[sym4[a][c]].s[sym4[b][d]];
+				}
+			}
+		}
+	}
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// TODO antisymmetric storage
@@ -560,8 +553,8 @@ real4s4 calc_EinsteinLL(
 					real sum = 0;
 					for (int e = 0; e < stDim; ++e) {
 						sum += 
-							  GammaULL.s<?=e?>.s<?=sym(a,d)?> * GammaLLL.s<?=e?>.s<?=sym(b,c)?>
-							- GammaULL.s<?=e?>.s<?=sym(a,c)?> * GammaLLL.s<?=e?>.s<?=sym(b,d)?>;
+							  GammaULL.s[e].s[sym4[a][d]] * GammaLLL.s[e].s[sym4[b][c]]
+							- GammaULL.s[e].s[sym4[a][c]] * GammaLLL.s[e].s[sym4[b][d]];
 					}
 					GammaSq_asym_LLLL.s[a].s[b].s[c].s[d] = sum;
 				}
