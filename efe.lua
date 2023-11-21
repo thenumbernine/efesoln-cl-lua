@@ -300,36 +300,35 @@ local getBoundary = args.getBoundary or function(args)
 end
 -- derivCoeffs[1] have [0]=0, so they start at 1, and have implied antisymmetry (for d[-i], use -d[i])
 local d1coeffs = assert(derivCoeffs[1][order])
-?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
-	for (int j = 0; j < sDim; ++j) {
-<?
-for offset_i,coeff in ipairs(d1coeffs) do 
-	-- setup rhs index
-	args.i = "i + (int4)("
-		..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
-		..")"
-	args.index = "index + stepsize[j] * "..offset_i
-?>
-		<?=resultName?>.s[j+1] = real<?=srcType?>_mul_add(
-			<?=resultName?>.s[j+1],
-			(i[j] + <?=offset_i?> >= size[j]) ? <?=getBoundary(args)?> : <?=getValue(args)?>,
-			<?=coeff?> * inv_dx.s[j]
-		);
-<?
-	-- setup lhs index
-	args.i = "i - (int4)("
-		..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
-		..")"
-	args.index = "index - stepsize[j] * "..offset_i
-?>
-		<?=resultName?>.s[j+1] = real<?=srcType?>_mul_add(
-			<?=resultName?>.s[j+1],
-			(i[j] - <?=offset_i?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>,
-			<?=-coeff?> * inv_dx.s[j]
-		);
+?>	<?=dstType?> const <?=resultName?> = (<?=dstType?>){
+		.s0 = real<?=srcType?>_zero,
+<? 
+for i=0,sDim-1 do
+?>		.s<?=i+1?> = real<?=srcType?>_add<?=#d1coeffs*2?>(
+<?	for offset_i,coeff in ipairs(d1coeffs) do 
+?>			real<?=srcType?>_real_mul(
+<?			-- setup rhs index
+			args.i = "i + (int4)("
+				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
+				..")"
+			args.index = "index + stepsize.s"..i.." * "..offset_i
+?>				(i.s<?=i?> + <?=offset_i?> >= size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>,
+				<?=coeff?> * inv_dx.s<?=i?>
+			),
+			real<?=srcType?>_real_mul(
+<?			-- setup lhs index
+			args.i = "i - (int4)("
+				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
+				..")"
+			args.index = "index - stepsize.s"..i.." * "..offset_i
+?>				(i.s<?=i?> - <?=offset_i?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>,
+				<?=-coeff?> * inv_dx.s<?=i?>
+			)<?=offset_i == #d1coeffs and "" or ","?>
+<?	end
+?>		),
 <?
 end
-?>	}
+?>	};
 ]], {
 		args = args,
 		derivCoeffs = derivCoeffs,
