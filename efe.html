@@ -345,52 +345,6 @@ $R_{abcd} = 2 \delta^{[u}_a \delta^{v]}_b (g_{a[d,c]b} + g^{fg} \Gamma_{fa[d} \G
 $R_{abcd} = 2 \delta^{[u}_a \delta^{v]}_b (g_{u[d,c]v} + \Gamma_{fu[d} {\Gamma^f}_{c]v})$<br>
 <br>
 
-Back to ${R^a}_{bcd}$:<br>
-If we were to replace all $\Gamma_{abc}$'s in terms of $g_{ab}$:<br>
-$= \frac{1}{2} {g^{ae}}_{,c} (g_{eb,d} + g_{ed,b} - g_{bd,e})
-	+ \frac{1}{2} g^{ae} (g_{eb,dc} + g_{ed,bc} - g_{bd,ec})
-	- \frac{1}{2} {g^{ae}}_{,d} (g_{eb,c} + g_{ec,b} - g_{bc,e})
-	- \frac{1}{2} g^{ae} (g_{eb,cd} + g_{ec,bd} - g_{bc,ed})$<br>
-$	+ \frac{1}{4} g^{ae} g^{fg} (g_{ef,c} + g_{ec,f} - g_{fc,e}) (g_{gb,d} + g_{gd,b} - g_{bd,g})
-	- \frac{1}{4} g^{ae} g^{fg} (g_{ef,d} + g_{ed,f} - g_{fd,e}) (g_{gb,c} + g_{gc,b} - g_{bc,g})
-$<br>
-$=
-	\frac{1}{2} g^{ae} (g_{de,bc} - g_{bd,ce} - g_{ce,bd} + g_{bc,de})
-+ \frac{1}{4} g^{af} g^{ge} ($<br>
-$	2 g_{fg,d} g_{eb,c} + 2 g_{fg,d} g_{ec,b} - 2 g_{fg,d} g_{bc,e}
-	- 2 g_{fg,c} g_{eb,d} - 2 g_{fg,c} g_{ed,b} + 2 g_{fg,c} g_{bd,e}$<br>
-$	+ g_{fg,c} g_{eb,d} + g_{fg,c} g_{ed,b} - g_{fg,c} g_{bd,e}
-	+ g_{fc,g} g_{eb,d} + g_{fc,g} g_{ed,b} - g_{fc,g} g_{bd,e}
-	- g_{gc,f} g_{eb,d} - g_{gc,f} g_{ed,b} + g_{gc,f} g_{bd,e}$<br>
-$	- g_{fg,d} g_{eb,c} - g_{fg,d} g_{ec,b} + g_{fg,d} g_{bc,e}
-	- g_{fd,g} g_{eb,c} - g_{fd,g} g_{ec,b} + g_{fd,g} g_{bc,e}
-	+ g_{gd,f} g_{eb,c} + g_{gd,f} g_{ec,b} - g_{gd,f} g_{bc,e}
-)
-$<br>
-$= \frac{1}{2} g^{ae} (g_{ed,bc} + g_{bc,ed} - g_{bd,ec} - g_{ec,bd})
-+ \frac{1}{4} g^{af} g^{mn} (
-	- g_{dn,b} g_{fm,c}
-	+ g_{cn,b} g_{fm,d}
-	+ g_{cn,b} g_{dm,f}
-	- g_{dn,b} g_{cm,f}
-	- g_{cn,b} g_{df,m}
-	+ g_{dn,b} g_{cf,m}
-	+ g_{bn,c} g_{fm,d}
-	+ g_{bn,c} g_{dm,f}
-	- g_{fm,c} g_{bn,d}
-	- g_{bn,c} g_{df,m}
-	+ g_{fm,c} g_{bd,n}
-	- g_{bn,d} g_{cm,f}
-	- g_{fm,d} g_{bc,n}
-	+ g_{bn,d} g_{cf,m}
-	+ g_{cm,f} g_{bd,n}
-	- g_{dm,f} g_{bc,n}
-	- g_{bd,n} g_{cf,m}
-	+ g_{bc,n} g_{df,m}
-)
-$<br>
-<br>
-
 <b>Ricci curvature:</b><br>
 $R_{ab} = {R^c}_{acd}$<br>
 $= 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a} + {\Gamma^c}_{d[c} {\Gamma^d}_{b]a} )$<br>
@@ -467,7 +421,7 @@ $=
 $<br>
 <Br>
 
-Derivatives:<br>
+Derivatives of $R_{ab}$ based on $\partial \Gamma$ and $\Gamma^2$:<br>
 $\frac{\partial R_{ab}}{\partial g_{ef}} =
 	2 ( \frac{\partial}{\partial x^{[c}} (\frac{\partial}{\partial g_{ef}} {\Gamma^c}_{b]a})
 		+ \frac{\partial}{\partial g_{ef}} {\Gamma^c}_{d[c} {\Gamma^d}_{b]a}
@@ -512,8 +466,7 @@ getting rid of the $\frac{\partial}{\partial x^d} {\Gamma^a}_{bc}$...<br>
 $ = 2 {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a} - g^{ce} {R^f}_{acb}$<br>
 <br>
 
-Discretized:<br>
-start with continuous definition:<br>
+Discretized, starting with continuous definition:<br>
 $R_{ab}(x) = 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a}(x) + {\Gamma^c}_{d[c}(x) {\Gamma^d}_{b]a}(x) )$<br>
 $ =
 	\frac{\partial}{\partial x^c} {\Gamma^c}_{ab}(x)
@@ -575,7 +528,7 @@ $= \frac{1}{2 h} \left( {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(
 $<br>
 <br>
 
-Discretized derivatives:<br>
+Discretized derivatives, using $R_ab$ based on ${\Gamma^a}_{b[d,c]}$ and ${\Gamma^a}_{e[c} {\Gamma^e}_{d]b}$:<br>
 $\frac{\partial R_{ab}(x)}{\partial g_{ef}(x)}
 = \frac{\partial}{\partial g_{ef}(x)} \frac{1}{2 h} \left( {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
 	- {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) + {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
@@ -659,6 +612,11 @@ $= \frac{1}{8 \Delta}
 	+ {\Gamma^d}_{ac} (x) g^{ce}(x) {\Gamma^f}_{db}(x)
 	+ {\Gamma^c}_{db} (x) g^{de}(x) {\Gamma^f}_{ac}(x)
 $<br>
+<br>
+
+Discretized derivatives, using $R_{ab}$ based on $\gamma_{ab,cd}$ and ${\Gamma^e}_{ab} \Gamma_{ecd}$<br>
+$\frac{\partial R_{ab}(x)}{g_{uv}(x')} = ...$<br>
+<br>
 
 <br>
 
@@ -714,25 +672,6 @@ $= \frac{\partial R_{ab}}{\partial g_{ef}}
 )$<br>
 $=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
 	+ (\delta^c_a \delta^d_b - \frac{1}{2} g_{ab} g^{cd}) \frac{\partial R_{cd}}{\partial g_{ef}}
-$<br>
-$=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
-	+ (\delta^c_a \delta^d_b - \frac{1}{2} g_{ab} g^{cd})
-
-	\cdot 2 ( g^{mg} \frac{\partial}{\partial x^{[d}} g_{gh} g^{he} {\Gamma^f}_{m]c}
-			- g^{me} \frac{\partial}{\partial x^{[d}} {\Gamma^f}_{m]c}
-			- g^{me} {\Gamma^f}_{n[m} {\Gamma^n}_{d]c}
-			- {\Gamma^m}_{n[m} g^{ne} {\Gamma^f}_{d]c}	)
-$<br>
-$=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
-	+ 2 ( g^{mg} \frac{\partial}{\partial x^{[b}} g_{gh} g^{he} {\Gamma^f}_{m]a}
-			- g^{me} \frac{\partial}{\partial x^{[b}} {\Gamma^f}_{m]a}
-			- g^{me} {\Gamma^f}_{n[m} {\Gamma^n}_{b]a}
-			- {\Gamma^m}_{n[m} g^{ne} {\Gamma^f}_{b]a}	)
-
-	- g_{ab} ( g^{mg} \frac{\partial}{\partial x^{[d}} g_{gh} g^{he} {\Gamma^f}_{m]c} g^{cd}
-			- g^{me} \frac{\partial}{\partial x^{[d}} {\Gamma^f}_{m]c} g^{cd}
-			- g^{me} {\Gamma^f}_{n[m} {\Gamma^n}_{d]c} g^{cd}
-			- {\Gamma^m}_{n[m} g^{ne} {\Gamma^f}_{d]c}g^{cd} )
 $<br>
 <br>
 
