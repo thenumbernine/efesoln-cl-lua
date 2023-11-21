@@ -302,10 +302,10 @@ end
 local d1coeffs = assert(derivCoeffs[1][order])
 ?>	<?=dstType?> const <?=resultName?> = (<?=dstType?>){
 		.s0 = real<?=srcType?>_zero,
-<? 
+<?
 for i=0,sDim-1 do
 ?>		.s<?=i+1?> = real<?=srcType?>_add<?=#d1coeffs*2?>(
-<?	for offset_i,coeff in ipairs(d1coeffs) do 
+<?	for offset_i,coeff in ipairs(d1coeffs) do
 ?>			real<?=srcType?>_real_mul(
 <?			-- setup rhs index
 			args.i = "i + (int4)("
@@ -963,7 +963,7 @@ function EFESolver:getTypeCode()
 		solver = self,
 	})
 
---[=[ ok super defines real2 real4 real8 
+--[=[ ok super defines real2 real4 real8
 -- but turns out OpenCL's float2 float4 float8 don't have [] operator ...
 -- and I need that so ...
 	return EFESolver.super.getTypeCode(self)..'\n'

@@ -103,15 +103,20 @@ $= 0$<br>
 <br>
 
 <b>Metric derivative, finite-difference:</b><br>
-$\frac{\partial}{\partial x^j} g_{ab}(x) \approx \frac{1}{h} \Sigma_k \phi_k g_{ab}(x + k \Delta \hat{x}^j)$<br>
+$\frac{\partial}{\partial x^j} g_{ab}(x) \approx D^1_j[g_{ab}(x)] = \frac{1}{h} \Sigma_k \phi(k) g_{ab}(x + k \Delta \hat{x}^j)$<br>
 <a href="https://en.wikipedia.org/wiki/Finite_difference_coefficient">https://en.wikipedia.org/wiki/Finite_difference_coefficient</a>:<br>
-... 1st-order: $\phi_{\pm 1} = \pm \frac{1}{2}$<br>
-... 2nd-order: $\phi_{\pm 1} = \pm \frac{8}{12}, \phi_{\pm 2} = \mp \frac{1}{12}$<br>
-... 3rd-order: $\phi_{\pm 1} = \pm \frac{45}{60}, \phi_{\pm 2} = \mp \frac{9}{60}, \phi_{\pm 3} = \pm \frac{1}{60}$<br>
-... 4rd-order: $\phi_{\pm 1} = \pm \frac{672}{840}, \phi_{\pm 2} = \mp \frac{168}{840}, \phi_{\pm 3} = \pm \frac{32}{840}, \phi_{\pm 4} = \mp \frac{3}{840}$<br>
+... 1st-order: $\phi(\pm 1) = \pm \frac{1}{2}$<br>
+... 2nd-order: $\phi(\pm 1) = \pm \frac{8}{12}, \phi(\pm 2) = \mp \frac{1}{12}$<br>
+... 3rd-order: $\phi(\pm 1) = \pm \frac{45}{60}, \phi(\pm 2) = \mp \frac{9}{60}, \phi(\pm 3) = \pm \frac{1}{60}$<br>
+... 4rd-order: $\phi(\pm 1) = \pm \frac{672}{840}, \phi(\pm 2) = \mp \frac{168}{840}, \phi(\pm 3) = \pm \frac{32}{840}, \phi(\pm 4) = \mp \frac{3}{840}$<br>
 <br>
 
-$\frac{\partial}{\partial g_{ef}(x + k \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} \approx \phi_k \delta^e_a \delta^f_b$<br>
+$\frac{\partial}{\partial g_{ef}(x + k \Delta \hat{x}^j)} \frac{\partial g_{ab}(x)}{\partial x} \approx \phi(k) \delta^e_a \delta^f_b$<br>
+<br>
+
+$\frac{\partial}{\partial g_{pq}(x')} \frac{\partial g_{ab}(x)}{\partial x^k} \approx \frac{\partial}{\partial g_{pq}(x')} D^1_k[g_{ab}(x)]$<br>
+$= \delta(x^{k'} - x'^{k'}) \phi \left( {\frac{x^k - x'^k}{h}} \right) \delta^p_a \delta^q_b$<br>
+...for index k' spanning all but index k.<br>
 <br>
 
 For nth-order spatial derivatives, $\frac{\partial}{\partial x} g_{ab}(x)$ references n cells away.<br>
@@ -183,15 +188,15 @@ $\Gamma_{ijk}(x) = \frac{1}{2} (g_{ij,k}(x) + g_{ik,j}(x) - g_{jk,i}(x))
 
 Discretized, for arbitrary kernel finite-difference approximation:<br>
 $\Gamma_{itt}(x)
-	\approx \frac{\partial}{\partial t} g_{ti}(x) - \frac{1}{2 h} \Sigma_k \phi_k g_{tt}(x + k \Delta \hat{x}^i)$<br>
+	\approx \frac{\partial}{\partial t} g_{ti}(x) - \frac{1}{2 h} \Sigma_k \phi(k) g_{tt}(x + k \Delta \hat{x}^i)$<br>
 $\Gamma_{tit}(x) = \Gamma_{tti}(x)
-	\approx \frac{1}{2 h} \Sigma_k \phi_k g_{tt}(x + k \Delta \hat{x}^i)$<br>
+	\approx \frac{1}{2 h} \Sigma_k \phi(k) g_{tt}(x + k \Delta \hat{x}^i)$<br>
 $\Gamma_{ijt}(x) = \Gamma_{itj}(x)
 	\approx \frac{1}{2} \frac{\partial}{\partial t} g_{ij}(x)
-		+ \frac{1}{2 h} \Sigma_k \phi_k \left( g_{ti}(x + k \Delta \hat{x}^j) - g_{tj}(x + k \Delta \hat{x}^i) \right)$<br>
+		+ \frac{1}{2 h} \Sigma_k \phi(k) \left( g_{ti}(x + k \Delta \hat{x}^j) - g_{tj}(x + k \Delta \hat{x}^i) \right)$<br>
 $\Gamma_{tij}(x)
 	\approx -\frac{1}{2} \frac{\partial}{\partial t} g_{ij}(x)
-		+ \frac{1}{2 h} \Sigma_k \phi_k \left( g_{ti}(x + k \Delta \hat{x}^j) + g_{tj}(x + k \Delta \hat{x}^i) \right)$<br>
+		+ \frac{1}{2 h} \Sigma_k \phi(k) \left( g_{ti}(x + k \Delta \hat{x}^j) + g_{tj}(x + k \Delta \hat{x}^i) \right)$<br>
 $\Gamma_{ijk}(x)
 	\approx \frac{1}{2 h} \Sigma_m \phi_m \left(
 		  g_{ij}(x + m \Delta\hat{x}^k)
@@ -348,10 +353,10 @@ $R_{abcd} = 2 \delta^{[u}_a \delta^{v]}_b (g_{u[d,c]v} + \Gamma_{fu[d} {\Gamma^f
 Discretized derivative in lower form:<br>
 $\frac{\partial}{\partial g_{pq}(x')} R_{abcd}(x) =
 	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
-		  D^2[g_{ad}(x)]_{bc}
-		- D^2[g_{bd}(x)]_{ac}
-		- D^2[g_{ac}(x)]_{bd}
-		+ D^2[g_{bc}(x)]_{ad}
+		  D^2_{bc}[g_{ad}(x)]
+		- D^2_{ac}[g_{bd}(x)]
+		- D^2_{bd}[g_{ac}(x)]
+		+ D^2_{ad}[g_{bc}(x)]
 	)
 	+ \frac{\partial}{\partial g_{pq}(x')} (
 		g^{fg}(x) (
@@ -361,10 +366,10 @@ $\frac{\partial}{\partial g_{pq}(x')} R_{abcd}(x) =
 $<br>
 $=
 	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
-		  D^2[g_{ad}(x)]_{bc}
-		- D^2[g_{bd}(x)]_{ac}
-		- D^2[g_{ac}(x)]_{bd}
-		+ D^2[g_{bc}(x)]_{ad}
+		  D^2_{bc}[g_{ad}(x)]
+		- D^2_{ac}[g_{bd}(x)]
+		- D^2_{bd}[g_{ac}(x)]
+		+ D^2_{ad}[g_{bc}(x)]
 	)
 	+ (\frac{\partial}{\partial g_{pq}(x')} g^{fg}(x))
 	(
@@ -379,10 +384,10 @@ $=
 $<br>
 $=
 	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
-		  D^2[g_{ad}(x)]_{bc}
-		- D^2[g_{bd}(x)]_{ac}
-		- D^2[g_{ac}(x)]_{bd}
-		+ D^2[g_{bc}(x)]_{ad}
+		  D^2_{bc}[g_{ad}(x)]
+		- D^2_{ac}[g_{bd}(x)]
+		- D^2_{bd}[g_{ac}(x)]
+		+ D^2_{ad}[g_{bc}(x)]
 	)
 	- \delta(x - x') g^{pf}(x) g^{gq}(x)
 	(
@@ -397,10 +402,29 @@ $=
 $<br>
 $=
 	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
-		  D^2[g_{ad}(x)]_{bc}
-		- D^2[g_{bd}(x)]_{ac}
-		- D^2[g_{ac}(x)]_{bd}
-		+ D^2[g_{bc}(x)]_{ad}
+		  D^2_{bc}[g_{ad}(x)]
+		- D^2_{ac}[g_{bd}(x)]
+		- D^2_{bd}[g_{ac}(x)]
+		+ D^2_{ad}[g_{bc}(x)]
+	)
+	- \delta(x - x') g^{pf}(x) g^{gq}(x)
+	(
+		\Gamma_{fad}(x) \Gamma_{gbc}(x) - \Gamma_{fac}(x) \Gamma_{gbd}(x)
+	)
+	+ g^{fg}(x) (
+		  \Gamma_{fbc}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gad}(x) 
+		+ \Gamma_{fad}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbc}(x) 
+		- \Gamma_{fbd}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gac}(x)
+		- \Gamma_{fac}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbd}(x)
+	)
+$<br>
+...replacing the 2nd-derivatives with their stencils ...<br>
+$=
+	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
+		  \delta^p_a \delta^q_d \phi^2_{bc}(x - x')
+		- \delta^p_b \delta^q_d \phi^2_{ac}(x - x')
+		- \delta^p_a \delta^q_c \phi^2_{bd}(x - x')
+		+ \delta^p_b \delta^q_c \phi^2_{ad}(x - x')
 	)
 	- \delta(x - x') g^{pf}(x) g^{gq}(x)
 	(
@@ -417,10 +441,13 @@ $<br>
 
 <b>Ricci curvature:</b><br>
 $R_{ab} = {R^c}_{acd}$<br>
-$= 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a} + {\Gamma^c}_{d[c} {\Gamma^d}_{b]a} )$<br>
 <br>
 
-Based on only $g^{ab}, g_{ab,cd}, \Gamma_{abc}$:<br>
+Ricci curvature based on ${\Gamma^a}_{bc,d}$ and ${\Gamma^a}_{ec} {\Gamma^e}_{bd}$:<br>
+$R_{ab} = 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a} + {\Gamma^c}_{d[c} {\Gamma^d}_{b]a} )$<br>
+<br>
+
+Ricci curvature based on $g_{ab,cd}$ and ${\Gamma^u}_{ab} \Gamma_{ucd}$:<br>
 $R_{ab} =
 	  \frac{1}{2} g^{ce} (
 		g_{eb,ca} - g_{ab,ce} - g_{ec,ba} + g_{ac,be}
@@ -494,7 +521,7 @@ getting rid of the $\frac{\partial}{\partial x^d} {\Gamma^a}_{bc}$...<br>
 $ = 2 {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a} - g^{ce} {R^f}_{acb}$<br>
 <br>
 
-Discretized derivatives<br>
+Discretized derivative of $R_{ab}$ based on $R_{abcd}$:<br>
 $\frac{\partial R_{ab}(x)}{g_{pq}(x')}$<br>
 $= (\frac{\partial}{g_{pq}(x')} g^{uv}(x)) R_{uavb}(x)
 	+ g^{uv}(x) \frac{\partial}{g_{pq}(x')} R_{uavb}(x)
@@ -657,32 +684,6 @@ $<br>
 
 <b>Gaussian curvature:</b><br>
 $R = g^{ab} R_{ab}$<br>
-<br>
-Expanded:<br>
-$R = \frac{1}{2} g^{ab} g^{cd} (g_{bc,ad} + g_{ad,bc} - g_{ab,cd} - g_{cd,ab})
-+ \frac{1}{4} g^{ab} g^{cd} g^{ef} (
-	+ g_{ce,a} g_{df,b}
-
-	- 2 g_{bc,a} g_{de,f}
-	+ g_{bc,a} g_{ef,d}
-
-	- 2 g_{ac,b} g_{de,f}
-	+ g_{ac,b} g_{ef,d}
-
-	+ 2 g_{ab,e} g_{cf,d}
-	- g_{ab,e} g_{cd,f}
-
-	+ 2 g_{ae,c} g_{bf,d}
-	- 2 g_{ae,c} g_{bd,f}
-)$<br>
-$ = g^{ab} g^{cd} (g_{ac,bd} - g_{ab,cd})
-+ \frac{1}{4} g^{ab} g^{cd} g^{ef} (
-	+ 2 g_{ab,e} g_{cf,d}
-	- 1 g_{ab,e} g_{cd,f}
-	- 4 g_{ac,d} g_{be,f}
-	+ 3 g_{ac,e} g_{bd,f}
-	- 2 g_{ac,e} g_{bf,d}
-)$<br>
 <br>
 
 <b>Einstein tensor / trace reversal of Ricci tensor:</b><br>

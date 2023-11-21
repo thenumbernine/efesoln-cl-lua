@@ -386,9 +386,9 @@ static inline real4x4x4 real4x4s4_real4s4_mul21(
 
 <?makeops("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
 
-static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
-	real4s4 const a,
-	real4x4x4x4 const b
+static inline real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
+	real4x4x4x4 const a,
+	real4s4 const b
 ) {
 	return (real4x4x4x4){
 <? for a=0,3 do
@@ -400,7 +400,7 @@ static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
 <?			for d=0,3 do
 ?>					.s<?=d?> = 0.<?
 				for e=0,3 do
-?> + a.s<?=sym(a,e)?> * b.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?><?
+?> + a.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?> * b.s<?=sym(e,a)?><?
 				end
 ?>					,
 <?			end
@@ -411,6 +411,34 @@ static inline real4x4x4x4 real4s4_real4x4x4x4_mul(
 ?>		},
 <? end
 ?>	};
+}
+
+static inline real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(
+	real4x4x4x4 const a,
+	real4s4 const b
+) {
+	return (real4x4x4x4){
+<? for a=0,3 do
+?>		.s<?=a?> = (real4x4x4){
+<?	for b=0,3 do
+?>			.s<?=b?> = (real4x4){
+<?		for c=0,3 do
+?>				.s<?=c?> = (real4){
+<?			for d=0,3 do
+?>					.s<?=d?> = 0.<?
+				for e=0,3 do
+?> + a.s<?=a?>.s<?=b?>.s<?=e?>.s<?=d?> * b.s<?=sym(e,c)?><?
+				end
+?>					,
+<?			end
+?>				},
+<?		end
+?>			},
+<? 	end
+?>		},
+<? end
+?>	};
+
 }
 
 //b_ij = a^k_ikj
@@ -552,7 +580,7 @@ real4s4 calc_EinsteinLL(
 				for (int d = 0; d < stDim; ++d) {
 					real sum = 0;
 					for (int e = 0; e < stDim; ++e) {
-						sum += 
+						sum +=
 							  GammaULL.s[e].s[sym4[a][d]] * GammaLLL.s[e].s[sym4[b][c]]
 							- GammaULL.s[e].s[sym4[a][c]] * GammaLLL.s[e].s[sym4[b][d]];
 					}
@@ -562,8 +590,8 @@ real4s4 calc_EinsteinLL(
 		}
 	}
 
-	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4s4_real4x4x4x4_mul(gUU, partial_xU2_of_gLL_asym);
-	real4x4x4x4 const GammaSq_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, GammaSq_asym_LLLL);
+	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4x4x4x4_real4s4_mul_1_1(partial_xU2_of_gLL_asym, gUU);
+	real4x4x4x4 const GammaSq_asym_ULLL = real4x4x4x4_real4s4_mul_1_1(GammaSq_asym_LLLL, gUU);
 
 	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
@@ -615,7 +643,7 @@ real4s4 calc_EinsteinLL(
 			int const ab = sym4[a][b];
 			real sum = 0;
 			for (int c = 0; c < stDim; ++c) {
-				sum += 
+				sum +=
 					+ partial_xU_of_GammaULL.s[c].s[c].s[ab]
 					- partial_xU_of_GammaULL.s[b].s[c].s[sym4[c][a]]
 					+ Gamma12L.s[c] * GammaULL.s[c].s[ab];
@@ -672,11 +700,11 @@ if solver.body.useEM then
 	for (int i = 0; i < sDim; ++i) {
 		_8piTLL.s[sym4[0][i+1]] += -2. * SL.s[i];
 		for (int j = i; j < sDim; ++j) {
-			_8piTLL.s[sym4[i+1][j+1]] += gLL.s[sym4[i+1][j+1]] * (ESq + BSq) 
+			_8piTLL.s[sym4[i+1][j+1]] += gLL.s[sym4[i+1][j+1]] * (ESq + BSq)
 				- 2. * (EL.s[i+1] * EL.s[j+1] + BL.s[i+1] * BL.s[j+1]);
 		}
 	}
-<? 
+<?
 end
 if solver.body.useMatter then
 	if solver.body.useVel then

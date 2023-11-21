@@ -48,7 +48,7 @@ kernel void calc_partial_gPrim_of_Phis(
 	}
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
-	// not the same as the popular 2 Γ^a_e[c Γ^e_d]b used for Riemann with 2 ∂/dx^[c Γ^a_d]b 
+	// not the same as the popular 2 Γ^a_e[c Γ^e_d]b used for Riemann with 2 ∂/dx^[c Γ^a_d]b
 	// instead this is the one used with 2 g_[a[b,c]d]
 	// TODO antisymmetric storage
 	real4x4x4x4 GammaSq_asym_LLLL;
@@ -68,18 +68,23 @@ kernel void calc_partial_gPrim_of_Phis(
 	}
 
 	// linear transform, not necessarily tensoral (since neither is anyways)
-	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4s4_real4x4x4x4_mul(gUU, partial_xU2_of_gLL_asym);
-	real4x4x4x4 const GammaSq_asym_ULLL = real4s4_real4x4x4x4_mul(gUU, GammaSq_asym_LLLL);
+	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4x4x4x4_real4s4_mul_1_1(partial_xU2_of_gLL_asym, gUU);
+	real4x4x4x4 const GammaSq_asym_ULLL = real4x4x4x4_real4s4_mul_1_1(GammaSq_asym_LLLL, gUU);
 
-	//RiemannLLLL.ab.cd := R_abcd
+	//RiemannLLLL.a.b.c.d := R_abcd
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// TODO antisymmetric storage
 	// but this requires inserting -1's for reading/writing ...
 
-	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
+	//RiemannULLL.a.b.c.d := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
 	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, gUU_times_partial_xU2_gLL_asym, .5);
+
+	//RiemannULUL.a.b.c.d = R^a_b^c_d = R^a_bud g^uc
+	real4x4x4x4 const RiemannULUL = real4x4x4x4_real4s4_mul_3_1(RiemannULLL, gUU);
+	
+	real4x4x4x4 const GammaSq_asym_ULUL = real4x4x4x4_real4s4_mul_3_1(GammaSq_asym_ULLL, gUU);
 
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
@@ -93,50 +98,35 @@ kernel void calc_partial_gPrim_of_Phis(
 	//Gaussian := R = R^a_a
 	real const Gaussian = real4x4_tr(RicciUL);
 
-<? if false then ?>
-	//partial_gLL_of_GammaULL.pq.a.bc =: ∂/∂g_pq(x) Γ_abc
-	real4s4x4x4s4 partial_gLL_of_GammaULL = real4s4x4x4s4_zero;
 <?
 local math = require 'ext.math'
 local order = solver.diffOrder
 local d1coeffs = assert(derivCoeffs[1][order])
 local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for order "..order)
-for p=0,sDim-1 do
-	for q=p,sDim-1 do
-		if p == q then
-			for offset = -order,order do
-				local coeff = d2coeffs[math.abs(offset)]
-				if coeff then
-?>	partial_gLL_of_GammaULL.s<?=p+1?><?=q+1?> = real4x4s4_mul_add(
-		partial_gLL_of_GammaULL.s<?=p+1?><?=q+1?>,
-		GammaULLs[index + stepsize.s<?=p?> * <?=offset?>],
-		<?=coeff?> * inv_dx.s<?=p?> * inv_dx.s<?=q?>
-	);
-<?				end
-			end
-		else
-			for offset_p = -order,order do
-				local coeff_p = d1coeffs[math.abs(offset_p)]
-				if coeff_p then
-					coeff_p = coeff_p * math.sign(offset_p)
-					for offset_q = -order,order do
-					local coeff_q = d1coeffs[math.abs(offset_q)]
-					if coeff_q then
-						coeff_q = coeff_q * math.sign(offset_q)
-?>	partial_gLL_of_GammaULL.s<?=p+1?><?=q+1?> = real4x4s4_mul_add(
-		partial_gLL_of_GammaULL.s<?=p+1?><?=q+1?>,
-		GammaULLs[index + stepsize.s<?=p?> * <?=offset_p?> + stepsize.s<?=q?> * <?=offset_q?>],
-		<?=coeff_p * coeff_q?> * inv_dx.s<?=p?> * inv_dx.s<?=q?>
-	);
-<?						end
-					end
-				end
-			end
-		end
-	end
-end
 ?>
-<? end ?>
+
+	real4s4x4x4s4 partial_gLL_of_DgLLL;
+	real4s4x4s4x4s4 partial_gLL_of_D2gLLLL;
+
+	//partial_gLL_of_GammaLLL.pq.a.bc =: ∂/∂g_pq(x) Γ_abc
+	real4s4x4x4s4 partial_gLL_of_GammaLLL = real4s4x4x4s4_zero;
+	for (int p = 0; p < stDim; ++p) {
+		for (int q = p; q < stDim; ++q) {
+			int const pq = sym4[p][q];
+			for (int a = 0; a < stDim; ++a) {
+				for (int b = 0; b < stDim; ++b) {
+					for (int c = b; c < stDim; ++c) {
+						int const bc = sym4[b][c];
+						partial_gLL_of_GammaLLL.s[pq].s[a].s[bc] = .5 * (
+							  partial_gLL_of_DgLLL.s[pq].s[c].s[sym4[a][b]]
+							+ partial_gLL_of_DgLLL.s[pq].s[b].s[sym4[a][c]]
+							- partial_gLL_of_DgLLL.s[pq].s[a].s[bc]
+						);
+					}
+				}
+			}
+		}
+	}
 
 	/*
 	... if we use g_ab,cd and don't limit h->0 our ∂/∂g_pq(x) D_c(g_ab(x')) 's ...
@@ -151,8 +141,42 @@ end
 		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
 	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad)
 		- Γ^p_ad Γ^q_bc + Γ^p_ac Γ^q_bd
-		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+		+ g^ef ∂/∂g_pq (Γ_ead Γ_fbc - Γ_eac Γ_fbd)
+	*/
+	real4s4x4x4x4x4 partial_gLL_of_RiemannLLLL;
+	for (int p = 0; p < stDim; ++p) {
+		for (int q = p; q < stDim; ++q) {
+			int const pq = sym4[p][q];
+			for (int a = 0; a < stDim; ++a) {
+				for (int b = 0; b < stDim; ++b) {
+					for (int c = 0; c < stDim; ++c) {
+						for (int d = 0; d < stDim; ++d) {
+							real sum = .5 * (
+								  partial_gLL_of_D2gLLLL.s[pq].s[a].s[d].s[b].s[c]
+								+ partial_gLL_of_D2gLLLL.s[pq].s[b].s[c].s[a].s[d]
+								- partial_gLL_of_D2gLLLL.s[pq].s[b].s[d].s[a].s[c]
+								- partial_gLL_of_D2gLLLL.s[pq].s[a].s[c].s[b].s[d]
+							)
+							- GammaULL.s[p].s[sym4[a][d]] * GammaULL.s[q].s[sym4[b][c]]
+							+ GammaULL.s[p].s[sym4[a][c]] * GammaULL.s[q].s[sym4[b][d]];
+							for (int e = 0; e < stDim; ++e) {
+								for (int f = 0; f < stDim; ++f) {
+									sum += gUU.s[sym4[p][q]] * (
+										  partial_gLL_of_GammaLLL.s[pq].s[e].s[sym4[a][d]] * GammaLLL.s[f].s[sym4[b][c]]
+										+ GammaLLL.s[e].s[sym4[a][d]] * partial_gLL_of_GammaLLL.s[pq].s[f].s[sym4[b][c]]
+										- partial_gLL_of_GammaLLL.s[pq].s[e].s[sym4[a][c]] * GammaLLL.s[f].s[sym4[b][d]]
+										+ GammaLLL.s[e].s[sym4[a][c]] * partial_gLL_of_GammaLLL.s[pq].s[f].s[sym4[b][d]];
+								}
+							}
+							partial_gLL_of_RiemannLLLL.s[pq].s[a].s[b].s[c].s[d] = sum;
+						}
+					}
+				}
+			}
+		}
+	}
 
+	/*
 	g^uv ∂/∂g_pq R_uavb
 	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub)
 		- g^uv Γ^p_ub Γ^q_av + Γ^p_uv Γ^q_ab
@@ -181,28 +205,13 @@ end
 				for (int b = a; b < stDim; ++b) {
 					int const ab = sym4[a][b];
 					real sum = 0;
-					for (int c = 0; c < stDim; ++c) {
-						sum -= gUU.s<?=sym(c,q)?> * (
-							RiemannULLL.s<?=p?>.s<?=a?>.s<?=c?>.s<?=b?>
-							+ GammaSq_asym_ULLL.s<?=p?>.s<?=a?>.s<?=c?>.s<?=b?>
-						);
-						for (int u = 0; u < stDim; ++u) {
-							for (int v = 0; v < stDim; ++v) {
-								int const uv = sym4[u][v];
-								int const av = sym4[a][v];
-								int const ub = sym4[u][b];
-								for (int f = 0; f < stDim; ++f) {
-									sum += gUU.s[uv] * (
-										  partial_gLL_of_GammaULL.s[pq].s[f].s[ub] * GammaULL.s[f].s[av]
-										+ partial_gLL_of_GammaULL.s[pq].s[f].s[av] * GammaULL.s[f].s[ub]
-										- partial_gLL_of_GammaULL.s[pq].s[f].s[uv] * GammaULL.s[f].s[ab]
-										- partial_gLL_of_GammaULL.s[pq].s[f].s[ab] * GammaULL.s[f].s[uv]
-									);
-								}
-							}
+					sum -= RiemannULUL.s[p].s[a].s[q].s[b];
+					for (int u = 0; u < stDim; ++u) {
+						for (int v = 0; v < stDim; ++v) {
+							int const uv = sym4[u][v];
+							sum += gUU.s[uv] * partial_gLL_of_RiemannLLLL.s[pq].s[u].s[a].s[v].s[b];
 						}
 					}
-
 					partial_gLL_of_RicciLL.s[pq].s[ab] = sum;
 				}
 			}
@@ -222,11 +231,11 @@ end
 		for (int b = 0; b < stDim; ++b) {
 			for (int c = 0; c < stDim; ++c) {
 				for (int d = 0; d < stDim; ++d) {
-					real sum = 
+					real sum =
 						  partial_xU_of_GammaULL.s[c].s[a].s[sym4[b][d]]
 						- partial_xU_of_GammaULL.s[d].s[a].s[sym4[b][c]];
 					for (int e = 0; e < stDim; ++e) {
-						sum += 
+						sum +=
 							  GammaULL.s[a].s[sym4[e][c]] * GammaULL.s[e].s[sym4[b][d]]
 							- GammaULL.s[a].s[sym4[e][d]] * GammaULL.s[e].s[sym4[b][c]];
 					}
@@ -364,7 +373,7 @@ if solver.body.useEM then ?>
 
 					real sum = 0;
 					if (e == i+1 && f == j+1) sum += ESq + BSq;
-					
+
 					if (e > 0 && f > 0) {
 						sum += gLL.s[sym4[i+1][j+1]] * (TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1]);
 					}
@@ -395,7 +404,7 @@ if solver.body.useMatter then
 	real4 const uL = real4s4_real4_mul(gLL, uU);
 <?
 	else -- otherwise uL = gLL.s0
-?>	
+?>
 	real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
 <?
 	end
