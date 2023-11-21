@@ -203,7 +203,7 @@ $\Gamma_{ijk}(x)
 
 TODO decide from here on whether to work around the approx partial discretization spatial vs temporal, or to actually define each case.<br>
 <br>
-1st-order discretized derivatives:<br>
+1st-order discretized 1st-derivatives:<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x)} = 0$<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x + \Delta \hat{x}^j)} = \frac{1}{4} (\delta^e_a \delta^f_b \delta^j_c + \delta^e_a \delta^f_c \delta^j_b - \delta^e_b \delta^f_c \delta^j_a)$<br>
 $\frac{\partial \Gamma_{abc}(x)}{\partial g_{ef}(x - \Delta \hat{x}^j)} = -\frac{1}{4} (\delta^e_a \delta^f_b \delta^j_c + \delta^e_a \delta^f_c \delta^j_b - \delta^e_b \delta^f_c \delta^j_a)$<br>
@@ -345,51 +345,79 @@ $R_{abcd} = 2 \delta^{[u}_a \delta^{v]}_b (g_{a[d,c]b} + g^{fg} \Gamma_{fa[d} \G
 $R_{abcd} = 2 \delta^{[u}_a \delta^{v]}_b (g_{u[d,c]v} + \Gamma_{fu[d} {\Gamma^f}_{c]v})$<br>
 <br>
 
+Discretized derivative in lower form:<br>
+$\frac{\partial}{\partial g_{pq}(x')} R_{abcd}(x) =
+	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
+		  D^2[g_{ad}(x)]_{bc}
+		- D^2[g_{bd}(x)]_{ac}
+		- D^2[g_{ac}(x)]_{bd}
+		+ D^2[g_{bc}(x)]_{ad}
+	)
+	+ \frac{\partial}{\partial g_{pq}(x')} (
+		g^{fg}(x) (
+			\Gamma_{fad}(x) \Gamma_{gbc}(x) - \Gamma_{fac}(x) \Gamma_{gbd}(x)
+		)
+	)
+$<br>
+$=
+	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
+		  D^2[g_{ad}(x)]_{bc}
+		- D^2[g_{bd}(x)]_{ac}
+		- D^2[g_{ac}(x)]_{bd}
+		+ D^2[g_{bc}(x)]_{ad}
+	)
+	+ (\frac{\partial}{\partial g_{pq}(x')} g^{fg}(x))
+	(
+		\Gamma_{fad}(x) \Gamma_{gbc}(x) - \Gamma_{fac}(x) \Gamma_{gbd}(x)
+	)
+	+ g^{fg}(x) (
+		  \frac{\partial}{\partial g_{pq}(x')}\Gamma_{fad}(x) \Gamma_{gbc}(x) 
+		+ \Gamma_{fad}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbc}(x) 
+		- \frac{\partial}{\partial g_{pq}(x')}\Gamma_{fac}(x) \Gamma_{gbd}(x)
+		- \Gamma_{fac}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbd}(x)
+	)
+$<br>
+$=
+	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
+		  D^2[g_{ad}(x)]_{bc}
+		- D^2[g_{bd}(x)]_{ac}
+		- D^2[g_{ac}(x)]_{bd}
+		+ D^2[g_{bc}(x)]_{ad}
+	)
+	- \delta(x - x') g^{pf}(x) g^{gq}(x)
+	(
+		\Gamma_{fad}(x) \Gamma_{gbc}(x) - \Gamma_{fac}(x) \Gamma_{gbd}(x)
+	)
+	+ g^{fg}(x) (
+		  \frac{\partial}{\partial g_{pq}(x')}\Gamma_{fad}(x) \Gamma_{gbc}(x) 
+		+ \Gamma_{fad}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbc}(x) 
+		- \frac{\partial}{\partial g_{pq}(x')}\Gamma_{fac}(x) \Gamma_{gbd}(x)
+		- \Gamma_{fac}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbd}(x)
+	)
+$<br>
+$=
+	  \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} (
+		  D^2[g_{ad}(x)]_{bc}
+		- D^2[g_{bd}(x)]_{ac}
+		- D^2[g_{ac}(x)]_{bd}
+		+ D^2[g_{bc}(x)]_{ad}
+	)
+	- \delta(x - x') g^{pf}(x) g^{gq}(x)
+	(
+		\Gamma_{fad}(x) \Gamma_{gbc}(x) - \Gamma_{fac}(x) \Gamma_{gbd}(x)
+	)
+	+ g^{fg}(x) (
+		  \Gamma_{fbc}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gad}(x) 
+		+ \Gamma_{fad}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbc}(x) 
+		- \Gamma_{fbd}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gac}(x)
+		- \Gamma_{fac}(x) \frac{\partial}{\partial g_{pq}(x')}\Gamma_{gbd}(x)
+	)
+$<br>
+<br>
+
 <b>Ricci curvature:</b><br>
 $R_{ab} = {R^c}_{acd}$<br>
 $= 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a} + {\Gamma^c}_{d[c} {\Gamma^d}_{b]a} )$<br>
-<br>
-
-Expanded:<br>
-$R_{ab}
-= \frac{1}{2} g^{fe} (g_{eb,af} + g_{af,eb} - g_{ab,ef} - g_{ef,ab})
-+ \frac{1}{4} g^{fe} g^{mn} (
-	- g_{bn,a} g_{em,f}
-	+ g_{fn,a} g_{em,b}
-	+ g_{fn,a} g_{bm,e}
-	- g_{bn,a} g_{fm,e}
-	- g_{fn,a} g_{be,m}
-	+ g_{bn,a} g_{fe,m}
-	+ g_{an,f} g_{em,b}
-	+ g_{an,f} g_{bm,e}
-	- g_{em,f} g_{an,b}
-	- g_{an,f} g_{be,m}
-	+ g_{em,f} g_{ab,n}
-	- g_{an,b} g_{fm,e}
-	- g_{em,b} g_{af,n}
-	+ g_{an,b} g_{fe,m}
-	+ g_{fm,e} g_{ab,n}
-	- g_{bm,e} g_{af,n}
-	- g_{ab,n} g_{fe,m}
-	+ g_{af,n} g_{be,m}
-)$<br>
-$ = \frac{1}{2} g^{ef} (g_{be,af} + g_{af,be} - g_{ab,ef} - g_{ef,ab})
-+ \frac{1}{4} g^{ef} g^{rs} (
-	+ g_{er,a} g_{fs,b}
-
-	- 2 g_{be,a} g_{fr,s}
-	+ g_{be,a} g_{rs,f}
-
-	- 2 g_{ae,b} g_{fr,s}
-	+ g_{ae,b} g_{rs,f}
-
-	+ 2 g_{ab,r} g_{es,f}
-	- g_{ab,r} g_{ef,s}
-
-	+ 2 g_{ar,e} g_{bs,f}
-	- 2 g_{ar,e} g_{bf,s}
-
-)$<br>
 <br>
 
 Based on only $g^{ab}, g_{ab,cd}, \Gamma_{abc}$:<br>
@@ -466,6 +494,19 @@ getting rid of the $\frac{\partial}{\partial x^d} {\Gamma^a}_{bc}$...<br>
 $ = 2 {\Gamma^{ec}}_{[c} {\Gamma^f}_{b]a} - g^{ce} {R^f}_{acb}$<br>
 <br>
 
+Discretized derivatives<br>
+$\frac{\partial R_{ab}(x)}{g_{pq}(x')}$<br>
+$= (\frac{\partial}{g_{pq}(x')} g^{uv}(x)) R_{uavb}(x)
+	+ g^{uv}(x) \frac{\partial}{g_{pq}(x')} R_{uavb}(x)
+$<br>
+$= -\delta(x - x') g^{pu}(x) g^{qv}(x) R_{uavb}(x)
+	+ g^{uv}(x) \frac{\partial}{g_{pq}(x')} R_{uavb}(x)
+$<br>
+$= -\delta(x - x') {{{R^p}_a}^q}_b(x)
+	+ g^{uv}(x) \frac{\partial}{g_{pq}(x')} R_{uavb}(x)
+$<br>
+<br>
+
 Discretized, starting with continuous definition:<br>
 $R_{ab}(x) = 2 ( \frac{\partial}{\partial x^{[c}} {\Gamma^c}_{b]a}(x) + {\Gamma^c}_{d[c}(x) {\Gamma^d}_{b]a}(x) )$<br>
 $ =
@@ -528,7 +569,7 @@ $= \frac{1}{2 h} \left( {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(
 $<br>
 <br>
 
-Discretized derivatives, using $R_ab$ based on ${\Gamma^a}_{b[d,c]}$ and ${\Gamma^a}_{e[c} {\Gamma^e}_{d]b}$:<br>
+Discretized 1st-derivatives, using $R_{ab}$ based on ${\Gamma^a}_{b[d,c]}$ and ${\Gamma^a}_{e[c} {\Gamma^e}_{d]b}$:<br>
 $\frac{\partial R_{ab}(x)}{\partial g_{ef}(x)}
 = \frac{\partial}{\partial g_{ef}(x)} \frac{1}{2 h} \left( {\Gamma^c}_{ba}(x + \Delta \hat{x}^c) - {\Gamma^c}_{ba}(x - \Delta \hat{x}^c)
 	- {\Gamma^c}_{ca}(x + \Delta \hat{x}^b) + {\Gamma^c}_{ca}(x - \Delta \hat{x}^b) \right)
@@ -612,12 +653,6 @@ $= \frac{1}{8 \Delta}
 	+ {\Gamma^d}_{ac} (x) g^{ce}(x) {\Gamma^f}_{db}(x)
 	+ {\Gamma^c}_{db} (x) g^{de}(x) {\Gamma^f}_{ac}(x)
 $<br>
-<br>
-
-Discretized derivatives, using $R_{ab}$ based on $\gamma_{ab,cd}$ and ${\Gamma^e}_{ab} \Gamma_{ecd}$<br>
-$\frac{\partial R_{ab}(x)}{g_{uv}(x')} = ...$<br>
-<br>
-
 <br>
 
 <b>Gaussian curvature:</b><br>
