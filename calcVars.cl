@@ -220,14 +220,12 @@ real4s4 calc_gUU_from_gPrim(
 
 	real4s4 gUU;
 	gUU.s00 = -invAlphaSq;
-<?
-for i=0,sDim-1 do
-?>	gUU.s0<?=i+1?> = betaU.s<?=i?> * invAlphaSq;
-<?	for j=i,sDim-1 do
-?>	gUU.s<?=i+1?><?=j+1?> = gammaUU.s<?=i?><?=j?> - betaU.s<?=i?> * betaU.s<?=j?> * invAlphaSq;
-<?	end
-end
-?>
+	for (int i = 0; i < sDim; ++i) {
+		gUU.s[sym4[0][i+1]] = betaU.s[i] * invAlphaSq;
+		for (int j = i; j < sDim; ++j) {
+			gUU.s[sym4[i+1][j+1]] = gammaUU.s[sym3[i][j]] - betaU.s[i] * betaU.s[j] * invAlphaSq;
+		}
+	}
 	return gUU;
 }
 
@@ -397,12 +395,12 @@ kernel void solveAL(
 ?>
 
 	real4 skewSum = real4_zero;
-	<? for i=0,sDim-1 do ?>{
+	for (int i = 0; i < sDim; ++i) {
 
 		<?=TPrim_t?> TPrim_prev;
-		if (i.s<?=i?> > 0) {
+		if (i.s[i] > 0) {
 			int4 iL = i;
-			--iL.s<?=i?>;
+			--iL.s[i];
 			int const indexL = indexForInt4(iL);
 			TPrim_prev = TPrims[indexL];
 		} else {
@@ -411,9 +409,9 @@ kernel void solveAL(
 		}
 
 		<?=TPrim_t?> TPrim_next;
-		if (i.s<?=i?> < size.s<?=i?> - 1) {
+		if (i.s[i] < size.s[i] - 1) {
 			int4 iR = i;
-			++iR.s<?=i?>;
+			++iR.s[i];
 			int indexR = indexForInt4(iR);
 			TPrim_next = TPrims[indexR];
 		} else {
@@ -425,14 +423,14 @@ kernel void solveAL(
 			skewSum,
 			real4_real_mul(
 				real4_add(TPrim_prev.JU, TPrim_next.JU),
-				inv_dx.s<?=i?> * inv_dx.s<?=i?>)
+				inv_dx.s[i] * inv_dx.s[i])
 			);
-	}<? end ?>
+	}
 
-	real const diag = -2. * (0
-<? for i=0,solver.stDim-1 do ?>
-		+ 1. / (dx<?=i?> * dx<?=i?>)
-<? end ?>
+	real const diag = -2. * (0.
+		+ 1. / (dx.s0 * dx.s0)
+		+ 1. / (dx.s1 * dx.s1)
+		+ 1. / (dx.s2 * dx.s2)
 	);
 
 	global <?=TPrim_t?> * const TPrim = TPrims + index;

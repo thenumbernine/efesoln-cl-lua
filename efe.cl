@@ -589,30 +589,33 @@ real4s4 calc_EinsteinLL(
 <? else  -- testing to make sure contraction of Riemann == Ricci ?>
 
 	/*
-	R_abcd = (g_ad,cb - g_bd,ca - g_ac,bd + g_bc,da) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-	R^a_bcd = g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
-	RicciLL.ab := R_ab = g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab
+	R_abcd = 1/2 (g_ad,cb - g_bd,ca - g_ac,bd + g_bc,da) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
+	R^a_bcd = g^ae (1/2 (g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
+	RicciLL.ab := R_ab = 1/2 g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab
 	*/
-	real4s4 const RicciLL = (real4s4){
-<? for a=0,stDim-1 do
-	for b=a,stDim-1 do
-?>		.s<?=a?><?=b?> = 0.<?
-		for u=0,stDim-1 do
-			for v=0,stDim-1 do
-?>				+ .5 * gUU.s<?=sym(u,v)?> * (
-					  partial_xU2_of_gLL.s<?=sym(a,u)?>.s<?=sym(b,v)?>
-					+ partial_xU2_of_gLL.s<?=sym(b,v)?>.s<?=sym(a,u)?>
-					- partial_xU2_of_gLL.s<?=sym(a,b)?>.s<?=sym(u,v)?>
-					- partial_xU2_of_gLL.s<?=sym(u,v)?>.s<?=sym(a,b)?>
-				)
-				+ GammaUUL.s<?=u?>.s<?=v?>.s<?=a?> * GammaLLL.s<?=u?>.s<?=sym(v,b)?>
-<?			end
-?>			- Gamma23U.s<?=u?> * GammaLLL.s<?=u?>.s<?=sym(a,b)?>
-<?		end
-?>,
-<?	end
-end ?>
-	};
+	real4s4 RicciLL;
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = a; b < stDim; ++b) {
+			int const ab = sym4[a][b];
+			real sum = 0;
+			for (int u = 0; u < stDim; ++u) {
+				int const au = sym4[a][u];
+				for (int v = 0; v < stDim; ++v) {
+					int const uv = sym4[u][v];
+					int const bv = sym4[b][v];
+					sum += .5 * gUU.s[uv] * (
+							  partial_xU2_of_gLL.s[au].s[bv]
+							+ partial_xU2_of_gLL.s[bv].s[au]
+							- partial_xU2_of_gLL.s[ab].s[uv]
+							- partial_xU2_of_gLL.s[uv].s[ab]
+						)
+						+ GammaUUL.s[u].s[v].s[a] * GammaLLL.s[u].s[bv];
+				}
+				sum -= Gamma23U.s[u] * GammaLLL.s[u].s[ab];
+			}
+			RicciLL.s[ab] = sum;
+		}
+	}
 
 <? end  -- testing to make sure contraction of Riemann == Ricci ?>
 
@@ -620,23 +623,25 @@ end ?>
 ?>
 
 	real4 const Gamma12L = real4x4s4_tr12(GammaULL);
-	real4s4 const RicciLL = (real4s4){
-<? for a=0,stDim-1 do
-	for b=a,stDim-1 do
-?>		.s<?=a?><?=b?> = 0.<?
-		for c=0,stDim-1 do ?>
-			+ partial_xU_of_GammaULL.s<?=c?>.s<?=c?>.s<?=a..b?>
-			- partial_xU_of_GammaULL.s<?=b?>.s<?=c?>.s<?=sym(c,a)?>
-			+ Gamma12L.s<?=c?> * GammaULL.s<?=c?>.s<?=a..b?><?
-			for d=0,stDim-1 do ?>
-			- GammaULL.s<?=c?>.s<?=sym(d,b)?> * GammaULL.s<?=d?>.s<?=sym(c,a)?><?
-			end
-		end
-?>,
-<?	end
-end ?>
-	};
-<? end ?>
+	real4s4 RicciLL;
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = a; b < stDim; ++b) {
+			int const ab = sym4[a][b];
+			real sum = 0;
+			for (int c = 0; c < stDim; ++c) {
+				sum += 
+					+ partial_xU_of_GammaULL.s[c].s[c].s[ab]
+					- partial_xU_of_GammaULL.s[b].s[c].s[sym4[c][a]]
+					+ Gamma12L.s[c] * GammaULL.s[c].s[ab];
+				for (int d = 0; d < stDim; ++d) {
+					sum -= GammaULL.s[c].s[sym4[d][b]] * GammaULL.s[d].s[sym4[c][a]];
+				}
+			}
+			RicciLL.s[ab] = sum;
+		}
+	}
+<? end
+?>
 
 	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
 
