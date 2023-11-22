@@ -473,7 +473,7 @@ end
 if solver.convergeBeta then
 ?>
 	for (int m = 0; m < sDim; ++m) {
-		partial_gPrim_of_Phi->betaU.s[m] = 2. * (partial_gLL_of_Phi.s00 * betaL.s[m];
+		partial_gPrim_of_Phi->betaU.s[m] = 2. * partial_gLL_of_Phi.s00 * betaL.s[m];
 		for (int n = 0; n < sDim; ++n) {
 			partial_gPrim_of_Phi->betaU.s[m] += partial_gLL_of_Phi.s[sym4[0][n+1]] * gammaLL.s[sym3[n][m]];
 		}
@@ -486,10 +486,11 @@ if solver.convergeGamma then
 		for (int n = m; n < sDim; ++n) {
 			int const mn = sym3[m][n];
 			partial_gPrim_of_Phi->gammaLL.s[mn] =
-				betaU.s[m] * (
-				  partial_gLL_of_Phi.s00 * betaU.s[n]
-				+ 2. * partial_gLL_of_Phi.s[sym4[0][n+1]]
-				+ partial_gLL_of_Phi.s[sym4[m+1][n+1]];
+				partial_gLL_of_Phi.s[sym4[m+1][n+1]]
+				+ betaU.s[m] * (
+					  partial_gLL_of_Phi.s00 * betaU.s[n]
+					+ 2. * partial_gLL_of_Phi.s[sym4[0][n+1]]
+				);
 		}
 	}
 <?

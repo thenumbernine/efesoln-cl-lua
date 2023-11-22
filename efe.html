@@ -711,7 +711,7 @@ $=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
 $<br>
 <br>
 
-Discrete derivatives in terms of $\frac{\partial}{\partial g_{pq}(x')} R_{cd}:<br>
+Discrete derivatives in terms of $\frac{\partial}{\partial g_{pq}(x')} R_{cd}$:<br>
 $\frac{\partial}{\partial g_{pq}(x')} G_{ab}(x) = \frac{\partial}{\partial g_{pq}(x')} (R_{ab}(x) - \frac{1}{2} g_{ab}(x) g^{cd}(x) R_{cd}(x))$<br>
 
 $= \frac{\partial}{\partial g_{pq}(x')}R_{ab}(x) - \frac{1}{2} (\frac{\partial}{\partial g_{pq}(x')} g_{ab}(x) g^{cd}(x) R_{cd}(x) + g_{ab}(x) \frac{\partial}{\partial g_{pq}(x')} g^{cd}(x) R_{cd}(x) + g_{ab}(x) g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cd}(x))$<br>
@@ -919,8 +919,22 @@ $= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x))
 	)
 $<br>
 $= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) 
+	( 
+		\frac{1}{2} \delta(x' - x) ( 
+			  g_{ab}(x) R^{pq}(x)
+			- \delta^p_a \delta^q_b R(x)
+		)
+		+ (
+			  \delta^u_a \delta^v_b
+			- \frac{1}{2} g_{ab}(x) g^{uv}(x)
+		) \frac{\partial}{\partial g_{pq}(x')} R_{uv}(x)
+
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x)
+	)
+$<br>
+$= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) 
 	(
-		  \delta(x - x') (
+		  \delta(x' - x) (
 			- {{{R^p}_a}^q}_b(x)
 			+ R^{pq}(x)
 			- \frac{1}{2} \delta^p_a \delta^q_b R(x)
@@ -934,6 +948,30 @@ $= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x))
 			
 		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x)
 	)
+$<br>
+...assuming $T_{ab}(x)$ is not a function of spatial derivatives / neighboring cells...<br>
+$= 
+	\underset{a,b}\Sigma
+	(
+		G_{ab}(x') 
+		- 8 \pi T_{ab}(x')
+	)(
+		- {{{R^p}_a}^q}_b(x')
+		+ R^{pq}(x')
+		- \frac{1}{2} \delta^p_a \delta^q_b R(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x')
+	) \\
+	+ \underset{x \in nbhd(x'); a,b}\Sigma
+	(
+		G_{ab} (x) 
+		- 8 \pi T_{ab}(x)
+	)
+	g^{uv}(x)
+	(
+		  \delta^c_a \delta^d_b 
+		- \frac{1}{2} g^{cd}(x) g_{ab}(x)
+	)
+	\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
 $<br>
 <br>
 
