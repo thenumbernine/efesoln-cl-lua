@@ -105,7 +105,23 @@ local d1coeffs = assert(derivCoeffs[1][order])
 local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for order "..order)
 ?>
 
+	// TODO
 	real4s4x4x4s4 partial_gLL_of_DgLLL;
+#if 0	
+	for (int p = 0; p < stDim; ++p) {
+		for (int q = p; q < stDim; ++q) {
+			int const pq = sym4[p][q];
+			for (int a = 0; a < stDim; ++a) {
+				for (int b = 0; b < stDim; ++b) {
+					for (int c = b; c < stDim; ++c) {
+						int const bc = sym4[b][c];
+						partial_gLL_of_DgLLL.s[pq].s[a].s[bc] = 
+					}
+				}
+			}
+		}
+	}
+#endif	
 	real4s4x4s4x4s4 partial_gLL_of_D2gLLLL;
 
 	//partial_gLL_of_GammaLLL.pq.a.bc =: ∂/∂g_pq(x) Γ_abc
@@ -152,20 +168,21 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					for (int c = 0; c < stDim; ++c) {
 						for (int d = 0; d < stDim; ++d) {
 							real sum = .5 * (
-								  partial_gLL_of_D2gLLLL.s[pq].s[a].s[d].s[b].s[c]
-								+ partial_gLL_of_D2gLLLL.s[pq].s[b].s[c].s[a].s[d]
-								- partial_gLL_of_D2gLLLL.s[pq].s[b].s[d].s[a].s[c]
-								- partial_gLL_of_D2gLLLL.s[pq].s[a].s[c].s[b].s[d]
+								  partial_gLL_of_D2gLLLL.s[pq].s[sym4[a][d]].s[sym4[b][c]]
+								+ partial_gLL_of_D2gLLLL.s[pq].s[sym4[b][c]].s[sym4[a][d]]
+								- partial_gLL_of_D2gLLLL.s[pq].s[sym4[b][d]].s[sym4[a][c]]
+								- partial_gLL_of_D2gLLLL.s[pq].s[sym4[a][c]].s[sym4[b][d]]
 							)
 							- GammaULL.s[p].s[sym4[a][d]] * GammaULL.s[q].s[sym4[b][c]]
 							+ GammaULL.s[p].s[sym4[a][c]] * GammaULL.s[q].s[sym4[b][d]];
 							for (int e = 0; e < stDim; ++e) {
 								for (int f = 0; f < stDim; ++f) {
-									sum += gUU.s[sym4[p][q]] * (
+									sum += gUU.s[sym4[e][f]] * (
 										  partial_gLL_of_GammaLLL.s[pq].s[e].s[sym4[a][d]] * GammaLLL.s[f].s[sym4[b][c]]
 										+ GammaLLL.s[e].s[sym4[a][d]] * partial_gLL_of_GammaLLL.s[pq].s[f].s[sym4[b][c]]
 										- partial_gLL_of_GammaLLL.s[pq].s[e].s[sym4[a][c]] * GammaLLL.s[f].s[sym4[b][d]]
-										+ GammaLLL.s[e].s[sym4[a][c]] * partial_gLL_of_GammaLLL.s[pq].s[f].s[sym4[b][d]];
+										+ GammaLLL.s[e].s[sym4[a][c]] * partial_gLL_of_GammaLLL.s[pq].s[f].s[sym4[b][d]]
+									);
 								}
 							}
 							partial_gLL_of_RiemannLLLL.s[pq].s[a].s[b].s[c].s[d] = sum;
@@ -322,13 +339,8 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 	}
 
 	/*
-	partial_gLL_of_EinsteinLL.pq.ab := ∂/∂g_pq(G_ab)
-	= ∂/∂g_pq (R_ab - 1/2 R g_ab)
-	= ∂/∂g_pq R_ab - 1/2 ∂/∂g_pq R g_ab - 1/2 R ∂/∂g_pq g_ab
-	= ∂/∂g_pq R_ab - 1/2 g_ab ∂/∂g_pq (R_uv g^uv) - 1/2 R δ_a^p δ_b^q
-	= ∂/∂g_pq R_ab - 1/2 g_ab (∂/∂g_pq R_uv g^uv + R_uv ∂/∂g_pq g^uv) - 1/2 R δ_a^p δ_b^q
-	= ∂/∂g_pq R_ab - 1/2 g_ab (g^uv ∂/∂g_pq R_uv - R_uv g^pu g^qv) - 1/2 R δ_a^p δ_b^q
-	= ∂R_ab/∂g_pq - 1/2 (R δ_a^p δ_b^q + g_ab (g^uv ∂R_uv/∂g_pq - R^pq))
+	partial_gLL_of_EinsteinLL.pq.ab := ∂G_ab(x)/∂g_pq(x')
+	= 1/2 δ(x - x') (g_ab(x) R^pq(x) - δ_a^p δ_b^q R(x)) + (δ_a^u δ_b^v - 1/2 g_ab(x) g^uv(x)) ∂R_uv(x)/∂g_pq(x')
 	*/
 	real4s4x4s4 partial_gLL_of_EinsteinLL;
 	for (int pq = 0; pq < 10; ++pq) {
@@ -489,14 +501,8 @@ end
 	// which is the units of conversion
 	//c^4/G * G_ab = 8 π T_ab
 	partial_gPrim_of_Phi->alpha *= c*c*c*c/G;
-	for (int i = 0; i < sDim; ++i) {
-		partial_gPrim_of_Phi->betaU.s[i] *= c*c*c*c/G;
-	}
-	for (int i = 0; i < sDim; ++i) {
-		for (int j = i; j < sDim; ++j) {
-			partial_gPrim_of_Phi->gammaLL.s[sym3[i][j]] *= c*c*c*c/G;
-		}
-	}
+	partial_gPrim_of_Phi->betaU = real3_real_mul(partial_gPrim_of_Phi->betaU, c*c*c*c/G);
+	partial_gPrim_of_Phi->gammaLL = real3s3_real_mul(partial_gPrim_of_Phi->gammaLL, c*c*c*c/G);
 }
 
 kernel void update_gPrims(
@@ -510,20 +516,27 @@ kernel void update_gPrims(
 
 <?
 if solver.convergeAlpha then
-?>	gPrim->alpha -= updateLambda * partial_gPrim_of_Phi.alpha;
+?>
+	gPrim->alpha -= updateLambda * partial_gPrim_of_Phi.alpha;
 <?
 end
 if solver.convergeBeta then
-	for m=0,sDim-1 do
-?>	gPrim->betaU.s<?=m?> -= updateLambda * partial_gPrim_of_Phi.betaU.s<?=m?>;
-<?	end
+?>	
+	gPrim->betaU = real3_mul_add(
+		gPrim->betaU,
+		partial_gPrim_of_Phi.betaU,
+		-updateLambda
+	);
+<?
 end
 if solver.convergeGamma then
-	for m=0,sDim-1 do
-		for n=m,sDim-1 do
-?>	gPrim->gammaLL.s<?=m..n?> -= updateLambda * partial_gPrim_of_Phi.gammaLL.s<?=m..n?>;
-<?		end
-	end
+?>	
+	gPrim->gammaLL = real3s3_mul_add(
+		gPrim->gammaLL,
+		partial_gPrim_of_Phi.gammaLL,
+		-updateLambda
+	);
+<?
 end
 ?>
 }

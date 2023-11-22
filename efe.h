@@ -63,3 +63,15 @@ typedef union {
 	struct { real4x4s4 s00, s01, s02, s03, s11, s12, s13, s22, s23, s33; };
 	struct { real4x4s4 tt, tx, ty, tz, xx, xy, xz, yy, yz, zz; };
 } real4s4x4x4s4;
+
+typedef union {
+	real4s4x4s4 s[10];
+	struct { real4s4x4s4 s00, s01, s02, s03, s11, s12, s13, s22, s23, s33; };
+	struct { real4s4x4s4 tt, tx, ty, tz, xx, xy, xz, yy, yz, zz; };
+} real4s4x4s4x4s4;
+
+typedef union {
+	real4x4x4x4 s[10];
+	struct { real4x4x4x4 s00, s01, s02, s03, s11, s12, s13, s22, s23, s33; };
+	struct { real4x4x4x4 tt, tx, ty, tz, xx, xy, xz, yy, yz, zz; };
+} real4s4x4x4x4x4;

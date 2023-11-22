@@ -115,7 +115,7 @@ $\frac{\partial}{\partial g_{ef}(x + k \Delta \hat{x}^j)} \frac{\partial g_{ab}(
 <br>
 
 $\frac{\partial}{\partial g_{pq}(x')} \frac{\partial g_{ab}(x)}{\partial x^k} \approx \frac{\partial}{\partial g_{pq}(x')} D^1_k[g_{ab}(x)]$<br>
-$= \delta(x^{k'} - x'^{k'}) \phi \left( {\frac{x^k - x'^k}{h}} \right) \delta^p_a \delta^q_b$<br>
+$= \delta(x'^{k'} - x^{k'}) \phi \left( {\frac{x'^k - x^k}{h}} \right) \delta^p_a \delta^q_b$<br>
 ...for index k' spanning all but index k.<br>
 <br>
 
@@ -711,7 +711,7 @@ $=  - \frac{1}{2} ( \delta^e_a \delta^f_b R - g_{ab} R^{ef} )
 $<br>
 <br>
 
-Discrete derivatives:<br>
+Discrete derivatives in terms of $\frac{\partial}{\partial g_{pq}(x')} R_{cd}:<br>
 $\frac{\partial}{\partial g_{pq}(x')} G_{ab}(x) = \frac{\partial}{\partial g_{pq}(x')} (R_{ab}(x) - \frac{1}{2} g_{ab}(x) g^{cd}(x) R_{cd}(x))$<br>
 
 $= \frac{\partial}{\partial g_{pq}(x')}R_{ab}(x) - \frac{1}{2} (\frac{\partial}{\partial g_{pq}(x')} g_{ab}(x) g^{cd}(x) R_{cd}(x) + g_{ab}(x) \frac{\partial}{\partial g_{pq}(x')} g^{cd}(x) R_{cd}(x) + g_{ab}(x) g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cd}(x))$<br>
@@ -720,7 +720,103 @@ $= \frac{\partial}{\partial g_{pq}(x')}R_{ab}(x) - \frac{1}{2} (\delta^a_p \delt
 
 $= \frac{\partial}{\partial g_{pq}(x')}R_{ab}(x) - \frac{1}{2}\delta^p_a \delta^q_b \delta(x-x') R(x) + \frac{1}{2} g_{ab}(x) g^{ce}(x) \delta^p_e \delta^q_f \delta(x-x') g^{fd}(x) R_{cd}(x) - \frac{1}{2} g_{ab}(x) g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cd}(x)$<br>
 
-$= \frac{\partial}{\partial g_{pq}(x')}R_{ab}(x) - \frac{1}{2}\delta^p_a \delta^q_b \delta(x-x') R(x) + \frac{1}{2} \delta(x-x') g_{ab}(x) g^{pc}(x) R_{cd}(x) g^{dq}(x) - \frac{1}{2} g_{ab}(x) g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cd}(x)$<br>
+$= \frac{\partial}{\partial g_{pq}(x')}R_{ab}(x) 
+	- \frac{1}{2}\delta^p_a \delta^q_b \delta(x-x') R(x) 
+	+ \frac{1}{2} \delta(x-x') g_{ab}(x) g^{pc}(x) R_{cd}(x) g^{dq}(x) 
+	- \frac{1}{2} g_{ab}(x) g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cd}(x)
+$<br>
+$= 
+	\frac{1}{2} \delta(x-x') ( 
+		  g_{ab}(x) R^{pq}(x)
+		- \delta^p_a \delta^q_b R(x) 
+	)
+	+ (
+		  \delta^u_a \delta^v_b
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x)
+	) \frac{\partial}{\partial g_{pq}(x')} R_{uv}(x)
+$<br>
+<br>
+
+Discrete derivatives in terms of $\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)$:<br>
+$=  
+	  \frac{\partial}{\partial g_{pq}(x')} G_{ab} (x) 
+$<br>
+$=  
+	  \frac{\partial}{\partial g_{pq}(x')} (
+		  R_{ab}(x) 
+		- \frac{1}{2} R(x) g_{ab}(x)
+	)
+$<br>
+$=  
+	  \frac{\partial}{\partial g_{pq}(x')} (
+		  g^{uv}(x) \delta^c_a \delta^d_b R_{ucvd}(x) 
+		- \frac{1}{2} g^{uv}(x) g^{cd}(x) R_{ucvd}(x) g_{ab}(x)
+	)
+$<br>
+$=  
+	\frac{\partial}{\partial g_{pq}(x')} (
+		(
+			  g^{uv}(x) \delta^c_a \delta^d_b 
+			- \frac{1}{2} g^{cd}(x) g^{uv}(x) g_{ab}(x)
+		) R_{ucvd}(x)
+	)
+$<br>
+$=  
+	  \frac{\partial}{\partial g_{pq}(x')} (
+		  g^{uv}(x) \delta^c_a \delta^d_b 
+		- \frac{1}{2} g^{cd}(x) g^{uv}(x) g_{ab}(x)
+	)
+	R_{ucvd}(x)
+	
+	+ (
+		  g^{uv}(x) \delta^c_a \delta^d_b 
+		- \frac{1}{2} g^{cd}(x) g^{uv}(x) g_{ab}(x)
+	)
+	\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
+$<br>
+$=  
+	  (
+		  \frac{\partial}{\partial g_{pq}(x')} g^{uv}(x) \delta^c_a \delta^d_b 
+		- \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} g^{cd}(x) g^{uv}(x) g_{ab}(x)
+		- \frac{1}{2} g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} g^{uv}(x) g_{ab}(x)
+		- \frac{1}{2} g^{cd}(x) g^{uv}(x) \frac{\partial}{\partial g_{pq}(x')} g_{ab}(x)
+	)
+	R_{ucvd}(x)
+	
+	+ g^{uv}(x) (
+		  \delta^c_a \delta^d_b 
+		- \frac{1}{2} g^{cd}(x) g_{ab}(x)
+	)
+	\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
+$<br>
+$=  
+	  \delta(x - x') (
+		- g^{pu}(x) g^{qv}(x) \delta^c_a \delta^d_b 
+		+ \frac{1}{2} g^{pc}(x) g^{qd}(x) g^{uv}(x) g_{ab}(x)
+		+ \frac{1}{2} g^{cd}(x) g^{pu}(x) g^{qv}(x) g_{ab}(x)
+		- \frac{1}{2} g^{cd}(x) g^{uv}(x) \delta^p_a \delta^q_b
+	)
+	R_{ucvd}(x)
+	
+	+ g^{uv}(x) (
+		  \delta^c_a \delta^d_b 
+		- \frac{1}{2} g^{cd}(x) g_{ab}(x)
+	)
+	\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
+$<br>
+$=  
+	  \delta(x - x') (
+		- {{{R^p}_a}^q}_b(x)
+		+ g_{ab}(x) R^{pq}(x)
+		- \frac{1}{2} \delta^p_a \delta^q_b R(x)
+	)
+	
+	+ g^{uv}(x) (
+		  \delta^c_a \delta^d_b 
+		- \frac{1}{2} g^{cd}(x) g_{ab}(x)
+	)
+	\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
+$<br>
 <br>
 
 <b>Stress-energy tensor:</b><br>
@@ -816,7 +912,29 @@ $\Phi = \frac{1}{2} \underset{a,b,x}\Sigma (G_{ab}(x) - 8 \pi T_{ab}(x))^2$<br>
 Discrete derivatives of $\Phi$:<br>
 $\frac{\partial \Phi}{\partial g_{pq}(x')}
 = \frac{\partial}{\partial g_{pq}(x')} \frac{1}{2} \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x))^2$<br>
-$= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) ( \frac{\partial}{\partial g_{pq}(x')} G_{ab} (x) - 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x))$<br>
+$= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) 
+	( 
+		  \frac{\partial}{\partial g_{pq}(x')} G_{ab} (x) 
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x)
+	)
+$<br>
+$= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) 
+	(
+		  \delta(x - x') (
+			- {{{R^p}_a}^q}_b(x)
+			+ R^{pq}(x)
+			- \frac{1}{2} \delta^p_a \delta^q_b R(x)
+		)
+		
+		+ g^{uv}(x) (
+			  \delta^c_a \delta^d_b 
+			- \frac{1}{2} g^{cd}(x) g_{ab}(x)
+		)
+		\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
+			
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x)
+	)
+$<br>
 <br>
 
 Derivatives of continuous $\Phi$ wrt $\alpha, \beta^i, \gamma_{ij}$:<br>
