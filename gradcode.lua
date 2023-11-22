@@ -1,13 +1,157 @@
 #!/usr/bin/env luajit
 local table = require 'ext.table'
-require 'symmath'.setup{implicitVars=true}
+local range = require 'ext.range'
+local tolua = require 'ext.tolua'
+require 'symmath'.setup{
+	implicitVars=true}
 require 'symmath.export.MathJax'.setup{
 	title = 'generating my gradient descent code',
-	url = 'file:///home/chris/Projects/christopheremoore.net/MathJax/MathJax.js?config=TeX-MML-AM_CHTML',
 }
 
-local EFE_def = G'_ab':eq(8 * pi * T'_ab')
+g = var'g'
+G = var'G'
+R = var'R'
+Gamma = var'\\Gamma'
+
+local n = 1	-- nbhd size
+
+local offsets = Array(2*n+1, 2*n+1, 2*n+1)
+
+local xs = Array:lambda(offsets, function(i,j,k)
+	return var('x_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+end)
+--printbr(xs)
+
+local EFEs = Array:lambda(offsets, function(i,j,k)
+	return var('EFE_{'..table{i-n-1, j-n-1, k-n-1}:concat', '..'}')
+end)
+--printbr(EFEs)
+
+local Phi = var'\\Phi_{0,0,0}'
+local sum = 0
+for i=-n,n do
+	for j=-n,n do
+		for k=-n,n do
+			sum = sum + EFEs[i+n+1][j+n+1][k+n+1]'_ab'^2
+		end
+	end
+end
+sum = (frac(1,2) * sum)()
+local Phi_def = Phi:eq(sum)
+printbr(Phi_def)
+
+local function index(t, ...)
+	if t == nil then return nil end
+	if select('#', ...) == 0 then return t end
+	local i = ...
+	return index(t[i], select(2, ...))
+end
+
+local gs = Array:lambda(offsets, function(i,j,k)
+	return var('g_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+end)
+Phi:setDependentVars(gs[n+1][n+1][n+1]'_ab')
+local Gs = Array:lambda(offsets, function(i,j,k)
+	local G = var('G_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	local is = {i-n-1, j-n-1, k-n-1}
+	-- [[ 1st-derivative only = + pattern
+	local stencil_gLLs = table()
+	for offset=1,1 do
+		for dir=1,3 do
+			local dxi = {0,0,0}
+			dxi[dir] = offset
+			local iR = range(3):mapi(function(q) return is[q] + dxi[q] end)
+			--local gR = gs[{iR[1]+n+1, iR[2]+n+1, iR[3]+n+1}]
+			local gR = index(gs, iR[1]+n+1, iR[2]+n+1, iR[3]+n+1)
+			if gR then 
+				assert(Variable:isa(gR))
+				stencil_gLLs:insert(gR'_ab')
+			end
+			local iL = range(3):mapi(function(q) return is[q] - dxi[q] end)
+			-- what to do for oob defereferencing ...
+			--local gL = gs[{iL[1]+n+1, iL[2]+n+1, iL[3]+n+1}]
+			local gL = index(gs, iL[1]+n+1, iL[2]+n+1, iL[3]+n+1)
+			if gL then
+				assert(Variable:isa(gL))
+				stencil_gLLs:insert(gL'_ab')
+			end
+		end
+	end
+	--]]
+	-- [[ TODO 2nd derivative = Linf-norm
+	--]]
+	G'_ab':setDependentVars(stencil_gLLs:unpack())
+	return G
+end)
+local Ts = Array:lambda(offsets, function(i,j,k)
+	local T = var('T_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	local g = gs[i][j][k]
+	T'_ab':setDependentVars(g'_ab')
+	return T
+end)
+for i,G in Gs:iter() do
+	Phi_def = Phi_def:replace(EFEs[i]'_ab', Gs[i]'_ab' - 8 * pi * Ts[i]'_ab')
+end
+printbr(Phi_def)
+
+-- [[
+local Rs = Array:lambda(offsets, function(i,j,k)
+	local R = var('R_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	R'_ab':setDependentVars(gs[i][j][k]'_ab')
+	--R'_ab':setDependentVars(all_gLLs:unpack())
+	return R
+end)
+for i,G in Gs:iter() do
+	local function makeGamma(a,b,c)
+		return frac(1,2) * (
+			finiteDifference(g(a)(b), i)(c)
+			+ finiteDifference(g(a)(c), i)(b)
+			- finiteDifference(g(b)(c), i)(a)
+		)
+	end
+	--Phi_def = Phi_def:replace(Gs[i]'_ab', Rs[i]'_ab' - frac(1,2) * gs[i]'_ab' * Rs[i])
+	Phi_def = Phi_def:replace(
+		Gs[i]'_ab',
+		(gs[i]'^uv' * delta'^c_a' * delta'^d_b' - frac(1,2) * gs[i]'_ab' * gs[i]'^uv' * gs[i]'^cd') * Rs[i]'_ucvd'
+	)
+	-- [=[
+	:replace(
+		Rs[i]'_ucvd',
+		frac(1,2) * (
+			  finiteDifference2(g'_ad', i)'_bc'
+			+ finiteDifference2(g'_bc', i)'_ad'
+			- finiteDifference2(g'_ac', i)'_bd'
+			- finiteDifference2(g'_bd', i)'_ac'
+		)
+		+ gs[i]'^ef' * (
+			makeGamma('_e', '_a', '_d') * makeGamma('_f', '_b', '_c')
+			- makeGamma('_e', '_a', '_c') * makeGamma('_f', '_b', '_d')
+		)
+	)
+	--]=]
+end
+printbr(Phi_def)
+--]]
+
+local grad_Phi_def = Phi_def:diff(gs[n+1][n+1][n+1]'_pq')()
+printbr(grad_Phi_def)
+
+local G_x = var'G(x)'
+G_x'_ab':setDependentVars(g_xnot'_ab')
+local T_x = var'T(x)'
+T_x'_ab':setDependentVars(T_x'_ab')
+
+local EFE_def = EFE_x'_ab':eq(G_x'_ab' - 8 * pi * T_x'_ab')
 printbr(EFE_def)
+
+local grad_EFE_def = EFE_def:diff(g_xnot'_pq')()
+printbr(grad_EFE_def)
+
+local g_x = var'g(x)'
+local R_x = var'R(x)'
+local Gamma_x = var'\\Gamma(x)'
+
+do return end
 
 local Einstein_def = G'_ab':eq(R'_ab' - frac(1,2) * g'_ab' * R'_pq' * g'^pq')
 printbr(Einstein_def)
@@ -21,16 +165,8 @@ printbr(Ricci_def)
 EFE_def = EFE_def:subst(Ricci_def, Ricci_def:reindex{abc='pqr'})
 printbr(EFE_def)
 
-local Riemann_def = R'^a_bcd':eq(Gamma'^a_bd,c' - Gamma'^a_bc,d' + Gamma'^a_uc' * Gamma'^u_bd' - Gamma'^a_ud' * Gamma'^u_bc')
-printbr(Riemann_def)
 
-Riemann_def = Riemann_def
-	:replace(Gamma'^a_uc' * Gamma'^u_bd',
-		Gamma'^a_tc' * Gamma'^t_bd' + Gamma'^a_kc' * Gamma'^k_bd')
-	:replace(Gamma'^a_ud' * Gamma'^u_bc',
-		Gamma'^a_td' * Gamma'^t_bc' + Gamma'^a_kd' * Gamma'^k_bc')
-	:simplify()
-printbr(Riemann_def)
+do return end
 
 EFE_def = EFE_def:subst(
 	Riemann_def:reindex{abcd='cacb'},
@@ -38,76 +174,57 @@ EFE_def = EFE_def:subst(
 )()
 printbr(EFE_def)
 
--- Binary{*}[
---		Constant[2], 
---		TensorRef{
---			Variable[\Gamma], 
---			TensorIndex{^c}, 
---			TensorIndex{_k}, 
---			TensorIndex{_b}
---		},
---		TensorRef{
--- 			Variable[\Gamma], 
---			TensorIndex{^k}, 
---			TensorIndex{_a}, 
---			TensorIndex{_c}
---		}
---	]
 
--- TODO you can't just substitute t=c and k=c, you must only do this on terms that include a 'c'
-EFE_def = EFE_def
-	:replace(Gamma'^c_ab,c', Gamma'^t_ab,t' + Gamma'^k_ab,k')()
-	:replace(Gamma'^c_ac,b', Gamma'^t_at,b' + Gamma'^k_ak,b')()
-	:replace( (2 * Gamma'^c_kb' * Gamma'^k_ac')(),
-		(2 * (Gamma'^t_kb' * Gamma'^k_at' + Gamma'^l_kb' * Gamma'^k_al'))())()
-	:replace( Gamma'^c_kc', Gamma'^t_kt' + Gamma'^l_kl' )()
-	:replace( (2 * Gamma'^c_tb' * Gamma'^t_ac')(),
-		(2 * (Gamma'^t_tb' * Gamma'^t_at' + Gamma'^k_tb' * Gamma'^t_ak'))())()
-	:replace( Gamma'^c_tc', Gamma'^t_tt' + Gamma'^k_tk' )()
-	:replace( (g'_ab' * Gamma'^r_kq' * Gamma'^k_pr' * g'^pq')(),
-		(g'_ab' * ((Gamma'^t_kt' * Gamma'^k_tt' + Gamma'^l_kt' * Gamma'^k_tl') * g'^tt'
-				+ (Gamma'^t_kt' * Gamma'^k_mt' + Gamma'^l_kt' * Gamma'^k_ml') * g'^mt'
-				+ (Gamma'^t_km' * Gamma'^k_tt' + Gamma'^l_km' * Gamma'^k_tl') * g'^tm'
-				+ (Gamma'^t_kn' * Gamma'^k_mt' + Gamma'^l_kn' * Gamma'^k_ml') * g'^mn'
-				))() )()
-	:replace(Gamma'^r_kr', Gamma'^t_kt' + Gamma'^l_kl')()
-	:replace( (g'_tt' * Gamma'^l_kl' * Gamma'^k_pq' * g'^pq')(),
-		(g'_tt' * Gamma'^l_kl' * (Gamma'^k_tt' * g'^tt'
-								+ Gamma'^k_mt' * g'^mt'
-								+ Gamma'^k_tm' * g'^tm'
-								+ Gamma'^k_mn' * g'^mn'))())()
-	:replace( (g'_ab' * Gamma'^l_kl' * Gamma'^k_pq' * g'^pq')(),
-		(g'_ab' * Gamma'^l_kl' * (Gamma'^k_tt' * g'^tt'
-								+ Gamma'^k_mt' * g'^mt'
-								+ Gamma'^k_tm' * g'^tm'
-								+ Gamma'^k_mn' * g'^mn'))())()
-	:replace( (g'_ab' * Gamma'^r_pq,r' * g'^pq')(),
-		(g'_ab' * ((Gamma'^t_tt,t' + Gamma'^k_tt,k') * g'^tt'
-				+ (Gamma'^t_tl,t' + Gamma'^k_tl,k') * g'^tl'
-				+ (Gamma'^t_lt,t' + Gamma'^k_lt,k') * g'^lt'
-				+ (Gamma'^t_lm,t' + Gamma'^k_lm,k') * g'^lm'))())()
-	:replace( (g'_ab' * Gamma'^r_pr,q' * g'^pq')(),
-		(g'_ab' * ((Gamma'^t_tt,t' + Gamma'^k_tk,t') * g'^tt'
-				+ (Gamma'^t_lt,t' + Gamma'^k_lk,t') * g'^lt'
-				+ (Gamma'^t_tt,l' + Gamma'^k_tk,l') * g'^tl'
-				+ (Gamma'^t_lt,m' + Gamma'^k_lk,m') * g'^lm'))())()
-	:replace( (g'_ab' * Gamma'^r_tq' * Gamma'^t_pr' * g'^pq')(),
-		(g'_ab' * ((Gamma'^t_tt' * Gamma'^t_tt' + Gamma'^k_tt' * Gamma'^t_tk') * g'^tt'
-				+ (Gamma'^t_tl' * Gamma'^t_tt' + Gamma'^k_tl' * Gamma'^t_tk') * g'^tl'
-				+ (Gamma'^t_tt' * Gamma'^t_lt' + Gamma'^k_tt' * Gamma'^t_lk') * g'^lt'
-				+ (Gamma'^t_tm' * Gamma'^t_lt' + Gamma'^k_tm' * Gamma'^t_lk') * g'^lm'))())()
-	:replace( (g'_ab' * Gamma'^r_tr' * Gamma'^t_pq' * g'^pq')(),
-		(g'_ab' * (Gamma'^t_tt' + Gamma'^k_tk') * 
-			(Gamma'^t_tt' * g'^tt' 
-			+ Gamma'^t_tl' * g'^tl' 
-			+ Gamma'^t_lt' * g'^lt' 
-			+ Gamma'^t_lm' * g'^lm'))())()
-	:replace( (g'_ab' * Gamma'^t_kt' * Gamma'^k_pq' * g'^pq')(),
-		(g'_ab' * Gamma'^t_kt' * (Gamma'^k_tt' * g'^tt'
-								+ Gamma'^k_tl' * g'^tl'
-								+ Gamma'^k_lt' * g'^lt'
-								+ Gamma'^k_lm' * g'^lm'))())()
-printbr(EFE_def)
+
+local dgUUL_def = g'^uv_,c':eq(-g'^ue' * g'_ef,c' * g'^fv')
+printbr(dgUUL_def)
+
+local GammaLLL_def = Gamma'_abc':eq(frac(1,2) * (g'_ab,c' + g'_ac,b' - g'_bc,a'))
+printbr(GammaLLL_def)
+
+local dgLLL_wrt_GammaLLL_def = (GammaLLL_def + GammaLLL_def:reindex{abc='bac'}):symmetrizeIndexes(g, {1,2})():switch()
+printbr(dgLLL_wrt_GammaLLL_def)
+
+local Gamma_def = Gamma'^a_bc':eq(g'^au' * Gamma'_ubc')
+printbr(Gamma_def)
+
+local Riemann_def = R'^a_bcd':eq(Gamma'^a_bd,c' - Gamma'^a_bc,d' + Gamma'^a_uc' * Gamma'^u_bd' - Gamma'^a_ud' * Gamma'^u_bc')
+printbr(Riemann_def)
+
+Riemann_def = Riemann_def:subst(Gamma_def'_,d'(), Gamma_def'_,d'():reindex{cd='dc'})()
+printbr(Riemann_def)
+
+Riemann_def = Riemann_def:subst(
+	GammaLLL_def'_,d'():reindex{abcd='ubcd'},
+	GammaLLL_def'_,d'():reindex{abcd='ubdc'}
+)()
+	:symmetrizeIndexes(g, {1,2})
+	:symmetrizeIndexes(g, {3,4})
+	:simplify()
+printbr(Riemann_def)
+
+Riemann_def = Riemann_def:subst(
+	dgUUL_def:reindex{uvc='auc'},
+	dgUUL_def:reindex{uvc='aud'}
+)()
+printbr(Riemann_def)
+
+Riemann_def = (Riemann_def * g'_va')
+	:simplifyMetrics():reindex{v='a'}
+printbr(Riemann_def)
+
+Riemann_def = Riemann_def:subst(
+	dgLLL_wrt_GammaLLL_def:reindex{abc='afc'},
+	dgLLL_wrt_GammaLLL_def:reindex{abc='afd'}
+):tidyIndexes()()
+printbr(Riemann_def)
+
+Riemann_def = (g'^va' * Riemann_def)()
+	:simplifyMetrics()
+	:reindex{va='ae'}
+printbr(Riemann_def)
+
+do return end
 
 local TensorRef = require 'symmath.tensor.Ref'
 local TensorIndex = require 'symmath.tensor.Index'

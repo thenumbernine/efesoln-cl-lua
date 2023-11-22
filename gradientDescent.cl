@@ -451,19 +451,64 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 	
 	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
 
-	//partial_gLL_of_Phi.pq := ∂Φ/∂g_pq = (G_ab - 8 π T_ab) (∂G_ab/∂g_pq - 8 π ∂T_ab/∂g_pq)
-	real4s4 partial_gLL_of_Phi;
+	//lower times lower, but used for minimizing frobenius norm of EFE_ab
+	real const EFE_LL_dot_gLL = real4s4_dot(EFE, gLL);
+
+	// GammaSq_tr_23_32.ab := Γ^pv_u Γ^qu_v
+	real4s4 GammaSq_tr_23_32;
 	for (int p = 0; p < stDim; ++p) {
 		for (int q = p; q < stDim; ++q) {
 			int const pq = sym4[p][q];
-			partial_gLL_of_Phi.s[pq] = real4s4_dot(
-				EFE,
-				real4s4_sub(
-					partial_gLL_of_EinsteinLL.s[pq],
-					partial_gLL_of_8piTLL.s[pq]
-				)
-			);
+			real sum = 0;
+			for (int u = 0; u < stDim; ++u) {
+				for (int v = 0; v < stDim; ++v) {
+					sum += GammaUUL.s[p].s[v].s[u] * GammaUUL.s[q].s[u].s[v];
+				}
+			}
+			GammaSq_tr_23_32.s[pq] = sum;
 		}
+	}
+
+	//partial_gLL_of_Phi.pq := ∂Φ/∂g_pq
+	real4s4 partial_gLL_of_Phi;
+	// first calculate non-partial non ∂/∂g_pq terms:
+	for (int p = 0; p < stDim; ++p) {
+		for (int q = p; q < stDim; ++q) {
+			int const pq = sym4[p][q];
+			real sum = 
+				// -(G_pq - 8 pi T_pq)) R
+				-EFE.s[pq] * Gaussian				
+				// + Sum_ab EFE_ab g_ab R^pq
+				+ RicciUU.s[pq] * EFE_LL_dot_gLL;	
+			;
+			for (int a = 0; a < stDim; ++a) {
+				for (int b = 0; b < stDim; ++b) {
+					int const ab = sym4[a][b];
+					// - Sum_ab EFE_ab dT_ab/dg_pq
+					sum -= EFE.s[ab] * 8. * M_PI * partial_gLL_of_8piTLL.s[pq].s[ab];	
+					// - Sum_ab EFE_ab R^p_a^q_b
+					sum -= EFE.s[ab] * RiemannULUL.s[p].s[a].s[q].s[b];			
+					// - EFE_ab Γ^pc_b Γ^q_ca
+					for (int c = 0; c < stDim; ++c) {
+						sum -= EFE.s[ab] * GammaUUL.s[p].s[c].s[b] * GammaULL.s[q].s[sym4[c][a]];
+					}
+					// + EFE_ab Γ^pu_u Γ^q_ab
+					sum += EFE.s[ab] * Gamma23U.s[p] * GammaULL.s[q].s[ab]
+					// + 1/2 EFE_ab g_ab Γ^pv_u Γ^qu_v
+					sum += .5 * EFE.s[ab] * gLL.s[ab] * GammaSq_tr_23_32.s[pq];
+					// - 1/2 EFE_ab g_ab Γ^pu_u Γ^qv_v
+					sum -= .5 * EFE.s[ab] * gLL.s[ab] * Gamma23U.s[p] * Gamma23U.s[q];
+				
+					//TODO 1st derivs and stuff here
+				}
+			}
+			partial_gLL_of_Phi.s[pq] = sum;
+		}
+	}
+	// next calculate first-derivatives of ∂/∂g_pq terms:
+	for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
+		if (offset == 0) continue;
+		
 	}
 
 	global gPrim_t * const partial_gPrim_of_Phi = partial_gPrim_of_Phis + index;
