@@ -478,12 +478,11 @@ kernel void calc_EFEs(
 	real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
-	EFEs[index] = real4s4_sub(EinsteinLL, _8piTLL);
-#if 1 //debugging
+//debugging
 	//EFEs[index] = real4s4_zero;	//no nans
 	//EFEs[index] = _8piTLL;	//no nans
 	//EFEs[index] = EinsteinLL;	//no nans
-	EFEs[index] = real4s4_sub(EinsteinLL, _8piTLL);	// has nans
+	EFEs[index] = real4s4_sub(EinsteinLL, _8piTLL);
 	/* no nans
 	for (int a = 0; a < stDim; ++a) {
 		for (int b = a; b < stDim; ++b) {
@@ -505,5 +504,21 @@ kernel void calc_EFEs(
 	.s33 = real_sub(EinsteinLL.s33, _8piTLL.s33),
 	};
 	*/
-#endif
+	/* inlined'd real4s4_sub v2 ... has nans
+	EFEs[index].s00 = real_sub(EinsteinLL.s00, _8piTLL.s00);
+	EFEs[index].s01 = real_sub(EinsteinLL.s01, _8piTLL.s01);
+	EFEs[index].s02 = real_sub(EinsteinLL.s02, _8piTLL.s02);
+	EFEs[index].s03 = real_sub(EinsteinLL.s03, _8piTLL.s03);
+	EFEs[index].s11 = real_sub(EinsteinLL.s11, _8piTLL.s11);
+	EFEs[index].s12 = real_sub(EinsteinLL.s12, _8piTLL.s12);
+	EFEs[index].s13 = real_sub(EinsteinLL.s13, _8piTLL.s13);
+	EFEs[index].s22 = real_sub(EinsteinLL.s22, _8piTLL.s22);
+	EFEs[index].s23 = real_sub(EinsteinLL.s23, _8piTLL.s23);
+	EFEs[index].s33 = real_sub(EinsteinLL.s33, _8piTLL.s33);
+	*/
+	/* another try ... works
+	for (int ab = 0; ab < 10; ++ab) {
+		EFEs[index].s[ab] = real_sub(EinsteinLL.s[ab], _8piTLL.s[ab]);
+	}
+	*/
 }

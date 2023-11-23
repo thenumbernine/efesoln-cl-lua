@@ -577,7 +577,7 @@ typedef char int8_t;
 	self:checkStructSizes{
 		'real3',
 		'real3s3',
-		'real4s4',
+		'real4s4',	-- if its aligned between cl and cpu ... then why does the .sij and .s[ij] access produce different values?
 		'real4x4s4',
 		'real4x4x4s4',
 		'real4s4x4s4',
@@ -1213,22 +1213,21 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
-print'init_gPrims'
+--print'init_gPrims'
 	self.init_gPrims()	-- initialize gPrims
-self:printbuf'gPrims'
+--self:printbuf'gPrims'
 
-print'init_TPrims'
+--print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims
-self:printbuf'TPrims'
+--self:printbuf'TPrims'
 
 	self:updateAux()	-- calc gLLs, gUUs, GammaLLs, EFEs
-self:printbuf'gLLs'	
-self:printbuf'gUUs'	
-self:printbuf'GammaULLs'	
-self:printbuf'EFEs'
+--self:printbuf'gLLs'	
+--self:printbuf'gUUs'	
+--self:printbuf'GammaULLs'	
+--self:printbuf'EFEs'
 	
 	self:updateTex()
-
 print('residual', self:calcResidual())
 
 	self.iteration = 0
@@ -1304,9 +1303,9 @@ function EFESolver:calcResidual()
 	for i=0,volume-1 do
 		local fptr = ffi.cast('real*', cpu[i].s)
 		for j=0,m-1 do
-print(i,j, cpu[i].s[j])
-			--sum = sum + (fptr[j] / G)^2
-			sum = sum + (fptr[j])^2
+--print(i,j, cpu[i].s[j])
+			sum = sum + (fptr[j] / G)^2
+--			sum = sum + (fptr[j])^2
 		end
 	end
 	return math.sqrt(sum) / volume

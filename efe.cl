@@ -105,24 +105,37 @@ static inline <?=ctype?> <?=ctype?>_<?=op?>(<?=ctype?> const a, <?=ctype?> const
 ?>	.<?=field?> = <?=fieldtype?>_<?=op?>(a.<?=field?>, b.<?=field?>),
 <? 		end
 ?>	};
-#else
+#elif 0	// also errors
 	<?=ctype?> result;
 <? for _,field in ipairs(fields) do
 ?>	result.<?=field?> = <?=fieldtype?>_<?=op?>(a.<?=field?>, b.<?=field?>);
 <? end
 ?>	return result;
+#else	// seems to be working ...
+	<?=ctype?> result;
+	for (int i = 0; i < <?=#fields?>; ++i) {
+		result.s[i] = <?=fieldtype?>_<?=op?>(a.s[i], b.s[i]);
+	}
+	return result;
 #endif
-
 }
 <?	end
 	for _,op in ipairs{"mul", "div"} do
 ?>
 static inline <?=ctype?> <?=ctype?>_real_<?=op?>(<?=ctype?> const a, real const b) {
+#if 0	//might work, but the equivalent add/sub is failing, so ...	
 	return (<?=ctype?>){
 <? 		for _,field in ipairs(fields) do
 ?>	.<?=field?> = <?=fieldtype?>_real_<?=op?>(a.<?=field?>, b),
 <? 		end
 ?>	};
+#else	//equivalent add/sub is working
+	<?=ctype?> result;
+	for (int i = 0; i < <?=#fields?>; ++i) {
+		result.s[i] = <?=fieldtype?>_real_<?=op?>(a.s[i], b);
+	}
+	return result;
+#endif
 }
 <?	end
 ?>
@@ -496,8 +509,6 @@ end
 }
 
 <?makeops("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
-
-<?makeops("real4s4x4x4s4", "real4x4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 
 constant int const stDim = <?=stDim?>;
