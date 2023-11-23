@@ -21,6 +21,27 @@ constant int const sym4[4][4] = {
 	{3, 6, 8, 9},
 };
 
+constant real const d1coeffs[] = {
+	0,
+<?
+local d1coeffs = derivCoeffs[1][solver.diffOrder]
+for i=1,#d1coeffs do
+?>	<?=d1coeffs[i]?>,
+<?
+end
+?>
+};
+
+constant real const d2coeffs[] = {
+<?
+local d2coeffs = derivCoeffs[2][solver.diffOrder]
+for i=0,#d2coeffs do
+?>	<?=d2coeffs[i]?>,
+<?
+end
+?>
+};
+
 <?
 local range = require 'ext.range'
 local function makeAdds(ctype)

@@ -87,7 +87,53 @@ if solver.body.useMatter then
 <?
 end
 ?>
-	return partial_gLL_of_8piTLL;
+	return real4s4x4s4_real_mul(partial_gLL_of_8piTLL, 8. * M_PI);
+}
+
+static constant int4 const int4_dirs[3] = {
+	(int4)(1, 0, 0, 0),
+	(int4)(0, 1, 0, 0),
+	(int4)(0, 0, 1, 0),
+};
+static inline int4 int4_dir(int dim, int offset) {
+	return int4_dirs[dim] * offset;
+}
+
+static inline real4s4 EFE_LL_minus_half_trace_at(
+	int4 const i,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
+	global real4s4 const * const EFEs
+) {
+	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+		return real4s4_zero;	//TODO ... consider boundary conditions
+	}
+	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	real4s4 const gLL = gLLs[index];	// g_ab
+	real4s4 const gUU = gUUs[index];	// g^ab
+	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
+	
+	//lower times lower, but used for minimizing frobenius norm of EFE_ab
+	// Sum_ab (G_ab - 8 π T_ab) g_ab
+	real const EFE_LL_dot_gLL = real4s4_dot(EFE, gLL);
+	
+	// common term in the gradient descent: 
+	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
+	return real4s4_mul_add(EFE, gUU, -.5 * EFE_LL_dot_gLL);
+}
+
+// this is hardcoded to g_ab = η_ab at boundaries
+//TODO ... consider boundary conditions
+// or TODO ... put all g^ab boundary conditions here, and use this function in the finite-difference calculations
+static inline real4s4 gUU_at(
+	int4 const i,
+	global real4s4 const * const gUUs
+) {
+	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+		return real4s4_Minkowski;
+	}
+	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	return gUUs[index];
 }
 
 kernel void calc_partial_gPrim_of_Phis(
@@ -105,8 +151,6 @@ kernel void calc_partial_gPrim_of_Phis(
 	real4s4 const gUU = gUUs[index];
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-<? if false then -- used 2nd-deriv finite-difference stencil
-?>
 	//partial_xU2_of_gLL.cd.ab := g_ab,cd
 <?= solver:finiteDifference2{
 	bufferName = "gLLs",
@@ -174,8 +218,6 @@ kernel void calc_partial_gPrim_of_Phis(
 	//RiemannULUL.a.b.c.d = R^a_b^c_d = R^a_bud g^uc
 	real4x4x4x4 const RiemannULUL = real4x4x4x4_real4s4_mul_3_1(RiemannULLL, gUU);
 	
-	real4x4x4x4 const GammaSq_asym_ULUL = real4x4x4x4_real4s4_mul_3_1(GammaSq_asym_ULLL, gUU);
-
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
 
@@ -187,285 +229,39 @@ kernel void calc_partial_gPrim_of_Phis(
 
 	//Gaussian := R = R^a_a
 	real const Gaussian = real4x4_tr(RicciUL);
-
-<?
-local math = require 'ext.math'
-local order = solver.diffOrder
-local d1coeffs = assert(derivCoeffs[1][order])
-local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for order "..order)
-?>
-
-	// TODO
-	real4s4x4x4s4 partial_gLL_of_DgLLL;
-#if 0	
-	for (int p = 0; p < stDim; ++p) {
-		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
-			for (int a = 0; a < stDim; ++a) {
-				for (int b = 0; b < stDim; ++b) {
-					for (int c = b; c < stDim; ++c) {
-						int const bc = sym4[b][c];
-						partial_gLL_of_DgLLL.s[pq].s[a].s[bc] = 
-					}
-				}
-			}
-		}
-	}
-#endif	
-	real4s4x4s4x4s4 partial_gLL_of_D2gLLLL;
-
-	//partial_gLL_of_GammaLLL.pq.a.bc =: ∂/∂g_pq(x) Γ_abc
-	real4s4x4x4s4 partial_gLL_of_GammaLLL = real4s4x4x4s4_zero;
-	for (int p = 0; p < stDim; ++p) {
-		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
-			for (int a = 0; a < stDim; ++a) {
-				for (int b = 0; b < stDim; ++b) {
-					for (int c = b; c < stDim; ++c) {
-						int const bc = sym4[b][c];
-						partial_gLL_of_GammaLLL.s[pq].s[a].s[bc] = .5 * (
-							  partial_gLL_of_DgLLL.s[pq].s[c].s[sym4[a][b]]
-							+ partial_gLL_of_DgLLL.s[pq].s[b].s[sym4[a][c]]
-							- partial_gLL_of_DgLLL.s[pq].s[a].s[bc]
-						);
-					}
-				}
-			}
-		}
-	}
-
-	/*
-	... if we use g_ab,cd and don't limit h->0 our ∂/∂g_pq(x) D_c(g_ab(x')) 's ...
-
-	∂/∂g_pq R_abcd
-	= ∂/∂g_pq (1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd))
-	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad)
-		+ (∂/∂g_pq g^fg) (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad)
-		- g^pf g^qg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-		+ g^fg ∂/∂g_pq (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
-	= 1/2 ∂/∂g_pq (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad)
-		- Γ^p_ad Γ^q_bc + Γ^p_ac Γ^q_bd
-		+ g^ef ∂/∂g_pq (Γ_ead Γ_fbc - Γ_eac Γ_fbd)
-	*/
-	real4s4x4x4x4x4 partial_gLL_of_RiemannLLLL;
-	for (int p = 0; p < stDim; ++p) {
-		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
-			for (int a = 0; a < stDim; ++a) {
-				for (int b = 0; b < stDim; ++b) {
-					for (int c = 0; c < stDim; ++c) {
-						for (int d = 0; d < stDim; ++d) {
-							real sum = .5 * (
-								  partial_gLL_of_D2gLLLL.s[pq].s[sym4[a][d]].s[sym4[b][c]]
-								+ partial_gLL_of_D2gLLLL.s[pq].s[sym4[b][c]].s[sym4[a][d]]
-								- partial_gLL_of_D2gLLLL.s[pq].s[sym4[b][d]].s[sym4[a][c]]
-								- partial_gLL_of_D2gLLLL.s[pq].s[sym4[a][c]].s[sym4[b][d]]
-							)
-							- GammaULL.s[p].s[sym4[a][d]] * GammaULL.s[q].s[sym4[b][c]]
-							+ GammaULL.s[p].s[sym4[a][c]] * GammaULL.s[q].s[sym4[b][d]];
-							for (int e = 0; e < stDim; ++e) {
-								for (int f = 0; f < stDim; ++f) {
-									sum += gUU.s[sym4[e][f]] * (
-										  partial_gLL_of_GammaLLL.s[pq].s[e].s[sym4[a][d]] * GammaLLL.s[f].s[sym4[b][c]]
-										+ GammaLLL.s[e].s[sym4[a][d]] * partial_gLL_of_GammaLLL.s[pq].s[f].s[sym4[b][c]]
-										- partial_gLL_of_GammaLLL.s[pq].s[e].s[sym4[a][c]] * GammaLLL.s[f].s[sym4[b][d]]
-										+ GammaLLL.s[e].s[sym4[a][c]] * partial_gLL_of_GammaLLL.s[pq].s[f].s[sym4[b][d]]
-									);
-								}
-							}
-							partial_gLL_of_RiemannLLLL.s[pq].s[a].s[b].s[c].s[d] = sum;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	/*
-	g^uv ∂/∂g_pq R_uavb
-	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub)
-		- g^uv Γ^p_ub Γ^q_av + Γ^p_uv Γ^q_ab
-		+ g^uv g^fg ∂/∂g_pq (Γ_fub Γ_gav - Γ_fuv Γ_gab)
-	= 1/2 g^uv ∂/∂g_pq (g_ub,av - g_ab,uv - g_uv,ab + g_av,ub)
-		- Γ^pu_b Γ^q_ua + Γ^pu_u Γ^q_ab							<- looks like the 2nd term of the Ricci eqn based on g_ab,cd
-		+ g^uv g^fg (
-			  (∂/∂g_pq Γ_fub) Γ_gav
-			+ Γ_fub (∂/∂g_pq Γ_gav)
-			- (∂/∂g_pq Γ_fuv) Γ_gab
-			- Γ_fuv (∂/∂g_pq Γ_gab)
-		)
-
-	partial_gLL_of_RicciLL.pq.ab := ∂R_ab/∂g_pq
-	= ∂/∂g_pq (g^uv R_uavb)
-	= (∂/∂g_pq g^uv) R_uavb + g^uv (∂/∂g_pq R_uavb)
-	= -g^up g^vq R_uavb + g^uv (∂/∂g_pq R_uavb)
-	= -R^p_a^q_b + g^uv (∂/∂g_pq R_uavb)
-
-	*/
-	real4s4x4s4 partial_gLL_of_RicciLL;
-	for (int p = 0; p < stDim; ++p) {
-		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
-			for (int a = 0; a < stDim; ++a) {
-				for (int b = a; b < stDim; ++b) {
-					int const ab = sym4[a][b];
-					real sum = 0;
-					sum -= RiemannULUL.s[p].s[a].s[q].s[b];
-					for (int u = 0; u < stDim; ++u) {
-						for (int v = 0; v < stDim; ++v) {
-							int const uv = sym4[u][v];
-							sum += gUU.s[uv] * partial_gLL_of_RiemannLLLL.s[pq].s[u].s[a].s[v].s[b];
-						}
-					}
-					partial_gLL_of_RicciLL.s[pq].s[ab] = sum;
-				}
-			}
-		}
-	}
-
-
-<? else -- only use 1st-deriv finite-difference stencils (and difference-of-difference for 2nd-deriv)
-?>
-
-	//this is also in the Ricci computation, but should I be storing it?  is it too big?
-	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(GammaULLs);
-
-	//RiemannULLL.a.b.cd := R^a_bcd = Γ^a_bd,c - Γ^a_bc,d + Γ^a_ec Γ^e_bd - Γ^a_ed Γ^e_bc
-	real4x4x4x4 RiemannULLL;
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = 0; c < stDim; ++c) {
-				for (int d = 0; d < stDim; ++d) {
-					real sum =
-						  partial_xU_of_GammaULL.s[c].s[a].s[sym4[b][d]]
-						- partial_xU_of_GammaULL.s[d].s[a].s[sym4[b][c]];
-					for (int e = 0; e < stDim; ++e) {
-						sum +=
-							  GammaULL.s[a].s[sym4[e][c]] * GammaULL.s[e].s[sym4[b][d]]
-							- GammaULL.s[a].s[sym4[e][d]] * GammaULL.s[e].s[sym4[b][c]];
-					}
-					RiemannULLL.s[a].s[b].s[c].s[d] = sum;
-				}
-			}
-		}
-	}
-
-	//RicciLL.ab := R_ab = R^c_acb
-	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
-
-	//RicciUL.a.b := R^a_b = g^ac R_cb
-	real4x4 const RicciUL = real4s4_real4s4_mul(gUU, RicciLL);
-
-	//RicciUU.ab := R^ab = R^a_c g^cb
-	real4s4 const RicciUU = real4x4_real4s4_to_real4s4_mul(RicciUL, gUU);
-
-	//Gaussian := R = R^a_a
-	real const Gaussian = real4x4_tr(RicciUL);
-
-	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
-	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
-
-	/*
-	∂/∂g_pq δ^a_b = 0
-	∂/∂g_pq(x) g_ab(x') = δ_a^p δ_b^q δ(x - x')
-	∂/∂g_pq(x) g^ad(x') = -g^ap(x) g^qd(x) δ(x - x')
-
-	D_c(g_ab(x)) = C_m g_ab(x + m dx^c) ≈ g_ab,c
-	∂/∂g_pq(x) D_c(g_ab(x'))
-		= ∂/∂g_pq(g_ab) C_(x'^c - x^c)
-		= δ_a^p δ_b^q C_(x'^c - x^c)
-
-	... where C_(x'^c - x^c) is the coefficient of the derivative based on (x'^c - x^c) / h, or 0 if any of the other coefficients don't match
-
-	∂/∂g_pq(x) Γ_abc(x')
-		= 1/2 ∂/∂g_pq(x) (D_c(g_ab(x')) + D_b(g_ac(x')) - D_a(g_bc(x')))
-		= 1/2 ∂/∂g_pq(x) (
-			  δ_a^p δ_b^q C_(x'^c - x^c)
-			+ δ_a^p δ_c^q C_(x'^b - x^b)
-			- δ_b^p δ_c^q C_(x'^a - x^a)
-		)
-
-	∂/∂g_pq Γ^a_bc
-	= -g^ap Γ^q_bc based on the limit, however for finite-difference it has another value ...
-	∂/∂g_pq(x) Γ^a_bc(x')
-	= -g^ap(x') Γ^q_bc(x') δ(x - x') + g^ad(x') ∂/∂g_pq(x) Γ_dbc(x')
-
-
-	partial_gLL_of_RicciLL.pq.ab := ∂R_ab/∂g_pq
-	= Γ^pc_c Γ^q_ba - Γ^pc_b Γ^q_ca - g^cp R^q_acb
-	(work done in efe.html)
-	*/
-	real4s4x4s4 partial_gLL_of_RicciLL;
-	for (int p = 0; p < stDim; ++p) {
-		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
-			for (int a = 0; a < stDim; ++a) {
-				for (int b = a; b < stDim; ++b) {
-					int const ab = sym4[a][b];
-					real sum = 0;
-					for (int c = 0; c < stDim; ++c) {
-						sum +=
-							  GammaUUL.s[p].s[c].s[c] * GammaULL.s[q].s[sym4[b][a]]
-							- GammaUUL.s[p].s[c].s[b] * GammaULL.s[q].s[sym4[c][a]]
-							- gUU.s[sym4[c][p]] * RiemannULLL.s[q].s[a].s[c].s[b];
-					}
-					partial_gLL_of_RicciLL.s[pq].s[ab] = sum;
-				}
-			}
-		}
-	}
-
-<? end ?>
-
-	//g^ab ∂R_ab/∂g_pq
-	real4s4 gUU_times_partial_gLL_of_RicciLL;
-	for (int p = 0; p < stDim; ++p) {
-		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
-			gUU_times_partial_gLL_of_RicciLL.s[pq] = real4s4_dot(gUU, partial_gLL_of_RicciLL.s[pq]);
-		}
-	}
-
-	/*
-	partial_gLL_of_EinsteinLL.pq.ab := ∂G_ab(x)/∂g_pq(x')
-	= 1/2 δ(x - x') (g_ab(x) R^pq(x) - δ_a^p δ_b^q R(x)) + (δ_a^u δ_b^v - 1/2 g_ab(x) g^uv(x)) ∂R_uv(x)/∂g_pq(x')
-	*/
-	real4s4x4s4 partial_gLL_of_EinsteinLL;
-	for (int pq = 0; pq < 10; ++pq) {
-		for (int ab = 0; ab < 10; ++ab) {
-			real sum = partial_gLL_of_RicciLL.s[pq].s[ab];
-			if (pq == ab) {
-				sum -= .5 * Gaussian;
-			}
-			sum -= .5 * gUU.s[ab] * (
-				gUU_times_partial_gLL_of_RicciLL.s[pq]
-				- RicciUU.s[pq]
-			);
-			partial_gLL_of_EinsteinLL.s[pq].s[ab] = sum;
-		}
-	}
 
 	real4s4x4s4 const partial_gLL_of_8piTLL = calc_partial_gLL_of_8piTLL(TPrims[index], gLL, gUU);
 	
 	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
 
 	//lower times lower, but used for minimizing frobenius norm of EFE_ab
+	// Sum_ab (G_ab - 8 π T_ab) g_ab
 	real const EFE_LL_dot_gLL = real4s4_dot(EFE, gLL);
+	
+	// common term in the gradient descent: 
+	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
+	real4s4 EFE_LL_minus_half_trace = real4s4_mul_add(EFE, gUU, -.5 * EFE_LL_dot_gLL);
+	
+	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
+	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
+	
+	//Gamma23U.a := Γ^a = Γ^au_u
+	real4 const Gamma23U = real4x4x4_tr23(GammaUUL);
 
-	// GammaSq_tr_23_32.ab := Γ^pv_u Γ^qu_v
-	real4s4 GammaSq_tr_23_32;
+	// GammaSq_tr_2_2.pq.uv := Γ^pc_v Γ^q_cu - Γ^pc_c Γ^q_uv
+	// symmetries?
+	real4x4x4x4 GammaSq_tr_2_2;
 	for (int p = 0; p < stDim; ++p) {
-		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
-			real sum = 0;
+		for (int q = 0; q < stDim; ++q) {
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
-					sum += GammaUUL.s[p].s[v].s[u] * GammaUUL.s[q].s[u].s[v];
+					real sum = - Gamma23U.s[p] * GammaULL.s[q].s[sym4[u][v]];
+					for (int c = 0; c < stDim; ++c) {
+						sum += GammaUUL.s[p].s[c].s[v] * GammaULL.s[q].s[sym4[c][u]];
+					}
+					GammaSq_tr_2_2.s[p].s[q].s[u].s[v] = sum;
 				}
 			}
-			GammaSq_tr_23_32.s[pq] = sum;
 		}
 	}
 
@@ -476,39 +272,130 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 		for (int q = p; q < stDim; ++q) {
 			int const pq = sym4[p][q];
 			real sum = 
-				// -(G_pq - 8 pi T_pq)) R
+				// -(G_pq - 8 π T_pq) R
 				-EFE.s[pq] * Gaussian				
-				// + Sum_ab EFE_ab g_ab R^pq
-				+ RicciUU.s[pq] * EFE_LL_dot_gLL;	
+				// + Sum_ab EFE_ab 1/2 g_ab R^pq
+				+ EFE_LL_dot_gLL * .5 * RicciUU.s[pq];
 			;
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
 					int const ab = sym4[a][b];
-					// - Sum_ab EFE_ab dT_ab/dg_pq
-					sum -= EFE.s[ab] * 8. * M_PI * partial_gLL_of_8piTLL.s[pq].s[ab];	
-					// - Sum_ab EFE_ab R^p_a^q_b
-					sum -= EFE.s[ab] * RiemannULUL.s[p].s[a].s[q].s[b];			
-					// - EFE_ab Γ^pc_b Γ^q_ca
-					for (int c = 0; c < stDim; ++c) {
-						sum -= EFE.s[ab] * GammaUUL.s[p].s[c].s[b] * GammaULL.s[q].s[sym4[c][a]];
-					}
-					// + EFE_ab Γ^pu_u Γ^q_ab
-					sum += EFE.s[ab] * Gamma23U.s[p] * GammaULL.s[q].s[ab]
-					// + 1/2 EFE_ab g_ab Γ^pv_u Γ^qu_v
-					sum += .5 * EFE.s[ab] * gLL.s[ab] * GammaSq_tr_23_32.s[pq];
-					// - 1/2 EFE_ab g_ab Γ^pu_u Γ^qv_v
-					sum -= .5 * EFE.s[ab] * gLL.s[ab] * Gamma23U.s[p] * Gamma23U.s[q];
-				
-					//TODO 1st derivs and stuff here
+					// - Sum_ab EFE_ab 8 π dT_ab/dg_pq
+					sum -= EFE.s[ab] * partial_gLL_of_8piTLL.s[pq].s[ab];
+				}
+			}		
+			for (int u = 0; u < stDim; ++u) {
+				for (int v = 0; v < stDim; ++v) {
+					int const uv = sym4[u][v];
+					sum -= EFE_LL_minus_half_trace.s[uv] * (
+					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) R^p_a^q_b
+						RiemannULUL.s[p].s[u].s[q].s[v]
+					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) (Γ^pc_v Γ^q_cu - Γ^pc_c Γ^q_uv)
+						+ GammaSq_tr_2_2.s[p].s[q].s[u].s[v]
+					);
 				}
 			}
+			
+			// next calculate first-derivatives of ∂/∂g_pq terms:
+			for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
+				if (offset == 0) continue;
+				//TODO
+			}
+			// next calculate second-derivatives of ∂/∂g_pq terms:
+			for (int dim1 = 0; dim1 < stDim; ++dim1) {
+				for (int dim2 = 0; dim2 < stDim; ++dim2) {
+					if (dim1 == dim2) {
+						for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
+							int4 const iofs = i + int4_dir(dim1, offset);
+							{
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_ud[g_cv] = 1/2 g^cd δ^p_c δ^q_v D^2 phi^2_ud)
+								// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (phi^2_ud) |x'=x + dx^u=dx^d
+								int const u = dim1+1;
+								int const d = u;
+								sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][q]] 
+									* gUU_at(iofs, gUUs).s[sym4[p][d]] 
+									* (d2coeffs[abs(offset)] * inv_dx.s[u]);
+							}{
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = 1/2 g^cd δ^p_u δ^q_d D^2 phi^2_cv)
+								// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (phi^2_cv) |x'=x + dx^v=dx^c
+								int const v = dim1+1;
+								int const c = v;
+								sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][v]] 
+									* gUU_at(iofs, gUUs).s[sym4[c][q]] 
+									* (d2coeffs[abs(offset)] * inv_dx.s[v]);
+							}{
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = 1/2 g^cd δ^p_u δ^q_v D^2 phi^2_cd)
+								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (phi^2_cd) |x'=x + dx^c=dx^d
+								int const c = dim1+1;
+								int const d = c;
+								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] 
+									* gUU_at(iofs, gUUs).s[sym4[c][d]] 
+									* (d2coeffs[abs(offset)] * inv_dx.s[c]);
+							}{
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = 1/2 g^cd δ^p_c δ^q_d D^2 phi^2_uv)
+								// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (phi^2_uv) |x'=x + dx^u=dx^v
+								int const u = dim1+1;
+								int const v = u;
+								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][v]]
+									* gUU_at(iofs, gUUs).s[sym4[p][q]]
+									* (d2coeffs[abs(offset)] * inv_dx.s[u]);
+							}
+						}
+					} else {
+						for (int offset1 = -<?=solver.diffOrder/2?>; offset1 <= <?=solver.diffOrder/2?>; ++offset1) {
+							if (offset1 == 0) continue;
+							for (int offset2 = -<?=solver.diffOrder/2?>; offset2 <= <?=solver.diffOrder/2?>; ++offset2) {
+								if (offset2 == 0) continue;
+								int4 const iofs = i + int4_dir(dim1, offset1) + int4_dir(dim2, offset2);
+								{
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_ud[g_cv] = 1/2 g^cd δ^p_c δ^q_v D^2 phi^2_ud)
+									// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (phi_u phi_d) |x'=x + dx^u + dx^d
+									int const u = dim1+1;
+									int const d = dim2+1;
+									int const offset_u = offset1;
+									int const offset_d = offset2;
+									sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][q]]
+										* gUU_at(iofs, gUUs).s[sym4[p][d]] 
+										* (d1coeffs[abs(offset_u)] * d1coeffs[abs(offset_d)] * inv_dx.s[u] * inv_dx.s[d]);
+								}{
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = 1/2 g^cd δ^p_u δ^q_d D^2 phi^2_cv)
+									// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (phi^2_cv) |x'=x + dx^v + dx^c
+									int const v = dim1+1;
+									int const c = dim2+1;
+									int const offset_v = offset1;
+									int const offset_c = offset2;
+									sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][v]] 
+										* gUU_at(iofs, gUUs).s[sym4[c][q]] 
+										* (d1coeffs[abs(offset_v)] * d1coeffs[abs(offset_c)] * inv_dx.s[v] * inv_dx.s[c]);
+								}{
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = 1/2 g^cd δ^p_u δ^q_v D^2 phi^2_cd)
+									// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (phi^2_cd) |x'=x + dx^c + dx^d
+									int const c = dim1+1;
+									int const d = dim2+1;
+									int const offset_c = offset1;
+									int const offset_d = offset2;
+									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] 
+										* gUU_at(iofs, gUUs).s[sym4[c][d]] 
+										* (d1coeffs[abs(offset_c)] * d1coeffs[abs(offset_d)] * inv_dx.s[c] * inv_dx.s[d]);
+								}{
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = 1/2 g^cd δ^p_c δ^q_d D^2 phi^2_uv)
+									// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (phi^2_uv) |x'=x + dx^u + dx^v
+									int const u = dim1+1;
+									int const v = dim2+1;
+									int const offset_u = offset1;
+									int const offset_v = offset2;
+									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][v]]
+										* gUU_at(iofs, gUUs).s[sym4[p][q]]
+										* (d1coeffs[abs(offset_u)] * d1coeffs[abs(offset_v)] * inv_dx.s[u] * inv_dx.s[v]);
+								}
+							}
+						}
+					}
+				}
+			}
+			
 			partial_gLL_of_Phi.s[pq] = sum;
 		}
-	}
-	// next calculate first-derivatives of ∂/∂g_pq terms:
-	for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
-		if (offset == 0) continue;
-		
 	}
 
 	global gPrim_t * const partial_gPrim_of_Phi = partial_gPrim_of_Phis + index;
