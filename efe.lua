@@ -2,6 +2,7 @@
 local ffi = require 'ffi'
 local class = require 'ext.class'
 local string = require 'ext.string'	-- concat
+local timer = require 'ext.timer'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local path = require 'ext.path'
@@ -1073,33 +1074,88 @@ function EFESolver:refreshKernels()
 	-- create code
 	print'preprocessing code...'
 
---[[
-	local code = self:template(table{
-		path'calcVars.cl':read(),
-		path'gradientDescent.cl':read(),
-	}:concat'\n')
-
-	path'cache':mkdir()
-	path'cache/calcVars.cl':write(code)
-
-	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
-	local program = self:program{code=code}
---]]
-
 	-- append efe.cl to the environment code
 	self.efeCode = self:template(table{
 			path'efe.cl':read(),
 			path'calcVars.cl':read(),
-			path'gradientDescent.cl':read()
+			path'gradientDescent.cl':read(),
 		}:concat'\n')
 
 	path'cache':mkdir()
-	path'cache/efe.cl':write(self.efeCode)
+	--path'cache/efe.cl':write(self.efeCode)
+	
+	print'compiling code...'
 
+	--[[ all at once
 	local program = self:program{code=self.efeCode}
+	program:compile()
+	--]]
+	-- [[ try to link 
+	-- 'obj' as in .o file ...
+	timer('compiling efeProgram cl shared object', function()
+		self.efeProgramObj = self:program{
+			cacheFile = 'cache/efe',
+			code = self.efeCode,
+		}
+		self.efeProgramObj:compile{
+			verbose = true,
+			dontLink = true,
+		}
+	end)
+
+-- [[ ... hmm
+-- if I create program from code, compile code to program-object, then save program, there is a binary (1.9 mb)
+-- but if I create the program from binary, compile the binary to program-object, then save program, the binary is empty (800 bytes)
+path'cache/efe.alreadycached_bin':write(require 'ext.tolua'(
+	self.efeProgramObj.obj:getBinaries()
+))
+--]]
+
+--[[ doesn't work via spec on clGetProgramInfo , which says	it needs to be linked first ...
+print'self.efeProgramObj'
+print'CL_PROGRAM_KERNEL_NAMES:'
+print(require 'ext.tolua'(self.efeProgramObj.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
+--]]
+	timer('linking efeProgram with cl shared object', function()
+		self.efeProgramLib = self:program{
+			programs = {self.efeProgramObj},
+			verbose = true,
+			-- TODO?  https://community.intel.com/t5/OpenCL-for-CPU/How-to-link-to-OpenCL-binary-library-created-with-clLinkProgram/m-p/1045739
+			buildOptions = '-create-library',	-- uhhh ... where is this documented?
+			-- Unrecognized build options: -create-library
+		}
+	end)
+
+--[=[ doesn't work.
+path'cache/efe.linked_bin':write(require 'ext.tolua'(
+	self.efeProgramLib.obj:getBinaries()
+))
+print'self.efeProgramLib'
+print'CL_PROGRAM_KERNEL_NAMES:'
+print(require 'ext.tolua'(self.efeProgramLib.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
+--]=]
+
+	local efeProgram
+	timer('linking efeProgram with cl shared object ... again', function()
+		efeProgram = self:program{
+			programs = {self.efeProgramLib},
+			verbose = true,
+		}
+	end)
+
+-- [=[ when clLinkProgram is called from a program created with clCreateProgramWithSource, it is fine
+-- but when clLinkProgram is called from a program created with clCreateProgramWithBinary, it is empty ....
+path'cache/efe.linked_bin':write(require 'ext.tolua'(
+	efeProgram.obj:getBinaries()
+))
+print'efeProgram'
+print'CL_PROGRAM_KERNEL_NAMES:'
+print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
+--]=]
+	--]]
 
 	-- init
-	self.init_TPrims = program:kernel{
+	self.init_TPrims = efeProgram:kernel{
 		name = 'init_TPrims',
 		argsOut = {
 			self.TPrims,
@@ -1107,7 +1163,7 @@ function EFESolver:refreshKernels()
 	}
 
 	-- compute values for EFE
-	self.calc_gLLs_and_gUUs = program:kernel{
+	self.calc_gLLs_and_gUUs = efeProgram:kernel{
 		name = 'calc_gLLs_and_gUUs',
 		argsOut = {
 			self.gLLs,
@@ -1118,7 +1174,7 @@ function EFESolver:refreshKernels()
 		},
 	}
 
-	self.calc_GammaULLs = program:kernel{
+	self.calc_GammaULLs = efeProgram:kernel{
 		name = 'calc_GammaULLs',
 		argsOut = {
 			self.GammaULLs,
@@ -1130,7 +1186,7 @@ function EFESolver:refreshKernels()
 	}
 
 	if self.useFourPotential then
-		self.solveAL = program:kernel{
+		self.solveAL = efeProgram:kernel{
 			name = 'solveAL',
 			argsOut = {
 				self.TPrims,
@@ -1139,7 +1195,7 @@ function EFESolver:refreshKernels()
 	end
 
 	-- used by updateNewton and updateJFNK:
-	self.calc_EFEs = program:kernel{
+	self.calc_EFEs = efeProgram:kernel{
 		name = 'calc_EFEs',
 		argsOut = {
 			self.EFEs,
@@ -1153,7 +1209,7 @@ function EFESolver:refreshKernels()
 	}
 
 	-- used by updateNewton:
-	self.calc_partial_gPrim_of_Phis_kernel = program:kernel{
+	self.calc_partial_gPrim_of_Phis_kernel = efeProgram:kernel{
 		name = 'calc_partial_gPrim_of_Phis_kernel',
 		argsOut = {
 			self.partial_gPrim_of_Phis,
@@ -1168,7 +1224,7 @@ function EFESolver:refreshKernels()
 		},
 	}
 
-	self.update_gPrims = program:kernel{
+	self.update_gPrims = efeProgram:kernel{
 		name = 'update_gPrims',
 		argsOut = {
 			self.gPrims,
@@ -1179,7 +1235,7 @@ function EFESolver:refreshKernels()
 	}
 
 	-- used by updateConjRes and updateGMRes
-	self.calc_EinsteinLLs = program:kernel{
+	self.calc_EinsteinLLs = efeProgram:kernel{
 		name = 'calc_EinsteinLLs',
 		argsOut = {
 			-- don't provide an actual buffer here
@@ -1192,17 +1248,15 @@ function EFESolver:refreshKernels()
 			self.GammaULLs,
 		},
 	}
-	self.calc_8piTLLs = program:kernel{name='calc_8piTLLs', argsOut={self._8piTLLs}, argsIn={self.TPrims, self.gLLs}}
+	self.calc_8piTLLs = efeProgram:kernel{name='calc_8piTLLs', argsOut={self._8piTLLs}, argsIn={self.TPrims, self.gLLs}}
 
-	self.init_gPrims = program:kernel{
+	self.init_gPrims = efeProgram:kernel{
 		name = 'init_gPrims',
 		argsOut = {
 			self.gPrims,
 		},
 	}
 
-	print'compiling code...'
-	program:compile()
 
 	print'done compiling code!'
 
@@ -1211,8 +1265,10 @@ function EFESolver:refreshKernels()
 end
 
 function EFESolver:refreshDisplayKernel()
+timer('refreshDisplayKernel', function()
 	-- if we got bad display code then don't crash the whole app
 	xpcall(function()
+--[=[ recompile everything into a full new program 
 		self.updateDisplayKernel = self:kernel{
 			name = 'display',
 			header = self.efeCode,
@@ -1234,10 +1290,64 @@ function EFESolver:refreshDisplayKernel()
 			},
 		}
 		self.updateDisplayKernel:compile()
+--]=]
+-- [=[ link into the previous .o 
+		local displayProgramObj = self:program{
+			-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
+			code = self:template[[
+kernel void display(
+	global real * const texCLBuf,
+	global <?=TPrim_t?> const * const TPrims,
+	global gPrim_t const * const gPrims,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
+	global real4x4s4 const * const GammaULLs,
+	global real4s4 const * const EFEs
+) {
+	initKernel();
+<?=solver.displayCode?>
+}
+]],
+		}
+		displayProgramObj:compile{
+			dontLink = true,
+		}
+		local displayProgramLib = self:program{
+			programs = {displayProgramObj},
+			verbose = true,
+			buildOptions = '-create-library',
+		}
+
+		-- getting link errors
+		local displayProgram = self:program{
+			programs = {
+				self.efeProgramLib,
+				displayProgramLib,
+				--self.efeProgramObj,
+				--displayProgramObj,
+			},
+		}
+
+		self.updateDisplayKernel = displayProgram:kernel{
+			name = 'display',
+			argsIn = table{
+				self.TPrims,
+				self.gPrims,
+				self.gLLs,
+				self.gUUs,
+				self.GammaULLs,
+				self.EFEs,
+			},
+			argsOut = {
+				self.texCLBuf,
+			},
+		}	
+--]=]
 		self:updateTex()
 	end, function(err)
 		print(err..'\n'..debug.traceback())
 	end)
+end)
 end
 
 function EFESolver:refreshDisplayVar()

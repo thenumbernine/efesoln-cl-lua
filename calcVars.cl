@@ -525,7 +525,7 @@ kernel void calc_EFEs(
 
 // gradient descent , but I'm moving everything into this file so the display shader can see it...
 
-static inline real4s4x4s4 calc_partial_gLL_of_8piTLL(
+inline real4s4x4s4 calc_partial_gLL_of_8piTLL(
 	<?=TPrim_t?> const TPrim,
 	real4s4 const gLL,
 	real4s4 const gUU
@@ -622,11 +622,11 @@ static constant int4 const int4_dirs[3] = {
 	(int4)(0, 1, 0, 0),
 	(int4)(0, 0, 1, 0),
 };
-static inline int4 int4_dir(int dim, int offset) {
+inline int4 int4_dir(int dim, int offset) {
 	return int4_dirs[dim] * offset;
 }
 
-static inline real4s4 EFE_LL_minus_half_trace_at(
+inline real4s4 EFE_LL_minus_half_trace_at(
 	int4 const i,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
@@ -655,7 +655,7 @@ static inline real4s4 EFE_LL_minus_half_trace_at(
 // this is hardcoded to g_ab = η_ab at boundaries
 //TODO ... consider boundary conditions
 // or TODO ... put all g^ab boundary conditions here, and use this function in the finite-difference calculations
-static inline real4s4 gUU_at(
+inline real4s4 gUU_at(
 	int4 const i,
 	global real4s4 const * const gUUs
 ) {
@@ -669,7 +669,7 @@ static inline real4s4 gUU_at(
 }
 
 //GammaULL.a.b.c := Γ^a_bc
-static inline real4x4s4 GammaULL_at(
+inline real4x4s4 GammaULL_at(
 	int4 const i,
 	global real4x4s4 const * const GammaULLs
 ) {
@@ -684,7 +684,7 @@ static inline real4x4s4 GammaULL_at(
 }
 
 //GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
-static inline real4x4x4 GammaUUL_at(
+inline real4x4x4 GammaUUL_at(
 	int4 const i,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
@@ -699,7 +699,7 @@ static inline real4x4x4 GammaUUL_at(
 	return real4x4s4_real4s4_mul21(GammaULLs[index], gUUs[index]);
 }
 
-static inline real4s4 calc_partial_gLL_of_Phi(
+inline real4s4 calc_partial_gLL_of_Phi(
 	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global real4s4 const * const gLLs,
@@ -827,6 +827,10 @@ static inline real4s4 calc_partial_gLL_of_Phi(
 		}
 	}
 
+//TODO this function is returning nans , specifically in .s[0]
+// but ... where does that come from?
+// nans even just for assigning it to 0
+
 	//partial_gLL_of_Phi.pq := ∂Φ/∂g_pq
 	real4s4 partial_gLL_of_Phi;
 	// first calculate non-partial non ∂/∂g_pq terms:
@@ -834,7 +838,7 @@ static inline real4s4 calc_partial_gLL_of_Phi(
 		for (int q = p; q < stDim; ++q) {
 			int const pq = sym4[p][q];
 			real sum = 0;
-#if 1
+#if 0
 			// -(G_pq - 8 π T_pq) R
 			sum -= EFE.s[pq] * Gaussian;
 #endif
@@ -1014,7 +1018,7 @@ static inline real4s4 calc_partial_gLL_of_Phi(
 	return partial_gLL_of_Phi;
 }
 
-static inline gPrim_t calc_partial_gPrim_of_Phi(
+inline gPrim_t calc_partial_gPrim_of_Phi(
 	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
