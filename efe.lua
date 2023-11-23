@@ -683,13 +683,17 @@ texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
-texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL.s0<?=i+1?>)) * c;
+texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
 ]]},
 		{['|Einstein_ij| (kg/(m s^2))'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 
+		{['Gaussian'] = [[
+real4s4 const RicciLL = calc_RicciLL(i, gLLs, gUUs, GammaULLs);
+texCLBuf[index] = real4s4_dot(RicciLL, gUUs[index]);
+]]},
 --[=[
 --[[
 testing how well gradient-descent works for finite-difference stuff
@@ -1183,27 +1187,32 @@ function EFESolver:refreshKernels()
 end
 
 function EFESolver:refreshDisplayKernel()
-	self.updateDisplayKernel = self:kernel{
-		name = 'display',
-		body = template(self.displayCode, {
-			sDim = self.sDim,
-			sym = sym,
-			solver = self,
-		}),
-		argsIn = table{
-			self.TPrims,
-			self.gPrims,
-			self.gLLs,
-			self.gUUs,
-			self.GammaULLs,
-			self.EFEs,
-		},
-		argsOut = {
-			self.texCLBuf,
-		},
-	}
-	self.updateDisplayKernel:compile()
-	self:updateTex()
+	-- if we got bad display code then don't crash the whole app
+	xpcall(function()
+		self.updateDisplayKernel = self:kernel{
+			name = 'display',
+			body = template(self.displayCode, {
+				sDim = self.sDim,
+				sym = sym,
+				solver = self,
+			}),
+			argsIn = table{
+				self.TPrims,
+				self.gPrims,
+				self.gLLs,
+				self.gUUs,
+				self.GammaULLs,
+				self.EFEs,
+			},
+			argsOut = {
+				self.texCLBuf,
+			},
+		}
+		self.updateDisplayKernel:compile()
+		self:updateTex()
+	end, function(err)
+		print(err..'\n'..debug.traceback())
+	end)
 end
 
 function EFESolver:refreshDisplayVar()
@@ -1304,8 +1313,8 @@ function EFESolver:calcResidual()
 		local fptr = ffi.cast('real*', cpu[i].s)
 		for j=0,m-1 do
 --print(i,j, cpu[i].s[j])
-			sum = sum + (fptr[j] / G)^2
---			sum = sum + (fptr[j])^2
+--			sum = sum + (fptr[j] / G)^2
+			sum = sum + (fptr[j])^2
 		end
 	end
 	return math.sqrt(sum) / volume

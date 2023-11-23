@@ -533,33 +533,13 @@ static inline real3 getX(int4 i) {
 		xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
 }
 
-//[1/m^2]
-real4x4x4s4 calc_partial_xU_of_GammaULL(
-	int4 const i,
-	global real4x4s4 const * const GammaULLs
-) {
-	int index = indexForInt4ForSize(i, size.x, size.y, size.z);
-
-	//partial_xU_of_GammaULL.a.b.cd := ∂/∂x^a(Γ^b_cd)
-<?=solver:finiteDifference{
-	bufferName = "GammaULLs",
-	srcType = "4x4s4",
-	resultName = "partial_xU_of_GammaULL",
-}?>
-
-	return partial_xU_of_GammaULL;
-}
-
-//[1/m^2]
-real4s4 calc_EinsteinLL(
+static inline real4s4 calc_RicciLL(
 	int4 const i,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
 	int const index = indexForInt4(i);
-
-	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(i, GammaULLs);
 
 	//this Ricci calculation differs from the one in calc_partial_gLL_of_Phis because
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
@@ -672,17 +652,30 @@ real4s4 calc_EinsteinLL(
 
 <? end  -- testing to make sure contraction of Riemann == Ricci ?>
 
-	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
-
-	return real4s4_mul_add(
-		RicciLL,
-		gLLs[index],
-		-.5 * Gaussian
-	);
+	return RicciLL;
 }
 
 //[1/m^2]
-real4s4 calc_8piTLL(
+static inline real4s4 calc_EinsteinLL(
+	int4 const i,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
+	global real4x4s4 const * const GammaULLs
+) {
+	int const index = indexForInt4(i);
+	
+	//RicciLL.ab := R_ab
+	real4s4 const RicciLL = calc_RicciLL(i, gLLs, gUUs, GammaULLs);
+	
+	//Gaussian := R = R_ab g^ab
+	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
+
+	//G_uv = R_uv - 1/2 g_uv R
+	return real4s4_mul_add(RicciLL, gLLs[index], -.5 * Gaussian);
+}
+
+//[1/m^2]
+static inline real4s4 calc_8piTLL(
 	real4s4 const gLL,
 	<?=TPrim_t?> const TPrim
 ) {
@@ -711,7 +704,7 @@ if solver.body.useEM then
 		sqrt_det_g
 	);
 
-	_8piTLL.s00 += ESq + BSq;
+	_8piTLL.s[sym4[0][0]] += ESq + BSq;
 	for (int i = 0; i < sDim; ++i) {
 		_8piTLL.s[sym4[0][i+1]] += -2. * SL.s[i];
 		for (int j = i; j < sDim; ++j) {
@@ -729,10 +722,13 @@ if solver.body.useMatter then
 	real4 const vL = real4s4_real4_mul(gLL, vU);
 	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
+	//real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
+	real4 const uU = (real4){.s0 = W, .s1 = W * vU.s1, .s2 = W * vU.s2, .s3 = W * vU.s3}};
 	real4 const uL = real4s4_real4_mul(gLL, uU);
 	<? else ?>//otherwise uL = gLL.s0
-	real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
+	//real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
+	//real4 const uL = (real4){.s={gLL.s[sym4[0][0]], gLL.s[sym4[0][1]], gLL.s[sym4[0][2]], gLL.s[sym4[0][3]]}};
+	real4 const uL = (real4){.s0 = gLL.s00, .s1 = gLL.s01, .s2 = gLL.s02, .s3 = gLL.s03};
 <?
 	end
 ?>

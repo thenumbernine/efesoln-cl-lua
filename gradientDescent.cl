@@ -24,7 +24,7 @@ if solver.body.useEM then ?>
 		for (int f = e; f < stDim; ++f) {
 			int const ef = sym4[e][f];
 			if (e > 0 && f > 0) {
-				partial_gLL_of_8piTLL.s[ef].s00 += TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1];
+				partial_gLL_of_8piTLL.s[ef].s[sym4[0][0]] += TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1];
 			}
 			for (int i = 0; i < sDim; ++i) {
 				partial_gLL_of_8piTLL.s[ef].s[sym4[0][i+1]] -= SL.s[i] * gUU.s[ef];
@@ -59,12 +59,15 @@ if solver.body.useMatter then
 	real4 const vL = real4s4_real4_mul(gLL, vU);
 	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
+	//real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
+	real4 const uU = (real4){.s0 = W, .s1 = W * vU.s1, .s2 = W * vU.s2, .s3 = W * vU.s3}};
 	real4 const uL = real4s4_real4_mul(gLL, uU);
 <?
 	else -- otherwise uL = gLL.s0
 ?>
-	real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
+	//real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
+	//real4 const uL = (real4){.s={gLL.s[sym4[0][0]], gLL.s[sym4[0][1]], gLL.s[sym4[0][2]], gLL.s[sym4[0][3]]}};
+	real4 const uL = (real4){.s0 = gLL.s00, .s1 = gLL.s01, .s2 = gLL.s02, .s3 = gLL.s03};
 <?
 	end
 ?>
@@ -309,13 +312,15 @@ kernel void calc_partial_gPrim_of_Phis(
 		for (int q = p; q < stDim; ++q) {
 			int const pq = sym4[p][q];
 			real sum = 0;
-
-#if 0
+#if 1
 			// -(G_pq - 8 π T_pq) R
 			sum -= EFE.s[pq] * Gaussian;
+#endif 
+#if 0
 			// + Sum_ab EFE_ab 1/2 g_ab R^pq
 			sum += EFE_LL_dot_gLL * .5 * RicciUU.s[pq];
-			
+#endif 
+#if 0
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
 					int const ab = sym4[a][b];
@@ -323,6 +328,8 @@ kernel void calc_partial_gPrim_of_Phis(
 					sum -= EFE.s[ab] * partial_gLL_of_8piTLL.s[pq].s[ab];
 				}
 			}		
+#endif 
+#if 0
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
 					int const uv = sym4[u][v];
@@ -335,7 +342,7 @@ kernel void calc_partial_gPrim_of_Phis(
 				}
 			}
 #endif
-#if 0	
+#if 0
 			// next calculate first-derivatives of ∂/∂g_pq terms:
 			for (int dim = 0; dim < sDim; ++dim) {
 				for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
@@ -483,25 +490,24 @@ kernel void calc_partial_gPrim_of_Phis(
 	}
 
 	global gPrim_t * const partial_gPrim_of_Phi = partial_gPrim_of_Phis + index;
-	gPrim_t const gPrim = gPrims[index];
-
 	partial_gPrim_of_Phi->alpha = 0;
 	partial_gPrim_of_Phi->betaU = real3_zero;
 	partial_gPrim_of_Phi->gammaLL = real3s3_zero;
 
+	gPrim_t const gPrim = gPrims[index];
 	real3s3 const gammaLL = gPrim.gammaLL;
 	real3 const betaU = gPrim.betaU;
 	real3 const betaL = real3s3_real3_mul(gammaLL, betaU);
 
 <?
 if solver.convergeAlpha then
-?>	partial_gPrim_of_Phi->alpha = -2. * gPrim.alpha * partial_gLL_of_Phi.s00;
+?>	partial_gPrim_of_Phi->alpha = -2. * gPrim.alpha * partial_gLL_of_Phi.s[sym4[0][0]];
 <?
 end
 if solver.convergeBeta then
 ?>
 	for (int m = 0; m < sDim; ++m) {
-		partial_gPrim_of_Phi->betaU.s[m] = 2. * partial_gLL_of_Phi.s00 * betaL.s[m];
+		partial_gPrim_of_Phi->betaU.s[m] = 2. * partial_gLL_of_Phi.s[sym4[0][0]] * betaL.s[m];
 		for (int n = 0; n < sDim; ++n) {
 			partial_gPrim_of_Phi->betaU.s[m] += partial_gLL_of_Phi.s[sym4[0][n+1]] * gammaLL.s[sym3[n][m]];
 		}
@@ -516,7 +522,7 @@ if solver.convergeGamma then
 			partial_gPrim_of_Phi->gammaLL.s[mn] =
 				partial_gLL_of_Phi.s[sym4[m+1][n+1]]
 				+ betaU.s[m] * (
-					  partial_gLL_of_Phi.s00 * betaU.s[n]
+					  partial_gLL_of_Phi.s[sym4[0][0]] * betaU.s[n]
 					+ 2. * partial_gLL_of_Phi.s[sym4[0][n+1]]
 				);
 		}
@@ -534,7 +540,7 @@ end
 	partial_gPrim_of_Phi->betaU = real3_real_mul(partial_gPrim_of_Phi->betaU, c*c*c*c/G);
 	partial_gPrim_of_Phi->gammaLL = real3s3_real_mul(partial_gPrim_of_Phi->gammaLL, c*c*c*c/G);
 #endif
-#if 1 //debugging
+#if 0 //debugging
 	partial_gPrim_of_Phi->alpha = 0;
 	partial_gPrim_of_Phi->betaU = real3_zero;
 	partial_gPrim_of_Phi->gammaLL = real3s3_zero;
@@ -550,8 +556,7 @@ kernel void update_gPrims(
 	global gPrim_t * const gPrim = gPrims + index;
 	gPrim_t const partial_gPrim_of_Phi = partial_gPrim_of_Phis[index];
 
-//debugging
-#if 1
+#if 0 //debugging
 	gPrim->alpha = 1;
 	gPrim->betaU = real3_zero;
 	gPrim->gammaLL = real3s3_ident;

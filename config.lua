@@ -4,7 +4,7 @@ return {
 	--size = 8,
 	
 	-- line trace amount
-	updateLambda = 1e-3,
+	updateLambda = 1e+9,
 
 	--body = 'vacuum',
 	body = 'Earth',
@@ -26,8 +26,7 @@ return {
 	--solver = 'GMRes',
 	--solver = 'JFNK',
 
-	--useLineSearch = true,
-	useLineSearch = false,
+	useLineSearch = true,
 
 	-- finite-difference order
 	diffOrder = 2,
