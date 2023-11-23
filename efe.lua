@@ -663,6 +663,7 @@ texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index]));
 		{['numerical gravity'] = [[
 texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
 ]]},
+		{['norm|EFE_ab|'] = 'texCLBuf[index] = real4s4_norm(EFEs[index]);'},
 		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
 		{['|EFE_ti|*c'] = [[texCLBuf[index] = real3_len(real4s4_i0(EFEs[index])) * c;]]},
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
@@ -679,7 +680,7 @@ texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
 ]]},
-		{['|Einstein_ij| (kg/(m s^2))'] = [[
+		{['det|Einstein_ij| (kg/(m s^2))'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
@@ -695,13 +696,13 @@ texCLBuf[index] = real4s4_normSq(partial_gLL_of_Phi);
 gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
 texCLBuf[index] = partial_gPrim_of_Phi.alpha;
 ]]},
-		{['|partial_gPrim_of_Phi.beta|'] = [[
+		{['norm|partial_gPrim_of_Phi.beta|'] = [[
 gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
-texCLBuf[index] = real3_normSq(partial_gPrim_of_Phi.betaU);
+texCLBuf[index] = real3_norm(partial_gPrim_of_Phi.betaU);
 ]]},
-		{['|partial_gPrim_of_Phi.gamma|'] = [[
+		{['norm|partial_gPrim_of_Phi.gamma|'] = [[
 gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
-texCLBuf[index] = real3s3_normSq(partial_gPrim_of_Phi.gammaLL);
+texCLBuf[index] = real3s3_norm(partial_gPrim_of_Phi.gammaLL);
 ]]},
 --[=[
 --[[
@@ -1083,8 +1084,8 @@ function EFESolver:refreshKernels()
 
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
 	local program = self:program{code=code}
---]]	
-	
+--]]
+
 	-- append efe.cl to the environment code
 	self.efeCode = self:template(table{
 			path'efe.cl':read(),
@@ -1255,11 +1256,11 @@ function EFESolver:resetState()
 --self:printbuf'TPrims'
 
 	self:updateAux()	-- calc gLLs, gUUs, GammaLLs, EFEs
---self:printbuf'gLLs'	
---self:printbuf'gUUs'	
---self:printbuf'GammaULLs'	
+--self:printbuf'gLLs'
+--self:printbuf'gUUs'
+--self:printbuf'GammaULLs'
 --self:printbuf'EFEs'
-	
+
 	self:updateTex()
 print('residual', self:calcResidual())
 

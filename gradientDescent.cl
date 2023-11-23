@@ -19,7 +19,7 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 		gUUs,
 		GammaULLs,
 		EFEs
-	);	
+	);
 
 #if 0
 	//scale up our gradient?

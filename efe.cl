@@ -123,7 +123,7 @@ static inline <?=ctype?> <?=ctype?>_<?=op?>(<?=ctype?> const a, <?=ctype?> const
 	for _,op in ipairs{"mul", "div"} do
 ?>
 static inline <?=ctype?> <?=ctype?>_real_<?=op?>(<?=ctype?> const a, real const b) {
-#if 0	//might work, but the equivalent add/sub is failing, so ...	
+#if 0	//might work, but the equivalent add/sub is failing, so ...
 	return (<?=ctype?>){
 <? 		for _,field in ipairs(fields) do
 ?>	.<?=field?> = <?=fieldtype?>_real_<?=op?>(a.<?=field?>, b),
@@ -663,10 +663,10 @@ static inline real4s4 calc_EinsteinLL(
 	global real4x4s4 const * const GammaULLs
 ) {
 	int const index = indexForInt4(i);
-	
+
 	//RicciLL.ab := R_ab
 	real4s4 const RicciLL = calc_RicciLL(i, gLLs, gUUs, GammaULLs);
-	
+
 	//Gaussian := R = R_ab g^ab
 	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
 
