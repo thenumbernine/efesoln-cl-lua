@@ -450,7 +450,7 @@ kernel void calc_EinsteinLLs(
 	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
-	EinsteinLLs[index] = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	EinsteinLLs[index] = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 }
 
 kernel void calc_8piTLLs(
@@ -472,7 +472,7 @@ kernel void calc_EFEs(
 	initKernel();
 	<?=TPrim_t?> const TPrim = TPrims[index];
 	real4s4 const gLL = gLLs[index];
-	real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+	real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
 	EFEs[index] = real4s4_sub(EinsteinLL, _8piTLL);

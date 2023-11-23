@@ -105,9 +105,12 @@ static inline real4s4 EFE_LL_minus_half_trace_at(
 	global real4s4 const * const gUUs,
 	global real4s4 const * const EFEs
 ) {
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+		i.x >= size.x || i.y >= size.y || i.z >= size.z
+	) {
 		return real4s4_zero;	//TODO ... consider boundary conditions
 	}
+	
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
 	real4s4 const gLL = gLLs[index];	// g_ab
 	real4s4 const gUU = gUUs[index];	// g^ab
@@ -129,7 +132,9 @@ static inline real4s4 gUU_at(
 	int4 const i,
 	global real4s4 const * const gUUs
 ) {
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+		i.x >= size.x || i.y >= size.y || i.z >= size.z
+	) {
 		return real4s4_Minkowski;
 	}
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
@@ -141,9 +146,12 @@ static inline real4x4s4 GammaULL_at(
 	int4 const i,
 	global real4x4s4 const * const GammaULLs
 ) {
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+		i.x >= size.x || i.y >= size.y || i.z >= size.z
+	) {
 		return real4x4s4_zero;
 	}
+	
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
 	return GammaULLs[index];
 }
@@ -154,9 +162,12 @@ static inline real4x4x4 GammaUUL_at(
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+		i.x >= size.x || i.y >= size.y || i.z >= size.z
+	) {
 		return real4x4x4_zero;
 	}
+	
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
 	return real4x4s4_real4s4_mul21(GammaULLs[index], gUUs[index]);
 }
@@ -505,6 +516,7 @@ if solver.convergeGamma then
 end
 ?>
 
+#if 0
 	//scale up our gradient?
 	//scale by c^4 / G ~ 1e+44
 	// which is the units of conversion
@@ -512,6 +524,7 @@ end
 	partial_gPrim_of_Phi->alpha *= c*c*c*c/G;
 	partial_gPrim_of_Phi->betaU = real3_real_mul(partial_gPrim_of_Phi->betaU, c*c*c*c/G);
 	partial_gPrim_of_Phi->gammaLL = real3s3_real_mul(partial_gPrim_of_Phi->gammaLL, c*c*c*c/G);
+#endif
 }
 
 kernel void update_gPrims(

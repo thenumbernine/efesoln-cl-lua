@@ -668,19 +668,19 @@ texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real4s4_norm(EinsteinLL);
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL.s0<?=i+1?>)) * c;
 ]]},
 		{['|Einstein_ij| (kg/(m s^2))'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 

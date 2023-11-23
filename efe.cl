@@ -514,13 +514,9 @@ static inline real3 getX(int4 i) {
 
 //[1/m^2]
 real4x4x4s4 calc_partial_xU_of_GammaULL(
+	int4 const i,
 	global real4x4s4 const * const GammaULLs
 ) {
-	//initKernel();
-	int4 i = globalInt4();
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
-		return real4x4x4s4_zero;
-	}
 	int index = indexForInt4ForSize(i, size.x, size.y, size.z);
 
 	//partial_xU_of_GammaULL.a.b.cd := ∂/∂x^a(Γ^b_cd)
@@ -535,17 +531,14 @@ real4x4x4s4 calc_partial_xU_of_GammaULL(
 
 //[1/m^2]
 real4s4 calc_EinsteinLL(
+	int4 const i,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
-	int4 const i = globalInt4();
-	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
-		return real4s4_zero;
-	}
 	int const index = indexForInt4(i);
 
-	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(GammaULLs);
+	real4x4x4s4 const partial_xU_of_GammaULL = calc_partial_xU_of_GammaULL(i, GammaULLs);
 
 	//this Ricci calculation differs from the one in calc_partial_gLL_of_Phis because
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
