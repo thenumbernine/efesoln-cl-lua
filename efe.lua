@@ -12,7 +12,71 @@ local vec3d = require 'vec-ffi.vec3d'
 local gl = require 'gl'
 local CLEnv = require 'cl.obj.env'
 local clnumber = require 'cl.obj.number'
--- parameters:
+
+
+local CLProgram = require 'cl.obj.program'
+local CLClangProgram = CLProgram:subclass()
+
+function CLClangProgram:init(args)
+	self.name = assert(args.name)
+
+	-- ok I don't want super to hit the args.code condition
+	-- but I want to store the code for later, so
+	self.code = args.code
+	args.code = nil
+	
+	path'cache':mkdir()
+	self.cacheFileCL = 'cache/'..self.name..'.cl'
+	self.cacheFileBC = 'cache/'..self.name..'.bc'
+	self.cacheFileSPV = 'cache/'..self.name..'.spv'
+	CLClangProgram.super.init(self, args)
+end
+
+function CLClangProgram:compile(args)
+	local exec = require 'make.exec'
+	path(self.cacheFileCL):write(self:getCode())
+	require 'make.targets'{
+		verbose = true,
+		{
+			srcs = {self.cacheFileCL},
+			dsts = {self.cacheFileBC},
+			rule = function()
+				exec(table{
+					'clang',
+					'-v',
+					'--target=spir',
+					'-O0',
+					'-emit-llvm',
+					'-c',
+					'-o', ('%q'):format(path(self.cacheFileBC):fixpathsep()),
+					('%q'):format(path(self.cacheFileCL):fixpathsep()),
+				}:concat' ')
+			end,
+		},
+		{
+			srcs = {self.cacheFileBC},
+			dsts = {self.cacheFileSPV},
+			rule = function()
+				exec(table{
+					'llvm-spirv-16',
+					('%q'):format(self.cacheFileBC),
+					'-o', ('%q'):format(self.cacheFileSPV),
+				}:concat' ')
+			end,
+		},
+	}:run(self.cacheFileSPV)
+	self.IL = path(self.cacheFileSPV):read()
+	args = table(args):setmetatable(nil)
+	args.verbose = true
+	local results = CLClangProgram.super.compile(self, args)
+	assert(self.obj, "there must have been an error in your error handler")	-- otherwise it would have thrown an error
+	do--if self.obj then	-- did compile
+		print((self.name and self.name..' ' or '')..'log:')
+		-- TODO log per device ...
+		print(string.trim(self.obj:getLog(self.env.devices[1])))
+	end
+	return results
+end
 
 -- helper for indexing symmetric matrices
 local function sym(i,j)
@@ -23,6 +87,8 @@ end
 
 local c = 299792458			-- m/s
 local G = 6.67384e-11		-- m^3 / (kg s^2)
+
+-- parameters:
 
 -- spherical body, no charge, no velocity
 
@@ -1086,6 +1152,7 @@ function EFESolver:refreshKernels()
 	
 	print'compiling code...'
 
+--[==[ using cl api for compiling/linking...
 	--[[ all at once
 	local program = self:program{code=self.efeCode}
 	program:compile()
@@ -1153,6 +1220,15 @@ print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 --]=]
 	--]]
+--]==]
+-- [==[ using clang for compiling/linking...
+	local efeProgram = CLClangProgram{
+		name = 'efe',
+		env = self,
+		code = self.efeCode,
+	}
+	efeProgram:compile()
+-- ]==]
 
 	-- init
 	self.init_TPrims = efeProgram:kernel{
@@ -1248,7 +1324,11 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 			self.GammaULLs,
 		},
 	}
-	self.calc_8piTLLs = efeProgram:kernel{name='calc_8piTLLs', argsOut={self._8piTLLs}, argsIn={self.TPrims, self.gLLs}}
+	self.calc_8piTLLs = efeProgram:kernel{
+		name = 'calc_8piTLLs',
+		argsOut = {self._8piTLLs},
+		argsIn = {self.TPrims, self.gLLs},
+	}
 
 	self.init_gPrims = efeProgram:kernel{
 		name = 'init_gPrims',
@@ -1321,8 +1401,8 @@ kernel void display(
 		-- getting link errors
 		local displayProgram = self:program{
 			programs = {
-				self.efeProgramLib,
 				displayProgramLib,
+				self.efeProgramLib,
 				--self.efeProgramObj,
 				--displayProgramObj,
 			},
@@ -1357,9 +1437,9 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
---print'init_gPrims'
+print'init_gPrims'
 	self.init_gPrims()	-- initialize gPrims
---self:printbuf'gPrims'
+self:printbuf'gPrims'
 
 --print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims

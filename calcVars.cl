@@ -2,11 +2,21 @@
 // this is the only code that uses solver.body
 
 gPrim_t calc_gPrim_flat(real3 const x) {
+#if 1 // was working with cl compiling.
+	//not working with clang compiling ...
 	return (gPrim_t){
 		.alpha = 1,
 		.betaU = real3_zero,
 		.gammaLL = real3s3_ident,
 	};
+#endif
+#if 0
+	gPrim_t gPrim;
+	gPrim.alpha = 1;
+	gPrim.betaU = real3_zero;
+	gPrim.gammaLL = real3s3_ident;
+	return gPrim;
+#endif
 }
 
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
@@ -525,7 +535,7 @@ kernel void calc_EFEs(
 
 // gradient descent , but I'm moving everything into this file so the display shader can see it...
 
-inline real4s4x4s4 calc_partial_gLL_of_8piTLL(
+real4s4x4s4 calc_partial_gLL_of_8piTLL(
 	<?=TPrim_t?> const TPrim,
 	real4s4 const gLL,
 	real4s4 const gUU
@@ -622,11 +632,11 @@ static constant int4 const int4_dirs[3] = {
 	(int4)(0, 1, 0, 0),
 	(int4)(0, 0, 1, 0),
 };
-inline int4 int4_dir(int dim, int offset) {
+int4 int4_dir(int dim, int offset) {
 	return int4_dirs[dim] * offset;
 }
 
-inline real4s4 EFE_LL_minus_half_trace_at(
+real4s4 EFE_LL_minus_half_trace_at(
 	int4 const i,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
@@ -655,7 +665,7 @@ inline real4s4 EFE_LL_minus_half_trace_at(
 // this is hardcoded to g_ab = η_ab at boundaries
 //TODO ... consider boundary conditions
 // or TODO ... put all g^ab boundary conditions here, and use this function in the finite-difference calculations
-inline real4s4 gUU_at(
+real4s4 gUU_at(
 	int4 const i,
 	global real4s4 const * const gUUs
 ) {
@@ -669,7 +679,7 @@ inline real4s4 gUU_at(
 }
 
 //GammaULL.a.b.c := Γ^a_bc
-inline real4x4s4 GammaULL_at(
+real4x4s4 GammaULL_at(
 	int4 const i,
 	global real4x4s4 const * const GammaULLs
 ) {
@@ -684,7 +694,7 @@ inline real4x4s4 GammaULL_at(
 }
 
 //GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
-inline real4x4x4 GammaUUL_at(
+real4x4x4 GammaUUL_at(
 	int4 const i,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
@@ -699,7 +709,7 @@ inline real4x4x4 GammaUUL_at(
 	return real4x4s4_real4s4_mul21(GammaULLs[index], gUUs[index]);
 }
 
-inline real4s4 calc_partial_gLL_of_Phi(
+real4s4 calc_partial_gLL_of_Phi(
 	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global real4s4 const * const gLLs,
@@ -1018,7 +1028,7 @@ inline real4s4 calc_partial_gLL_of_Phi(
 	return partial_gLL_of_Phi;
 }
 
-inline gPrim_t calc_partial_gPrim_of_Phi(
+gPrim_t calc_partial_gPrim_of_Phi(
 	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
