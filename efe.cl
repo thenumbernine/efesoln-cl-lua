@@ -32,6 +32,14 @@ end
 ?>
 };
 
+static inline real d1coeff_for_offset(int offset) {
+	if (offset < 0) {
+		return -(real)offset * d1coeffs[-offset];
+	} else {
+		return (real)offset * d1coeffs[offset];
+	}
+}
+
 constant real const d2coeffs[] = {
 <?
 local d2coeffs = derivCoeffs[2][solver.diffOrder]
@@ -543,12 +551,8 @@ real4s4 calc_EinsteinLL(
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
 	// but this one doesn't need RiemannULLL, so we can contract one of the terms in RicciLL's calcs
 
-	// TODO use 2nd derivs + 2nd-deriv-finite-difference stencil
-
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-<? if true then -- used 2nd-deriv finite-difference stencil
-?>
 	real4s4 const gLL = gLLs[index];
 	real4s4 const gUU = gUUs[index];
 
@@ -653,30 +657,6 @@ real4s4 calc_EinsteinLL(
 	}
 
 <? end  -- testing to make sure contraction of Riemann == Ricci ?>
-
-<? else -- only use 1st-deriv finite-difference stencils (and difference-of-difference for 2nd-deriv)
-?>
-
-	real4 const Gamma12L = real4x4s4_tr12(GammaULL);
-	real4s4 RicciLL;
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = a; b < stDim; ++b) {
-			int const ab = sym4[a][b];
-			real sum = 0;
-			for (int c = 0; c < stDim; ++c) {
-				sum +=
-					+ partial_xU_of_GammaULL.s[c].s[c].s[ab]
-					- partial_xU_of_GammaULL.s[b].s[c].s[sym4[c][a]]
-					+ Gamma12L.s[c] * GammaULL.s[c].s[ab];
-				for (int d = 0; d < stDim; ++d) {
-					sum -= GammaULL.s[c].s[sym4[d][b]] * GammaULL.s[d].s[sym4[c][a]];
-				}
-			}
-			RicciLL.s[ab] = sum;
-		}
-	}
-<? end
-?>
 
 	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
 

@@ -136,6 +136,32 @@ static inline real4s4 gUU_at(
 	return gUUs[index];
 }
 
+//GammaULL.a.b.c := Γ^a_bc
+static inline real4x4s4 GammaULL_at(
+	int4 const i,
+	global real4x4s4 const * const GammaULLs
+) {
+	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+		return real4x4s4_zero;
+	}
+	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	return GammaULLs[index];
+}
+
+//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
+static inline real4x4x4 GammaUUL_at(
+	int4 const i,
+	global real4s4 const * const gUUs,
+	global real4x4s4 const * const GammaULLs
+) {
+	if (i.x >= size.x || i.y >= size.y || i.z >= size.z) {
+		return real4x4x4_zero;
+	}
+	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	return real4x4s4_real4s4_mul21(GammaULLs[index], gUUs[index]);
+}
+
+
 kernel void calc_partial_gPrim_of_Phis(
 	global gPrim_t * const partial_gPrim_of_Phis,
 	global <?=TPrim_t?> const * const TPrims,
@@ -297,48 +323,90 @@ kernel void calc_partial_gPrim_of_Phis(
 			}
 			
 			// next calculate first-derivatives of ∂/∂g_pq terms:
-			for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
-				if (offset == 0) continue;
-				//TODO
+			for (int dim = 0; dim < sDim; ++dim) {
+				for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
+					if (offset == 0) continue;
+					int4 const iofs = i + int4_dir(dim, offset);
+					// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) g^cd (δ^f_c δ^g_v Γ^e_ud + δ^f_u δ^g_d Γ^e_cv - δ^f_c δ^g_d Γ^e_uv - δ6f_u δ^g_v Γ^e_cd) 1/2 (∂/∂g_pq(x') (D_g[g_ef] + D_f[g_eg] - D_e[g_fg]) = δ^p_e δ^q_f d1coeff_g + δ^p_e δ^q_g d1coeff_f - δ^p_f δ^q_g d1coeff_e)
+					// ... expanding all 12 terms with symmath and simplifying...
+					/*
+					asking symmath to simplify this for me:
+					let H^uv = (G_ab - 8 π T_ab) (δ^u_a δ^v_b - 1/2 g_ab g^uv) = EFE_uv - 1/2 EFE_ab g_ab g^uv
+						> delta = Tensor.deltaSymbol()
+						> g = Tensor.metricSymbol()
+						> (H'^uv' * g'^cd' * (delta'^f_c' * delta'^g_v' * Gamma'^e_ud' + delta'^f_u' * delta'^g_d' * Gamma'^e_cv' - delta'^f_c' * delta'^g_d' * Gamma'^e_uv' - delta'^f_u' * delta'^g_v' * Gamma'^e_cd') * (delta'^p_e' * delta'^q_f' * phi'_g' + delta'^p_e' * delta'^q_g' * phi'_f' - delta'^p_f' * delta'^q_g' * phi'_e'))
+							:simplifyMetrics()
+							:symmetrizeIndexes(H, {1,2})()
+							:symmetrizeIndexes(Gamma, {2,3})()
+							:symmetrizeIndexes(g, {1,2})()
+							:tidyIndexes()()
+							:symmetrizeIndexes(H, {1,2})()
+							:favorTensorVariance(phi'_a')()
+					...gives...
+							  φ_a * H^pq * Γ^ab_b 
+						-     φ_a * H^pb * Γ^aq_b 
+						-     φ_a * H^bq * Γ^ap_b 
+						+     φ_a * H^bc * Γ^a_bc * g^pq
+						- 2 * φ_a * H^aq * Γ^pb_b 
+						+ 2 * φ_a * H^ab * Γ^pq_b 
+						+ 2 * φ_a * H^bq * Γ^pa_b 
+						- 2 * φ_a * H^bc * Γ^p_cb * g^aq
+					*/				
+					int const a = dim+1;
+					for (int b = 0; b < stDim; ++b) {
+						sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][b]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[a].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[b][q]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[a].s[p].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						for (int c = 0; c < stDim; ++c) {
+							sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[b][c]] * GammaULL_at(iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_at(iofs, gUUs).s[sym4[p][q]] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						}
+						sum -= EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[a][q]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[p].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum += EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[a][b]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[p].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum += EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[b][q]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[p].s[a].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						for (int c = 0; c < stDim; ++c) {
+							sum -= EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[b][c]] * GammaULL_at(iofs, GammaULLs).s[p].s[sym4[c][b]] * gUU_at(iofs, gUUs).s[sym4[a][q]] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						}
+					}
+				}
 			}
 			// next calculate second-derivatives of ∂/∂g_pq terms:
-			for (int dim1 = 0; dim1 < stDim; ++dim1) {
-				for (int dim2 = 0; dim2 < stDim; ++dim2) {
+			for (int dim1 = 0; dim1 < sDim; ++dim1) {
+				for (int dim2 = 0; dim2 < sDim; ++dim2) {
 					if (dim1 == dim2) {
 						for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
 							int4 const iofs = i + int4_dir(dim1, offset);
 							{
-								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_ud[g_cv] = 1/2 g^cd δ^p_c δ^q_v D^2 phi^2_ud)
-								// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (phi^2_ud) |x'=x + dx^u=dx^d
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_ud[g_cv] = δ^p_c δ^q_v D^2 d2coeff_ud)
+								// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (d2coeff_ud) |x'=x + dx^u=dx^d
 								int const u = dim1+1;
 								int const d = u;
 								sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][q]] 
 									* gUU_at(iofs, gUUs).s[sym4[p][d]] 
-									* (d2coeffs[abs(offset)] * inv_dx.s[u]);
+									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}{
-								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = 1/2 g^cd δ^p_u δ^q_d D^2 phi^2_cv)
-								// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (phi^2_cv) |x'=x + dx^v=dx^c
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d2coeff_cv)
+								// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d2coeff_cv) |x'=x + dx^v=dx^c
 								int const v = dim1+1;
 								int const c = v;
 								sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][v]] 
 									* gUU_at(iofs, gUUs).s[sym4[c][q]] 
-									* (d2coeffs[abs(offset)] * inv_dx.s[v]);
+									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}{
-								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = 1/2 g^cd δ^p_u δ^q_v D^2 phi^2_cd)
-								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (phi^2_cd) |x'=x + dx^c=dx^d
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d2coeff_cd)
+								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d2coeff_cd) |x'=x + dx^c=dx^d
 								int const c = dim1+1;
 								int const d = c;
 								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] 
 									* gUU_at(iofs, gUUs).s[sym4[c][d]] 
-									* (d2coeffs[abs(offset)] * inv_dx.s[c]);
+									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}{
-								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = 1/2 g^cd δ^p_c δ^q_d D^2 phi^2_uv)
-								// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (phi^2_uv) |x'=x + dx^u=dx^v
+								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d2coeff_uv)
+								// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d2coeff_uv) |x'=x + dx^u=dx^v
 								int const u = dim1+1;
 								int const v = u;
 								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][v]]
 									* gUU_at(iofs, gUUs).s[sym4[p][q]]
-									* (d2coeffs[abs(offset)] * inv_dx.s[u]);
+									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}
 						}
 					} else {
@@ -348,45 +416,45 @@ kernel void calc_partial_gPrim_of_Phis(
 								if (offset2 == 0) continue;
 								int4 const iofs = i + int4_dir(dim1, offset1) + int4_dir(dim2, offset2);
 								{
-									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_ud[g_cv] = 1/2 g^cd δ^p_c δ^q_v D^2 phi^2_ud)
-									// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (phi_u phi_d) |x'=x + dx^u + dx^d
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_ud[g_cv] = δ^p_c δ^q_v D^2 d1coeff_u d1coeff_d)
+									// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (d1coeff_u d1coeff_d) |x'=x + dx^u + dx^d
 									int const u = dim1+1;
 									int const d = dim2+1;
 									int const offset_u = offset1;
 									int const offset_d = offset2;
 									sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][q]]
 										* gUU_at(iofs, gUUs).s[sym4[p][d]] 
-										* (d1coeffs[abs(offset_u)] * d1coeffs[abs(offset_d)] * inv_dx.s[u] * inv_dx.s[d]);
+										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_d) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}{
-									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = 1/2 g^cd δ^p_u δ^q_d D^2 phi^2_cv)
-									// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (phi^2_cv) |x'=x + dx^v + dx^c
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d1coeff_c d1coeff_v)
+									// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d1coeff_c d1coeff_v) |x'=x + dx^v + dx^c
 									int const v = dim1+1;
 									int const c = dim2+1;
 									int const offset_v = offset1;
 									int const offset_c = offset2;
 									sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][v]] 
 										* gUU_at(iofs, gUUs).s[sym4[c][q]] 
-										* (d1coeffs[abs(offset_v)] * d1coeffs[abs(offset_c)] * inv_dx.s[v] * inv_dx.s[c]);
+										* (d1coeff_for_offset(offset_v) * d1coeff_for_offset(offset_c) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}{
-									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = 1/2 g^cd δ^p_u δ^q_v D^2 phi^2_cd)
-									// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (phi^2_cd) |x'=x + dx^c + dx^d
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d1coeff_c d1coeff_d)
+									// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d1coeff_c d1coeff_d) |x'=x + dx^c + dx^d
 									int const c = dim1+1;
 									int const d = dim2+1;
 									int const offset_c = offset1;
 									int const offset_d = offset2;
 									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] 
 										* gUU_at(iofs, gUUs).s[sym4[c][d]] 
-										* (d1coeffs[abs(offset_c)] * d1coeffs[abs(offset_d)] * inv_dx.s[c] * inv_dx.s[d]);
+										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}{
-									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) (1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = 1/2 g^cd δ^p_c δ^q_d D^2 phi^2_uv)
-									// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (phi^2_uv) |x'=x + dx^u + dx^v
+									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d1coeff_u d1coeff_v)
+									// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d1coeff_u d1coeff_v) |x'=x + dx^u + dx^v
 									int const u = dim1+1;
 									int const v = dim2+1;
 									int const offset_u = offset1;
 									int const offset_v = offset2;
 									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][v]]
 										* gUU_at(iofs, gUUs).s[sym4[p][q]]
-										* (d1coeffs[abs(offset_u)] * d1coeffs[abs(offset_v)] * inv_dx.s[u] * inv_dx.s[v]);
+										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}
 							}
 						}
