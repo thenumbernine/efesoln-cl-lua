@@ -592,13 +592,6 @@ typedef char int8_t;
 	self.xmin = vec3d(-1,-1,-1) * self.body.radius * config.bodyRadii
 	self.xmax = vec3d(1,1,1) * self.body.radius * config.bodyRadii
 
-	-- append efe.cl to the environment code
-	self.code = self.code .. '\n'
-		.. self:template(path'efe.cl':read())
-
-	path'cache':mkdir()
-	path'cache/efe.cl':write(self.code)
-
 	self.updateLambda = config.updateLambda
 
 	self.initCond = self.initConds:find(nil, function(initCond)
@@ -610,6 +603,7 @@ typedef char int8_t;
 	self.convergeAlpha = true
 	self.convergeBeta = false
 	self.convergeGamma = false	-- TODO option for converging a scalar gamma vs a matrix gamma
+
 
 	local function makeDiv(field)
 		return template([[
@@ -689,10 +683,25 @@ texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
 real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
-
 		{['Gaussian'] = [[
 real4s4 const RicciLL = calc_RicciLL(i, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real4s4_dot(RicciLL, gUUs[index]);
+]]},
+		{['partial_gLL_of_Phi'] = [[
+real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(i, TPrims, gLLs, gUUs, GammaULLs, EFEs);
+texCLBuf[index] = real4s4_normSq(partial_gLL_of_Phi);
+]]},
+		{['partial_gPrim_of_Phi.alpha'] = [[
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
+texCLBuf[index] = partial_gPrim_of_Phi.alpha;
+]]},
+		{['|partial_gPrim_of_Phi.beta|'] = [[
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
+texCLBuf[index] = real3_normSq(partial_gPrim_of_Phi.betaU);
+]]},
+		{['|partial_gPrim_of_Phi.gamma|'] = [[
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
+texCLBuf[index] = real3s3_normSq(partial_gPrim_of_Phi.gammaLL);
 ]]},
 --[=[
 --[[
@@ -1063,6 +1072,7 @@ function EFESolver:refreshKernels()
 	-- create code
 	print'preprocessing code...'
 
+--[[
 	local code = self:template(table{
 		path'calcVars.cl':read(),
 		path'gradientDescent.cl':read(),
@@ -1073,6 +1083,19 @@ function EFESolver:refreshKernels()
 
 	-- keep all these kernels in one program.  what's the advantage?  less compiling I guess.
 	local program = self:program{code=code}
+--]]	
+	
+	-- append efe.cl to the environment code
+	self.efeCode = self:template(table{
+			path'efe.cl':read(),
+			path'calcVars.cl':read(),
+			path'gradientDescent.cl':read()
+		}:concat'\n')
+
+	path'cache':mkdir()
+	path'cache/efe.cl':write(self.efeCode)
+
+	local program = self:program{code=self.efeCode}
 
 	-- init
 	self.init_TPrims = program:kernel{
@@ -1129,8 +1152,8 @@ function EFESolver:refreshKernels()
 	}
 
 	-- used by updateNewton:
-	self.calc_partial_gPrim_of_Phis = program:kernel{
-		name = 'calc_partial_gPrim_of_Phis',
+	self.calc_partial_gPrim_of_Phis_kernel = program:kernel{
+		name = 'calc_partial_gPrim_of_Phis_kernel',
 		argsOut = {
 			self.partial_gPrim_of_Phis,
 		},
@@ -1191,11 +1214,12 @@ function EFESolver:refreshDisplayKernel()
 	xpcall(function()
 		self.updateDisplayKernel = self:kernel{
 			name = 'display',
+			header = self.efeCode,
 			body = template(self.displayCode, {
-				sDim = self.sDim,
-				sym = sym,
-				solver = self,
-			}),
+					sDim = self.sDim,
+					sym = sym,
+					solver = self,
+				}),
 			argsIn = table{
 				self.TPrims,
 				self.gPrims,
@@ -1335,8 +1359,8 @@ function EFESolver:updateNewton()
 	--]]
 
 	-- here's the newton update method
---print'calc_partial_gPrim_of_Phis'
-	self.calc_partial_gPrim_of_Phis()
+--print'calc_partial_gPrim_of_Phis_kernel'
+	self.calc_partial_gPrim_of_Phis_kernel()
 --self:printbuf'partial_gPrim_of_Phis'
 	-- now that we have ∂Φ/∂g_ab
 	-- trace along g_ab - λ * ∂Φ/∂g_ab
