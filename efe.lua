@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 local ffi = require 'ffi'
 local class = require 'ext.class'
-local string = require 'ext.string'	-- defaultConcat
+local string = require 'ext.string'	-- concat
 local math = require 'ext.math'
 local table = require 'ext.table'
 local path = require 'ext.path'
@@ -545,7 +545,7 @@ typedef char int8_t;
 		__tostring = function(x)
 			return '{'..x.x..', '..x.y..', '..x.z..'}'
 		end,
-		__concat = string.defaultConcat,
+		__concat = string.concat,
 	})
 	ffi.metatype('real3s3', {
 		__tostring = function(x)
@@ -554,7 +554,7 @@ typedef char int8_t;
 			..x.yy..', '..x.yz..', '
 			..x.zz..'}'
 		end,
-		__concat = string.defaultConcat,
+		__concat = string.concat,
 	})
 	ffi.metatype('real4s4', {
 		__tostring = function(x)
@@ -564,7 +564,13 @@ typedef char int8_t;
 			..x.yy..', '..x.yz..', '
 			..x.zz..'}'
 		end,
-		__concat = string.defaultConcat,
+		__concat = string.concat,
+	})
+	ffi.metatype('real4x4s4', {
+		__tostring = function(x)
+			return '{'..x.t..', '..x.x..', '..x.y..', '..x.z..'}'
+		end,
+		__concat = string.concat,
 	})
 
 	--[[
@@ -1162,7 +1168,9 @@ function EFESolver:refreshKernels()
 
 	self.init_gPrims = program:kernel{
 		name = 'init_gPrims',
-		argsOut = {self.gPrims},
+		argsOut = {
+			self.gPrims,
+		},
 	}
 
 	print'compiling code...'
@@ -1205,16 +1213,22 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
---print'init_gPrims'
-	self.init_gPrims()
---self:printbuf'gPrims'
+print'init_gPrims'
+	self.init_gPrims()	-- initialize gPrims
+self:printbuf'gPrims'
 
---print'init_TPrims'
-	self.init_TPrims()
---self:printbuf'TPrims'
+print'init_TPrims'
+	self.init_TPrims()	-- initialize TPrims
+self:printbuf'TPrims'
 
-	self:updateAux()
+	self:updateAux()	-- calc gLLs, gUUs, GammaLLs, EFEs
+self:printbuf'gLLs'	
+self:printbuf'gUUs'	
+self:printbuf'GammaULLs'	
+self:printbuf'EFEs'
 	self:updateTex()
+
+print('residual', self:calcResidual())
 
 	self.iteration = 0
 end
@@ -1271,6 +1285,33 @@ substitute back into harmonic slicing condition:
 	self.iteration = self.iteration + 1
 end
 
+-- calc norm of self.EFEs
+function EFESolver:calcResidual()
+	--[[ hmmm....
+	self.jfnkSolver.args.scale(
+		self.tmpBuf,
+		self.EFEs,
+		1 / G)
+	return self.conjResSolver.args.dot(self.tmpBuf, self.tmpBuf)
+	--]]
+	-- [[
+	local cpu = self.EFEs:toCPU()
+	local sum = 0
+	local m = ffi.sizeof(self.EFEs.type) / ffi.sizeof'real'
+	assert(m == 10)	-- real4s4
+	local volume = tonumber(self.base.size:volume())
+	for i=0,volume-1 do
+		local fptr = ffi.cast('real*', cpu[i].s)
+		for j=0,m-1 do
+print(i,j, cpu[i].s[j])
+			--sum = sum + (fptr[j] / G)^2
+			sum = sum + (fptr[j])^2
+		end
+	end
+	return math.sqrt(sum) / volume
+	--]]
+end
+
 function EFESolver:updateNewton()
 	--[[
 	iteration:
@@ -1292,29 +1333,6 @@ function EFESolver:updateNewton()
 	-- trace along g_ab - λ * ∂Φ/∂g_ab
 	-- to find what λ gives us minimal residual
 
-	-- calc norm of self.EFEs
-	local function calcResidual()
-		--[[ hmmm....
-		self.jfnkSolver.args.scale(
-			self.tmpBuf,
-			self.EFEs,
-			1 / G)
-		return self.conjResSolver.args.dot(self.tmpBuf, self.tmpBuf)
-		--]]
-		-- [[
-		local ptr = self.EFEs:toCPU()
-		local sum = 0
-		local m = ffi.sizeof(self.EFEs.type) / ffi.sizeof'real'
-		local volume = tonumber(self.base.size:volume())
-		for i=0,volume-1 do
-			for j=0,m-1 do
-				sum = sum + (ptr[i].s[j] / G)^2
-			end
-		end
-		return math.sqrt(sum) / volume
-		--]]
-	end
-
 	if self.useLineSearch then	-- do bisect line search
 		-- store a backup.  TODO env:copy, and have ConjGrad:copy reference it.
 		self.conjResSolver.args.copy(self.gPrimsCopy, self.gPrims)
@@ -1327,7 +1345,7 @@ function EFESolver:updateNewton()
 			self.update_gPrims.obj:setArg(2, lambdaPtr)
 			self.update_gPrims()
 			self:updateAux()	-- calcs from gPrims on down to EFE
-			local residual = calcResidual()
+			local residual = self:calcResidual()
 print(('lambda=%.16e residual=%.16e'):format(lambda, residual))
 			return residual
 		end
@@ -1393,7 +1411,7 @@ print('lambda', self.updateLambda)
 	--]]
 
 	self:updateAux()
-print('residual', calcResidual())
+print('residual', self:calcResidual())
 	self:updateTex()
 end
 
@@ -1464,7 +1482,9 @@ function EFESolver:updateTex()
 end
 
 function EFESolver:printbuf(name)
+	print(tostring(name)..':')
 	local buf = assert(self[name])
+	local m = ffi.sizeof(buf.type) / ffi.sizeof'real'
 	local cpu = buf:toCPU()
 	for i=0,tonumber(self.base.size:volume()-1) do
 		local z = i
@@ -1472,7 +1492,13 @@ function EFESolver:printbuf(name)
 		z = tonumber((z - x) / self.base.size.x)
 		local y = tonumber(z % self.base.size.y)
 		z = tonumber((z - y) / self.base.size.y)
-		print(name..'('..x..', '..y..', '..z..') = '..cpu[i])
+		print(name..'('..x..', '..y..', '..z..') = '..tostring(cpu[i]))
+		local fptr = ffi.cast('real*', cpu[i].s)
+		for j=0,m-1 do
+			if not math.isfinite(fptr[j]) then
+				error("found a nan!")
+			end
+		end
 	end
 	print()
 end

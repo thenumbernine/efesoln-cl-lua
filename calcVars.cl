@@ -299,16 +299,19 @@ kernel void calc_GammaULLs(
 
 	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
-	real4x4s4 const GammaLLL = (real4x4s4){
-<?
-for a=0,stDim-1 do
-	for b=0,stDim-1 do
-		for c=b,stDim-1 do
-?>		.s<?=a?>.s<?=b?><?=c?> = .5 * (partial_xU_of_gLL.s<?=c?>.s<?=sym(a,b)?> + partial_xU_of_gLL.s<?=b?>.s<?=sym(a,c)?> - partial_xU_of_gLL.s<?=a?>.s<?=sym(b,c)?>),
-<?		end
-	end
-end
-?>	};
+	real4x4s4 GammaLLL;
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = b; c < stDim; ++c) {
+				int const bc = sym4[b][c];
+				GammaLLL.s[a].s[bc] = .5 * (
+					  partial_xU_of_gLL.s[c].s[sym4[a][b]]
+					+ partial_xU_of_gLL.s[b].s[sym4[a][c]]
+					- partial_xU_of_gLL.s[a].s[bc]
+				);
+			}
+		}
+	}
 
 	//Γ^a_bc = GammaULL.a.bc
 	//Γ^a_bc = g^ad Γ_dbc

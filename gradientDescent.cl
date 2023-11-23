@@ -308,12 +308,14 @@ kernel void calc_partial_gPrim_of_Phis(
 	for (int p = 0; p < stDim; ++p) {
 		for (int q = p; q < stDim; ++q) {
 			int const pq = sym4[p][q];
-			real sum = 
-				// -(G_pq - 8 π T_pq) R
-				-EFE.s[pq] * Gaussian				
-				// + Sum_ab EFE_ab 1/2 g_ab R^pq
-				+ EFE_LL_dot_gLL * .5 * RicciUU.s[pq];
-			;
+			real sum = 0;
+
+#if 0
+			// -(G_pq - 8 π T_pq) R
+			sum -= EFE.s[pq] * Gaussian;
+			// + Sum_ab EFE_ab 1/2 g_ab R^pq
+			sum += EFE_LL_dot_gLL * .5 * RicciUU.s[pq];
+			
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
 					int const ab = sym4[a][b];
@@ -325,14 +327,15 @@ kernel void calc_partial_gPrim_of_Phis(
 				for (int v = 0; v < stDim; ++v) {
 					int const uv = sym4[u][v];
 					sum -= EFE_LL_minus_half_trace.s[uv] * (
-					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) R^p_a^q_b
+					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) R^p_u^q_v
 						RiemannULUL.s[p].s[u].s[q].s[v]
 					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) (Γ^pc_v Γ^q_cu - Γ^pc_c Γ^q_uv)
 						+ GammaSq_tr_2_2.s[p].s[q].s[u].s[v]
 					);
 				}
 			}
-			
+#endif
+#if 0	
 			// next calculate first-derivatives of ∂/∂g_pq terms:
 			for (int dim = 0; dim < sDim; ++dim) {
 				for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
@@ -365,11 +368,11 @@ kernel void calc_partial_gPrim_of_Phis(
 					*/				
 					int const a = dim+1;
 					for (int b = 0; b < stDim; ++b) {
-						sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[pq] * GammaUUL_at(iofs, gUUs, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][b]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[a].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[b][q]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[a].s[p].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						for (int c = 0; c < stDim; ++c) {
-							sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[b][c]] * GammaULL_at(iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_at(iofs, gUUs).s[sym4[p][q]] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+							sum += .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[b][c]] * GammaULL_at(iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_at(iofs, gUUs).s[pq] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						}
 						sum -= EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[a][q]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[p].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						sum += EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[a][b]] * GammaUUL_at(iofs, gUUs, GammaULLs).s[p].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
@@ -380,6 +383,8 @@ kernel void calc_partial_gPrim_of_Phis(
 					}
 				}
 			}
+#endif
+#if 0
 			// next calculate second-derivatives of ∂/∂g_pq terms:
 			for (int dim1 = 0; dim1 < sDim; ++dim1) {
 				for (int dim2 = 0; dim2 < sDim; ++dim2) {
@@ -407,7 +412,7 @@ kernel void calc_partial_gPrim_of_Phis(
 								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d2coeff_cd) |x'=x + dx^c=dx^d
 								int const c = dim1+1;
 								int const d = c;
-								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] 
+								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[pq] 
 									* gUU_at(iofs, gUUs).s[sym4[c][d]] 
 									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}{
@@ -416,7 +421,7 @@ kernel void calc_partial_gPrim_of_Phis(
 								int const u = dim1+1;
 								int const v = u;
 								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][v]]
-									* gUU_at(iofs, gUUs).s[sym4[p][q]]
+									* gUU_at(iofs, gUUs).s[pq]
 									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}
 						}
@@ -453,7 +458,7 @@ kernel void calc_partial_gPrim_of_Phis(
 									int const d = dim2+1;
 									int const offset_c = offset1;
 									int const offset_d = offset2;
-									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[p][q]] 
+									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[pq] 
 										* gUU_at(iofs, gUUs).s[sym4[c][d]] 
 										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}{
@@ -464,7 +469,7 @@ kernel void calc_partial_gPrim_of_Phis(
 									int const offset_u = offset1;
 									int const offset_v = offset2;
 									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gLLs, gUUs, EFEs).s[sym4[u][v]]
-										* gUU_at(iofs, gUUs).s[sym4[p][q]]
+										* gUU_at(iofs, gUUs).s[pq]
 										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}
 							}
@@ -472,13 +477,17 @@ kernel void calc_partial_gPrim_of_Phis(
 					}
 				}
 			}
-			
+#endif			
 			partial_gLL_of_Phi.s[pq] = sum;
 		}
 	}
 
 	global gPrim_t * const partial_gPrim_of_Phi = partial_gPrim_of_Phis + index;
 	gPrim_t const gPrim = gPrims[index];
+
+	partial_gPrim_of_Phi->alpha = 0;
+	partial_gPrim_of_Phi->betaU = real3_zero;
+	partial_gPrim_of_Phi->gammaLL = real3s3_zero;
 
 	real3s3 const gammaLL = gPrim.gammaLL;
 	real3 const betaU = gPrim.betaU;
@@ -525,6 +534,11 @@ end
 	partial_gPrim_of_Phi->betaU = real3_real_mul(partial_gPrim_of_Phi->betaU, c*c*c*c/G);
 	partial_gPrim_of_Phi->gammaLL = real3s3_real_mul(partial_gPrim_of_Phi->gammaLL, c*c*c*c/G);
 #endif
+#if 1 //debugging
+	partial_gPrim_of_Phi->alpha = 0;
+	partial_gPrim_of_Phi->betaU = real3_zero;
+	partial_gPrim_of_Phi->gammaLL = real3s3_zero;
+#endif
 }
 
 kernel void update_gPrims(
@@ -536,29 +550,22 @@ kernel void update_gPrims(
 	global gPrim_t * const gPrim = gPrims + index;
 	gPrim_t const partial_gPrim_of_Phi = partial_gPrim_of_Phis[index];
 
-<?
-if solver.convergeAlpha then
-?>
-	gPrim->alpha -= updateLambda * partial_gPrim_of_Phi.alpha;
-<?
-end
+//debugging
+#if 1
+	gPrim->alpha = 1;
+	gPrim->betaU = real3_zero;
+	gPrim->gammaLL = real3s3_ident;
+	return;
+#endif
+
+<? if solver.convergeAlpha then
+?>	gPrim->alpha -= updateLambda * partial_gPrim_of_Phi.alpha;
+<? end
 if solver.convergeBeta then
-?>	
-	gPrim->betaU = real3_mul_add(
-		gPrim->betaU,
-		partial_gPrim_of_Phi.betaU,
-		-updateLambda
-	);
-<?
-end
+?>	gPrim->betaU = real3_mul_add(gPrim->betaU, partial_gPrim_of_Phi.betaU, -updateLambda);
+<? end
 if solver.convergeGamma then
-?>	
-	gPrim->gammaLL = real3s3_mul_add(
-		gPrim->gammaLL,
-		partial_gPrim_of_Phi.gammaLL,
-		-updateLambda
-	);
-<?
-end
+?>	gPrim->gammaLL = real3s3_mul_add(gPrim->gammaLL, partial_gPrim_of_Phi.gammaLL, -updateLambda);
+<? end
 ?>
 }

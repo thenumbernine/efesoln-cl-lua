@@ -26,7 +26,8 @@ return {
 	--solver = 'GMRes',
 	--solver = 'JFNK',
 
-	useLineSearch = true,
+	--useLineSearch = true,
+	useLineSearch = false,
 
 	-- finite-difference order
 	diffOrder = 2,
