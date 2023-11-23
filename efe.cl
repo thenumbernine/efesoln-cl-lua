@@ -98,11 +98,21 @@ constant <?=ctype?> const <?=ctype?>_zero = new_<?=ctype?>_zero();
 	for _,op in ipairs{"add", "sub"} do
 ?>
 static inline <?=ctype?> <?=ctype?>_<?=op?>(<?=ctype?> const a, <?=ctype?> const b) {
+
+#if 0 // compiler producing buggy output
 	return (<?=ctype?>){
 <? 		for _,field in ipairs(fields) do
 ?>	.<?=field?> = <?=fieldtype?>_<?=op?>(a.<?=field?>, b.<?=field?>),
 <? 		end
 ?>	};
+#else
+	<?=ctype?> result;
+<? for _,field in ipairs(fields) do
+?>	result.<?=field?> = <?=fieldtype?>_<?=op?>(a.<?=field?>, b.<?=field?>);
+<? end
+?>	return result;
+#endif
+
 }
 <?	end
 	for _,op in ipairs{"mul", "div"} do
@@ -173,9 +183,9 @@ static inline real4 real3_to_real4(real3 const a) {
 <?makeops("real4", "real", {"s0", "s1", "s2", "s3"})?>
 
 #define real3s3_ident ((real3s3){\
-	.xx = 1, .xy = 0, .xz = 0,\
-	.yy = 1, .yz = 0,\
-	.zz = 1,\
+	.s00 = 1, .s01 = 0, .s02 = 0,\
+	.s11 = 1, .s12 = 0,\
+	.s22 = 1,\
 })
 
 static inline real real3s3_det(real3s3 const m) {
@@ -191,20 +201,20 @@ static inline real real3s3_det(real3s3 const m) {
 
 static inline real3s3 real3s3_inv(real const d, real3s3 const m) {
 	return (real3s3){
-		.xx = (m.yy * m.zz - m.yz * m.yz) / d,
-		.xy = (m.xz * m.yz - m.xy * m.zz) / d,
-		.xz = (m.xy * m.yz - m.xz * m.yy) / d,
-		.yy = (m.xx * m.zz - m.xz * m.xz) / d,
-		.yz = (m.xz * m.xy - m.xx * m.yz) / d,
-		.zz = (m.xx * m.yy - m.xy * m.xy) / d,
+		.s00 = (m.s11 * m.s22 - m.s12 * m.s12) / d,
+		.s01 = (m.s02 * m.s12 - m.s01 * m.s22) / d,
+		.s02 = (m.s01 * m.s12 - m.s02 * m.s11) / d,
+		.s11 = (m.s00 * m.s22 - m.s02 * m.s02) / d,
+		.s12 = (m.s02 * m.s01 - m.s00 * m.s12) / d,
+		.s22 = (m.s00 * m.s11 - m.s01 * m.s01) / d,
 	};
 }
 
 static inline real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 	return (real3){
-		.x = m.xx * v.x + m.xy * v.y + m.xz * v.z,
-		.y = m.xy * v.y + m.yy * v.y + m.yz * v.z,
-		.z = m.xz * v.z + m.yz * v.y + m.zz * v.z,
+		.s0 = m.s00 * v.s0 + m.s01 * v.s1 + m.s02 * v.s2,
+		.s1 = m.s01 * v.s1 + m.s11 * v.s1 + m.s12 * v.s2,
+		.s2 = m.s02 * v.s2 + m.s12 * v.s1 + m.s22 * v.s2,
 	};
 }
 

@@ -543,32 +543,32 @@ typedef char int8_t;
 	local ffi = require 'ffi'
 	ffi.metatype('real3', {
 		__tostring = function(x)
-			return '{'..x.x..', '..x.y..', '..x.z..'}'
+			return '{'..x.s0..', '..x.s1..', '..x.s2..'}'
 		end,
 		__concat = string.concat,
 	})
 	ffi.metatype('real3s3', {
 		__tostring = function(x)
 			return '{'
-			..x.xx..', '..x.xy..', '..x.xz..', '
-			..x.yy..', '..x.yz..', '
-			..x.zz..'}'
+			..x.s00..', '..x.s01..', '..x.s02..', '
+			..x.s11..', '..x.s11..', '
+			..x.s22..'}'
 		end,
 		__concat = string.concat,
 	})
 	ffi.metatype('real4s4', {
 		__tostring = function(x)
 			return '{'
-			..x.tt..', '..x.tx..', '..x.ty..', '..x.tz..', '
-			..x.xx..', '..x.xy..', '..x.xz..', '
-			..x.yy..', '..x.yz..', '
-			..x.zz..'}'
+			..x.s00..', '..x.s01..', '..x.s02..', '..x.s03..', '
+			..x.s11..', '..x.s12..', '..x.s13..', '
+			..x.s22..', '..x.s23..', '
+			..x.s33..'}'
 		end,
 		__concat = string.concat,
 	})
 	ffi.metatype('real4x4s4', {
 		__tostring = function(x)
-			return '{'..x.t..', '..x.x..', '..x.y..', '..x.z..'}'
+			return '{'..x.s0..', '..x.s1..', '..x.s2..', '..x.s3..'}'
 		end,
 		__concat = string.concat,
 	})
@@ -1226,6 +1226,7 @@ self:printbuf'gLLs'
 self:printbuf'gUUs'	
 self:printbuf'GammaULLs'	
 self:printbuf'EFEs'
+	
 	self:updateTex()
 
 print('residual', self:calcResidual())
