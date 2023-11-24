@@ -352,7 +352,7 @@ function App:updateGUI()
 
 	--local size = ig.igGetWindowSize()
 	if ig.luatableInputTextMultiline('code', self.solver, 'displayCode',
-		ig.ImVec2(200,200),--ig.ImVec2(size.x, size.y - 56),
+		ig.ImVec2(400, 200),--ig.ImVec2(size.x, size.y - 56),
 		bit.bor(
 			ig.ImGuiInputTextFlags_EnterReturnsTrue,
 			ig.ImGuiInputTextFlags_AllowTabInput

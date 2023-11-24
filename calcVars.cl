@@ -2,8 +2,7 @@
 // this is the only code that uses solver.body
 
 gPrim_t calc_gPrim_flat(real3 const x) {
-#if 1 // was working with cl compiling.
-	//not working with clang compiling ...
+#if 0 
 	return (gPrim_t){
 		.alpha = 1,
 		.betaU = real3_zero,
@@ -15,6 +14,34 @@ gPrim_t calc_gPrim_flat(real3 const x) {
 	gPrim.alpha = 1;
 	gPrim.betaU = real3_zero;
 	gPrim.gammaLL = real3s3_ident;
+	return gPrim;
+#endif
+#if 0
+	gPrim_t gPrim;
+	gPrim.alpha = 1;
+	gPrim.betaU.x = 0;
+	gPrim.betaU.y = 0;
+	gPrim.betaU.z = 0;
+	gPrim.gammaLL.s[0] = 1;
+	gPrim.gammaLL.s[1] = 0;
+	gPrim.gammaLL.s[2] = 0;
+	gPrim.gammaLL.s[3] = 1;
+	gPrim.gammaLL.s[4] = 0;
+	gPrim.gammaLL.s[5] = 1;
+	return gPrim;
+#endif
+#if 1
+	gPrim_t gPrim;
+	gPrim.alpha = 1;
+	gPrim.betaU.x = 0;
+	gPrim.betaU.y = 0;
+	gPrim.betaU.z = 0;
+	gPrim.gammaLL.s[0] = 1;
+	gPrim.gammaLL.s[1] = 0;
+	gPrim.gammaLL.s[2] = 0;
+	gPrim.gammaLL.s[3] = 1;	//setting 3 sets 4 as well
+	gPrim.gammaLL.s[4] = 0;
+	gPrim.gammaLL.s[5] = 1;
 	return gPrim;
 #endif
 }
@@ -837,10 +864,6 @@ real4s4 calc_partial_gLL_of_Phi(
 		}
 	}
 
-//TODO this function is returning nans , specifically in .s[0]
-// but ... where does that come from?
-// nans even just for assigning it to 0
-
 	//partial_gLL_of_Phi.pq := ∂Φ/∂g_pq
 	real4s4 partial_gLL_of_Phi;
 	// first calculate non-partial non ∂/∂g_pq terms:
@@ -848,15 +871,15 @@ real4s4 calc_partial_gLL_of_Phi(
 		for (int q = p; q < stDim; ++q) {
 			int const pq = sym4[p][q];
 			real sum = 0;
-#if 0
+#if 1
 			// -(G_pq - 8 π T_pq) R
 			sum -= EFE.s[pq] * Gaussian;
 #endif
-#if 0
+#if 1
 			// + Sum_ab EFE_ab 1/2 g_ab R^pq
 			sum += EFE_LL_dot_gLL * .5 * RicciUU.s[pq];
 #endif
-#if 0
+#if 1
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
 					int const ab = sym4[a][b];
@@ -865,7 +888,7 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
-#if 0
+#if 1
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
 					int const uv = sym4[u][v];

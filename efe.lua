@@ -21,8 +21,11 @@ local function writeIfChanged(filename, data)
 	local srcpath = path(filename)
 	local srcdata = srcpath:read()
 	if srcdata ~= data then
+--[[
 		path'cache/tmp':write(data)
 		exec(table{'diff', ('%q'):format(filename), 'cache/tmp'}:concat' ', false)
+		path'cache/tmp':remove()
+--]]
 		assert(srcpath:write(data))
 	end
 end
@@ -661,7 +664,7 @@ typedef char int8_t;
 		__tostring = function(x)
 			return '{'
 			..x.s00..', '..x.s01..', '..x.s02..', '
-			..x.s11..', '..x.s11..', '
+			..x.s11..', '..x.s12..', '
 			..x.s22..'}'
 		end,
 		__concat = string.concat,
@@ -1486,9 +1489,9 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
---print'init_gPrims'
+print'init_gPrims'
 	self.init_gPrims()	-- initialize gPrims
---self:printbuf'gPrims'
+self:printbuf'gPrims'
 
 --print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims
@@ -1765,13 +1768,16 @@ function EFESolver:printbuf(name)
 		z = tonumber((z - x) / self.base.size.x)
 		local y = tonumber(z % self.base.size.y)
 		z = tonumber((z - y) / self.base.size.y)
-		print(name..'('..x..', '..y..', '..z..') = '..tostring(cpu[i]))
+		io.write(name..'('..x..', '..y..', '..z..') = '..tostring(cpu[i]))
+		io.write(' ... reals:')
 		local fptr = ffi.cast('real*', cpu[i].s)
 		for j=0,m-1 do
+			io.write(' ', fptr[j])
 			if not math.isfinite(fptr[j]) then
 				error("found a nan!")
 			end
 		end
+		print()
 	end
 	print()
 end

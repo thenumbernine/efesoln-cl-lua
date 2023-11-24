@@ -21,7 +21,7 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 		EFEs
 	);
 
-#if 0
+#if 1
 	//scale up our gradient?
 	//scale by c^4 / G ~ 1e+44
 	// which is the units of conversion
