@@ -81,6 +81,7 @@ real <?=ctype?>_len(<?=ctype?> const a);
 #define <?=ctype?>_norm <?=ctype?>_len
 
 <?
+	makeAdds(ctype)
 end
 ?>
 

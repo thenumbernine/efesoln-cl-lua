@@ -13,6 +13,19 @@ local gl = require 'gl'
 local CLEnv = require 'cl.obj.env'
 local clnumber = require 'cl.obj.number'
 
+local exec = require 'make.exec'
+local targets = require 'make.targets'
+
+-- only write if the contents have changed, to not update the write date
+local function writeIfChanged(filename, data)
+	local srcpath = path(filename)
+	local srcdata = srcpath:read()
+	if srcdata ~= data then
+		path'cache/tmp':write(data)
+		exec(table{'diff', ('%q'):format(filename), 'cache/tmp'}:concat' ', false)
+		assert(srcpath:write(data))
+	end
+end
 
 -- TODO move this to cl?
 -- and rename this? or just use the original CLProgram name?
@@ -36,8 +49,6 @@ function CLClangProgram:init(args)
 	CLClangProgram.super.init(self, args)
 end
 		
-local exec = require 'make.exec'
-local targets = require 'make.targets'
 -- TODO would be nice to do this once and let the caller / subclass modify it
 function CLClangProgram:setupBuildTargets(args)
 	self.buildTargets = targets{
@@ -80,9 +91,7 @@ end
 function CLClangProgram:build(args)
 	local code = self:getCode()
 	-- only write (and invalidate) when necessary
-	if path(self.cacheFileCL):read() ~= code then
-		assert(path(self.cacheFileCL):write(code))
-	end
+	writeIfChanged(self.cacheFileCL, code)
 	self:setupBuildTargets(args)
 	self.buildTargets:run(self.cacheFileBC)
 end
@@ -1182,21 +1191,21 @@ function EFESolver:refreshKernels()
 		}:concat'\n')
 
 	path'cache':mkdir()
-	--path'cache/efe.cl':write(self.efeCode)
 
-	path'cache/efe.funcs.h':write(self:template(assert(path'efe.funcs.h':read())))
+	writeIfChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
 
-	print'compiling code...'
-
-	local efeProgram = self:program{
-		name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
-		code = self.efeCode,
-	}
-	-- builds efe.cl, efe.bc, efe.spv
-	efeProgram:compile()
+	local efeProgram 
+	timer('compiling code...', function()
+		efeProgram = self:program{
+			name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
+			code = self.efeCode,
+		}
+		-- builds efe.cl, efe.bc, efe.spv
+		efeProgram:compile()
 print'efeProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
+	end)
 
 	-- init
 	self.init_TPrims = efeProgram:kernel{
@@ -1394,9 +1403,7 @@ kernel void display(
 			displayProgram.cacheFileSPV = 'cache/display.spv'	-- merged bc -> spv 
 			--displayProgram:build()
 			local displayCode = self:template(displayProgram:getCode())
-			if path(displayProgram.cacheFileCL):read() ~= displayCode then
-				assert(path(displayProgram.cacheFileCL):write(displayCode))
-			end
+			writeIfChanged(displayProgram.cacheFileCL, displayCode)
 			targets{
 				verbose = true,
 				{
