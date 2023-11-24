@@ -2,48 +2,11 @@
 // this is the only code that uses solver.body
 
 gPrim_t calc_gPrim_flat(real3 const x) {
-#if 0 
 	return (gPrim_t){
 		.alpha = 1,
 		.betaU = real3_zero,
 		.gammaLL = real3s3_ident,
 	};
-#endif
-#if 0
-	gPrim_t gPrim;
-	gPrim.alpha = 1;
-	gPrim.betaU = real3_zero;
-	gPrim.gammaLL = real3s3_ident;
-	return gPrim;
-#endif
-#if 0
-	gPrim_t gPrim;
-	gPrim.alpha = 1;
-	gPrim.betaU.x = 0;
-	gPrim.betaU.y = 0;
-	gPrim.betaU.z = 0;
-	gPrim.gammaLL.s[0] = 1;
-	gPrim.gammaLL.s[1] = 0;
-	gPrim.gammaLL.s[2] = 0;
-	gPrim.gammaLL.s[3] = 1;
-	gPrim.gammaLL.s[4] = 0;
-	gPrim.gammaLL.s[5] = 1;
-	return gPrim;
-#endif
-#if 1
-	gPrim_t gPrim;
-	gPrim.alpha = 1;
-	gPrim.betaU.x = 0;
-	gPrim.betaU.y = 0;
-	gPrim.betaU.z = 0;
-	gPrim.gammaLL.s[0] = 1;
-	gPrim.gammaLL.s[1] = 0;
-	gPrim.gammaLL.s[2] = 0;
-	gPrim.gammaLL.s[3] = 1;	//setting 3 sets 4 as well
-	gPrim.gammaLL.s[4] = 0;
-	gPrim.gammaLL.s[5] = 1;
-	return gPrim;
-#endif
 }
 
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
