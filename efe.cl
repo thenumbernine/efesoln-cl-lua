@@ -485,45 +485,55 @@ int4 int4_dir(int const dim, int const offset) {
 
 //put the boundary condition code in here, in one place
 // this is hardcoded to g_ab = η_ab at boundaries
-gPrim_t calc_gPrim_boundary(real3 const x) {
+gPrim_t calc_gPrim_boundary(
+	int4 i,
+	global gPrim_t const * const gPrims
+) {
 #if 0	// boundary condition : flat
 	return gPrim_flat;
 #endif
-#if 1	// boundary condition : stellar schwarzschild
-	return calc_gPrim_stellar_Schwarzschild(x);
+#if 1	// boundary condition : fixed (constant zero first-derivatives)
+	i.x = clamp(i.x, 0, size.x-1);
+	i.y = clamp(i.y, 0, size.y-1);
+	i.z = clamp(i.z, 0, size.z-1);
+	return gPrims[indexForInt4(i)];
+#endif
+#if 0	// boundary condition : stellar schwarzschild
+	return calc_gPrim_stellar_Schwarzschild(getX(i));
 #endif
 }
 
 //use this for all finite-difference access
-real4s4 gLL_at(
+real4s4 gLL_from_gPrims_at(
 	int4 const i,
-	global real4s4 const * const gLLs
+	global gPrim_t const * const gPrims
 ) {
 	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
-		return calc_gLL_from_gPrim(calc_gPrim_boundary(getX(i)));
+		return calc_gLL_from_gPrim(calc_gPrim_boundary(i, gPrims));
 	}
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
-	return gLLs[index];
+	return calc_gLL_from_gPrim(gPrims[index]);
 }
 
-real4s4 gUU_at(
+real4s4 gUU_from_gPrims_at(
 	int4 const i,
-	global real4s4 const * const gUUs
+	global gPrim_t const * const gPrims
 ) {
 	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
-		return calc_gUU_from_gPrim(calc_gPrim_boundary(getX(i)));
+		return calc_gUU_from_gPrim(calc_gPrim_boundary(i, gPrims));
 	}
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
-	return gUUs[index];
+	return calc_gUU_from_gPrim(gPrims[index]);
 }
 
 
 real4s4 calc_RicciLL(
 	int4 const i,
+	global gPrim_t const * const gPrims,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
@@ -554,8 +564,8 @@ real4s4 calc_RicciLL(
 <?=solver:finiteDifference2{
 	srcType = "4s4",
 	resultName = "partial_xU2_of_gLL",
-	getValue = function(args) return "gLL_at("..args.i..", gLLs)" end,
-	getBoundary = function(args) return "gLL_at("..args.i..", gLLs)" end,
+	getValue = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
+	getBoundary = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
 }?>
 
 <? if false then -- testing to make sure contraction of Riemann == Ricci
@@ -647,6 +657,7 @@ real4s4 calc_RicciLL(
 //[1/m^2]
 real4s4 calc_EinsteinLL(
 	int4 const i,
+	global gPrim_t const * const gPrims,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
@@ -654,7 +665,7 @@ real4s4 calc_EinsteinLL(
 	int const index = indexForInt4(i);
 
 	//RicciLL.ab := R_ab
-	real4s4 const RicciLL = calc_RicciLL(i, gLLs, gUUs, GammaULLs);
+	real4s4 const RicciLL = calc_RicciLL(i, gPrims, gLLs, gUUs, GammaULLs);
 
 	//Gaussian := R = R_ab g^ab
 	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);

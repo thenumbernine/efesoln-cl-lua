@@ -153,18 +153,19 @@ real3 getX(int4 const i);
 extern constant int4 const int4_dirs[3];
 int4 int4_dir(int const dim, int const offset);
 
-real4s4 gLL_at(
+real4s4 gLL_from_gPrims_at(
 	int4 const i,
-	global real4s4 const * const gLLs
+	global gPrim_t const * const gPrims
 );
 
-real4s4 gUU_at(
+real4s4 gUU_from_gPrims_at(
 	int4 const i,
-	global real4s4 const * const gUUs
+	global gPrim_t const * const gPrims
 );
 
 real4s4 calc_RicciLL(
 	int4 const i,
+	global gPrim_t const * const gPrims,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
@@ -172,6 +173,7 @@ real4s4 calc_RicciLL(
 
 real4s4 calc_EinsteinLL(
 	int4 const i,
+	global gPrim_t const * const gPrims,
 	global real4s4 const * const gLLs,
 	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs

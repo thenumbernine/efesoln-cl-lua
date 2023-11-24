@@ -57,9 +57,13 @@ local function clangCompile(dst, src, buildOptions)
 		'clang',
 		buildOptions or '',
 		'-v',
-		'--target=spirv64-unknown-unknown',
+		-- residual and numerical gravity giving nans ... 
+		-- problem starts from GammaULLs getting nans.
+		-- that comes from partial_xU_of_gLL getting nans
+		-- that comes from return-struct-by-value producing corrupted values
+		--'--target=spirv64-unknown-unknown',	
 		--'--target=spirv',	--unsupported
-		--'--target=spir-unknown-unknown',
+		'--target=spir-unknown-unknown',
 		'-emit-llvm',
 		'-c',
 		--'-O0',	-- -O0 makes some code break ... smh
@@ -76,7 +80,7 @@ function CLClangProgram:setupBuildTargets(args)
 		{
 			srcs = {self.cacheFileCL},
 			dsts = {self.cacheFileBC},
-			rule = function()
+			rule = function(rule)
 				assert(#rule.dsts == 1)
 				assert(#rule.srcs == 1)
 				clangCompile(rule.dsts[1], rule.srcs[1], args and arg.buildOption or nil)
@@ -811,27 +815,27 @@ texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real4s4_norm(EinsteinLL);
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
 ]]},
 		{['det|Einstein_ij| (kg/(m s^2))'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 		{['Gaussian'] = [[
-real4s4 const RicciLL = calc_RicciLL(i, gLLs, gUUs, GammaULLs);
+real4s4 const RicciLL = calc_RicciLL(i, gPrims, gLLs, gUUs, GammaULLs);
 texCLBuf[index] = real4s4_dot(RicciLL, gUUs[index]);
 ]]},
 		{['partial_gLL_of_Phi'] = [[
-real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(i, TPrims, gLLs, gUUs, GammaULLs, EFEs);
+real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
 texCLBuf[index] = real4s4_normSq(partial_gLL_of_Phi);
 ]]},
 		{['partial_gPrim_of_Phi.alpha'] = [[
@@ -1267,6 +1271,7 @@ end)
 			self.GammaULLs,
 		},
 		argsIn = {
+			self.gPrims,
 			self.gLLs,
 			self.gUUs,
 		},
@@ -1289,6 +1294,7 @@ end)
 		},
 		argsIn = {
 			self.TPrims,
+			self.gPrims,
 			self.gLLs,
 			self.gUUs,
 			self.GammaULLs,
@@ -1330,6 +1336,7 @@ end)
 			{name='EinsteinLLs', type='real4s4', obj=true},
 		},
 		argsIn = {
+			self.gPrims,
 			self.gLLs,
 			self.gUUs,
 			self.GammaULLs,
@@ -1354,8 +1361,10 @@ end)
 
 	print'done compiling code!'
 
-	self.displayVar = 1
-	self:refreshDisplayVar()
+	self.displayVarIndex = 1
+	self.displayCode = self.displayVars[self.displayVarIndex].body
+	self:refreshDisplayKernel()	-- rebuild the displayKernel
+	self:refreshDisplayVar()	-- set displayVarIndex of the displayKernel, and set solver.displayCode
 end
 
 function EFESolver:refreshDisplayKernel()
@@ -1399,9 +1408,11 @@ extern constant const int4 stepsize;
 				name = 'display',
 				code = self:template[[
 #include "efe.funcs.h"
+#include "calcVars.h"
 
 kernel void display(
 	global float * const texCLBuf,
+	int const displayVarIndex,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4s4 const * const gLLs,
@@ -1410,7 +1421,14 @@ kernel void display(
 	global real4s4 const * const EFEs
 ) {
 	initKernel();
+
+	if (displayVarIndex == 0) {
 <?=solver.displayCode?>
+<? for i,var in ipairs(solver.displayVars) do
+?>	} else if (displayVarIndex == <?=i?>) {
+<?=var.body?>
+<? end
+?>	}
 }
 ]],
 			}
@@ -1433,7 +1451,7 @@ kernel void display(
 				{
 					srcs = {displayProgram.cacheFileCL},
 					dsts = {displayProgram.cacheFileBC},
-					rule = function()
+					rule = function(rule)
 						-- cache/display.cl => cache/display.bc
 						assert(#rule.dsts == 1)
 						assert(#rule.srcs == 1)
@@ -1474,18 +1492,17 @@ kernel void display(
 print'displayProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
-			self.updateDisplayKernel = displayProgram:kernel{
+			self.displayKernel = displayProgram:kernel{
 				name = 'display',
-				argsIn = table{
-					self.TPrims,
-					self.gPrims,
-					self.gLLs,
-					self.gUUs,
-					self.GammaULLs,
-					self.EFEs,
-				},
-				argsOut = {
+				setArgs = {
 					self.texCLBuf,
+					{type='int', name='displayVarIndex'},
+					assert(self.TPrims),
+					assert(self.gPrims),
+					assert(self.gLLs),
+					assert(self.gUUs),
+					assert(self.GammaULLs),
+					assert(self.EFEs),
 				},
 			}
 
@@ -1497,9 +1514,16 @@ print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 end
 
 function EFESolver:refreshDisplayVar()
-	local displayVar = self.displayVars[self.displayVar]
+	local displayVar = self.displayVars[self.displayVarIndex]
+	-- update the displayCode for the gui, 
+	--  but don't rebuild , intead just change the displayVarIndex
+	--  only rebuild when changing custom code
 	self.displayCode = displayVar.body
-	self:refreshDisplayKernel()
+	
+	local displayVarIndex = ffi.new('int[1]') 
+	displayVarIndex[0] = self.displayVarIndex
+	self.displayKernel.obj:setArg(1, displayVarIndex)
+	self:updateTex()
 end
 
 function EFESolver:resetState()
@@ -1521,7 +1545,7 @@ function EFESolver:resetState()
 --self:printbuf'EFEs'
 
 	self:updateTex()
-print('residual', self:calcBufferNorm())
+--print('residual', self:calcBufferNorm())
 
 	self.iteration = 0
 end
@@ -1745,7 +1769,7 @@ function EFESolver:updateAux()
 end
 
 function EFESolver:updateTex()
-	self.updateDisplayKernel()
+	self.displayKernel()
 
 	-- TODO run a reduce on the display var stuff
 	-- get the min and max
