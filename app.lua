@@ -434,7 +434,7 @@ function App:updateGUI()
 	ig.igText'initial conditions:'
 	for i,initCond in ipairs(self.solver.initConds) do
 		if ig.luatableRadioButton(initCond.name, self.solver, 'initCond', i) then
-			self.solver:refreshInitCond()
+			self.solver:resetState()
 		end
 	end
 

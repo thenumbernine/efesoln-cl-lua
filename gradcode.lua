@@ -17,29 +17,6 @@ local n = 1	-- nbhd size
 
 local offsets = Array(2*n+1, 2*n+1, 2*n+1)
 
-local xs = Array:lambda(offsets, function(i,j,k)
-	return var('x_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
-end)
---printbr(xs)
-
-local EFEs = Array:lambda(offsets, function(i,j,k)
-	return var('EFE_{'..table{i-n-1, j-n-1, k-n-1}:concat', '..'}')
-end)
---printbr(EFEs)
-
-local Phi = var'\\Phi_{0,0,0}'
-local sum = 0
-for i=-n,n do
-	for j=-n,n do
-		for k=-n,n do
-			sum = sum + EFEs[i+n+1][j+n+1][k+n+1]'_ab'^2
-		end
-	end
-end
-sum = (frac(1,2) * sum)()
-local Phi_def = Phi:eq(sum)
-printbr(Phi_def)
-
 local function index(t, ...)
 	if t == nil then return nil end
 	if select('#', ...) == 0 then return t end
@@ -47,60 +24,127 @@ local function index(t, ...)
 	return index(t[i], select(2, ...))
 end
 
+local xs = Array:lambda(offsets, function(i,j,k)
+	return var('x_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+end)
+--printbr(xs)
+
+local Phi = var'\\Phi'
+local all_gLLs = table()
 local gs = Array:lambda(offsets, function(i,j,k)
-	return var('g_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	local g_ijk = var('g_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	all_gLLs:insert(g_ijk'_pq')
+	return g_ijk
 end)
 Phi:setDependentVars(gs[n+1][n+1][n+1]'_ab')
-local Gs = Array:lambda(offsets, function(i,j,k)
-	local G = var('G_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
-	local is = {i-n-1, j-n-1, k-n-1}
-	-- [[ 1st-derivative only = + pattern
+
+local Phis = Array:lambda(offsets, function(i,j,k)
+	local Phi_ijk = var('\\Phi_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	Phi_ijk:setDependentVars(all_gLLs:unpack())
+	return Phi_ijk
+end)
+-- Phis[i][j][k]:eq(EFEs[i][j][k]'_ab'^2)
+
+local sum = 0
+for i=-n,n do
+	for j=-n,n do
+		for k=-n,n do
+			--sum = sum + frac(1,2) * EFEs[i+n+1][j+n+1][k+n+1]'_ab'^2
+			sum = sum + Phis[i+n+1][j+n+1][k+n+1]
+		end
+	end
+end
+sum = sum()
+local Phi_def = Phi:eq(sum)
+printbr(Phi_def)
+
+local grad_Phi_def = Phi_def:diff(gs[n+1][n+1][n+1]'_pq')()
+printbr(grad_Phi_def)
+
+local EFEs = Array:lambda(offsets, function(i,j,k)
+	local EFE_ijk = var('EFE_{'..table{i-n-1, j-n-1, k-n-1}:concat', '..'}')
+	EFE_ijk'_ab':setDependentVars(all_gLLs:unpack())
+	return EFE_ijk
+end)
+printbr(Phis[n+1][n+1][n+1]:eq(frac(1,2) * EFEs[n+1][n+1][n+1]'_ab'^2))
+--printbr(EFEs)
+
+for ijk in EFEs:iter() do
+	local EFE_ijk = EFEs[ijk]
+	local Phi_ijk = Phis[ijk]
+	grad_Phi_def = grad_Phi_def:subst(Phi_ijk:eq(frac(1,2) * EFE_ijk'_ab'^2))
+end
+
+printbr(grad_Phi_def)
+grad_Phi_def = grad_Phi_def()
+printbr(grad_Phi_def)
+
+local function setDependents_D2gLL(x_ijk, ijk)
+	-- [[ 2nd derivative = Linf-norm
 	local stencil_gLLs = table()
-	for offset=1,1 do
-		for dir=1,3 do
-			local dxi = {0,0,0}
-			dxi[dir] = offset
-			local iR = range(3):mapi(function(q) return is[q] + dxi[q] end)
-			--local gR = gs[{iR[1]+n+1, iR[2]+n+1, iR[3]+n+1}]
-			local gR = index(gs, iR[1]+n+1, iR[2]+n+1, iR[3]+n+1)
-			if gR then 
-				assert(Variable:isa(gR))
-				stencil_gLLs:insert(gR'_ab')
-			end
-			local iL = range(3):mapi(function(q) return is[q] - dxi[q] end)
-			-- what to do for oob defereferencing ...
-			--local gL = gs[{iL[1]+n+1, iL[2]+n+1, iL[3]+n+1}]
-			local gL = index(gs, iL[1]+n+1, iL[2]+n+1, iL[3]+n+1)
-			if gL then
-				assert(Variable:isa(gL))
-				stencil_gLLs:insert(gL'_ab')
+	for di=-n,n do
+		for dj=-n,n do
+			for dk=-n,n do
+				local g_ijk = index(gs, ijk[1]+di, ijk[2]+dj, ijk[3]+dk)
+				if g_ijk then
+					stencil_gLLs:insert(g_ijk'_pq')
+				end
 			end
 		end
 	end
+	x_ijk:setDependentVars(stencil_gLLs:unpack())
 	--]]
-	-- [[ TODO 2nd derivative = Linf-norm
-	--]]
-	G'_ab':setDependentVars(stencil_gLLs:unpack())
-	return G
+end
+
+local Gs = Array:lambda(offsets, function(i,j,k)
+	local G_ijk = var('G_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	setDependents_D2gLL(G_ijk'_ab', {i, j, k})
+	return G_ijk
 end)
 local Ts = Array:lambda(offsets, function(i,j,k)
-	local T = var('T_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
-	local g = gs[i][j][k]
-	T'_ab':setDependentVars(g'_ab')
-	return T
+	local T_ijk = var('T_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	local g_ijk = gs[i][j][k]
+	T_ijk'_ab':setDependentVars(g_ijk'_ab')
+	return T_ijk
 end)
-for i,G in Gs:iter() do
-	Phi_def = Phi_def:replace(EFEs[i]'_ab', Gs[i]'_ab' - 8 * pi * Ts[i]'_ab')
+for ijk in Gs:iter() do
+	local expr = (EFEs[ijk]'_ab':eq(Gs[ijk]'_ab' - 8 * pi * Ts[ijk]'_ab')):diff(gs[n+1][n+1][n+1]'_pq')()
+	grad_Phi_def = grad_Phi_def:subst(expr)
 end
-printbr(Phi_def)
+printbr(grad_Phi_def)
+--symmath.op.mul:pushRule'Expand/apply'
+--grad_Phi_def = grad_Phi_def()
+--symmath.op.mul:popRule'Expand/apply'
+--printbr(grad_Phi_def)
 
--- [[
 local Rs = Array:lambda(offsets, function(i,j,k)
-	local R = var('R_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
-	R'_ab':setDependentVars(gs[i][j][k]'_ab')
-	--R'_ab':setDependentVars(all_gLLs:unpack())
-	return R
+	local R_ijk = var('R_{'..table{i-n-1,j-n-1,k-n-1}:concat', '..'}')
+	setDependents_D2gLL(R_ijk'_ab', {i, j, k})
+	--R_ijk'_ab':setDependentVars(gs[i][j][k]'_ab')
+	--R_ijk'_ab':setDependentVars(all_gLLs:unpack())
+	return R_ijk
 end)
+for ijk in Rs:iter() do
+	grad_Phi_def = grad_Phi_def:subst(
+		Gs[ijk]'_ab':eq(Rs[ijk]'_ab'  - frac(1,2) * gs[ijk]'_ab' * gs[ijk]'^uv' * Rs[ijk]'_uv')
+	)
+end
+printbr(grad_Phi_def)
+grad_Phi_def = grad_Phi_def()
+printbr(grad_Phi_def)
+
+--[[ TODO ensure d/dg_pq g_ab = delta^p_a delta^q_b
+-- and d/dg_pq g^ab = -g^pa g^qb
+printbr(gs[n+1][n+1][n+1]'_ab':diff(gs[n+1][n+1][n+1]'_pq'):eq(
+		gs[n+1][n+1][n+1]'_ab':diff(gs[n+1][n+1][n+1]'_pq')()
+	))
+printbr(gs[n+1][n+1][n+1]'^ab':diff(gs[n+1][n+1][n+1]'_pq'):eq(
+		gs[n+1][n+1][n+1]'^ab':diff(gs[n+1][n+1][n+1]'_pq')()
+	))
+--]]
+
+--[[
+local delta = Tensor:deltaSymbol()
 for i,G in Gs:iter() do
 	local function makeGamma(a,b,c)
 		return frac(1,2) * (
@@ -109,12 +153,12 @@ for i,G in Gs:iter() do
 			- finiteDifference(g(b)(c), i)(a)
 		)
 	end
-	--Phi_def = Phi_def:replace(Gs[i]'_ab', Rs[i]'_ab' - frac(1,2) * gs[i]'_ab' * Rs[i])
-	Phi_def = Phi_def:replace(
+	--grad_Phi_def = grad_Phi_def:replace(Gs[i]'_ab', Rs[i]'_ab' - frac(1,2) * gs[i]'_ab' * Rs[i])
+	grad_Phi_def = grad_Phi_def:replace(
 		Gs[i]'_ab',
 		(gs[i]'^uv' * delta'^c_a' * delta'^d_b' - frac(1,2) * gs[i]'_ab' * gs[i]'^uv' * gs[i]'^cd') * Rs[i]'_ucvd'
 	)
-	-- [=[
+	--[=[
 	:replace(
 		Rs[i]'_ucvd',
 		frac(1,2) * (
@@ -130,8 +174,10 @@ for i,G in Gs:iter() do
 	)
 	--]=]
 end
-printbr(Phi_def)
+printbr(grad_Phi_def)
 --]]
+
+do return end
 
 local grad_Phi_def = Phi_def:diff(gs[n+1][n+1][n+1]'_pq')()
 printbr(grad_Phi_def)

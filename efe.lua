@@ -14,7 +14,7 @@ local CLEnv = require 'cl.obj.env'
 local clnumber = require 'cl.obj.number'
 
 local exec = require 'make.exec'
-local targets = require 'make.targets'
+local makeTargets = require 'make.targets'
 
 -- only write if the contents have changed, to not update the write date
 local function writeIfChanged(filename, data)
@@ -54,7 +54,7 @@ end
 		
 -- TODO would be nice to do this once and let the caller / subclass modify it
 function CLClangProgram:setupBuildTargets(args)
-	self.buildTargets = targets{
+	self.buildTargets = makeTargets{
 		verbose = true,
 		{
 			srcs = {self.cacheFileCL},
@@ -1197,18 +1197,19 @@ function EFESolver:refreshKernels()
 
 	writeIfChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
 
-	local efeProgram 
-	timer('compiling code...', function()
-		efeProgram = self:program{
-			name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
-			code = self.efeCode,
-		}
-		-- builds efe.cl, efe.bc, efe.spv
-		efeProgram:compile()
+	local efeProgram = self:program{
+		name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
+		code = self.efeCode,
+	}
+
+-- why does clCreateProgramWithIL take 45 seconds, while clCreateProgramWithSource takes 10 ... and clCreateProgramWithBinary takes no time at all.
+timer('compiling code...', function()
+	-- builds efe.cl, efe.bc, efe.spv
+	efeProgram:compile()
 print'efeProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
-	end)
+end)
 
 	-- init
 	self.init_TPrims = efeProgram:kernel{
@@ -1315,6 +1316,9 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		argsOut = {
 			self.gPrims,
 		},
+		argsIn = {
+			{type='int'},
+		},
 	}
 
 
@@ -1394,7 +1398,7 @@ kernel void display(
 			--displayProgram:build()
 			local displayCode = self:template(displayProgram:getCode())
 			writeIfChanged(displayProgram.cacheFileCL, displayCode)
-			targets{
+			makeTargets{
 				verbose = true,
 				{
 					srcs = {displayProgram.cacheFileCL},
@@ -1477,6 +1481,9 @@ end
 
 function EFESolver:resetState()
 --print'init_gPrims'
+	local initCondIndex = ffi.new('int[1]') 
+	initCondIndex[0] = self.initCond
+	self.init_gPrims.obj:setArg(1, initCondIndex)
 	self.init_gPrims()	-- initialize gPrims
 --self:printbuf'gPrims'
 

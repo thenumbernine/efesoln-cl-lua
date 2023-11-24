@@ -236,11 +236,31 @@ real4s4 calc_gUU_from_gPrim(
 // init
 
 kernel void init_gPrims(
-	global gPrim_t * const gPrims
+	global gPrim_t * const gPrims,
+	int initCond
 ) {
 	initKernel();
 	real3 const x = getX(i);
-	gPrims[index] = <?=solver.initConds[solver.initCond].code?>(x);
+
+	global gPrim_t * const gPrim = gPrims + index;
+
+	if (0) {
+<? for i,initCond in ipairs(solver.initConds) do
+?>
+	} else if (initCond == <?=i?>) {
+		*gPrim = <?=initCond.code?>(x);
+<? end 
+?>	} else {
+		*gPrim = (gPrim_t){
+			.alpha = 0/0,
+			.betaU = _real3(0/0, 0/0, 0/0),
+			.gammaLL = (real3s3){
+				.s00 = 0/0, .s01 = 0/0, .s02 = 0/0,
+				.s11 = 0/0, .s12 = 0/0,
+				.s22 = 0/0,
+			},
+		};
+	}
 }
 
 kernel void init_TPrims(
