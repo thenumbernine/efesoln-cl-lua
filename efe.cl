@@ -1,8 +1,4 @@
-// I reported this bug to intel like 3 years ago.  it's fixed, right?
-//is buggy with doubles on intel opencl ubuntu compiler
-//#define _real3(a,b,c)          ((real3){.s={a,b,c}})
-//so we do this instead and are safe:
-#define _real3(a,b,c)            ((real3){.x=a, .y=b, .z=c})
+#include "efe.funcs.h"
 
 constant real const c = 299792458;			// m/s
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
@@ -51,48 +47,8 @@ end
 };
 
 <?
-local range = require 'ext.range'
-local function makeAdds(ctype)
-	local n = solver.diffOrder
-	assert(n % 2 == 0)
-	for i=4,n,2 do
-		local xs = range(0,i-1):mapi(function(j) return "x"..j end)
-?>
-#define <?=ctype?>_add<?=i?>(<?=xs:concat', '?>)\
-	<?=ctype?>_add2(\
-		<?=ctype?>_add2(x0, x1),\
-		<?=ctype?>_add<?=i-2?>(<?=xs:sub(3):concat', '?>)\
-	)
-<?	end
-end
-?>
-
-#define new_real_zero() 0.
-#define real_zero new_real_zero()
-
-#define real_add(a,b)	((a) + (b))
-#define real_add2		real_add
-#define real_sub(a,b)	((a) - (b))
-#define real_mul(a,b)	((a) * (b))
-#define real_real_mul	real_mul
-#define real_dot		real_mul
-#define real_div(a,b)	((a) / (b))
-#define real_real_div	real_div
-<?makeAdds"real"?>
-
-<?
-local range = require 'ext.range'
-local table = require 'ext.table'
-?>
-
-<?
 local function makeops(ctype, fieldtype, fields)
 ?>
-#define new_<?=ctype?>_zero() ((<?=ctype?>){\
-<? for _,field in ipairs(fields) do --\
-?>	.<?=field?> = new_<?=fieldtype?>_zero(),\
-<? end --\
-?>})
 constant <?=ctype?> const <?=ctype?>_zero = new_<?=ctype?>_zero();
 <?
 	for _,op in ipairs{"add", "sub"} do
@@ -140,9 +96,6 @@ constant <?=ctype?> const <?=ctype?>_zero = new_<?=ctype?>_zero();
 <?	end
 ?>
 
-#define <?=ctype?>_add2 <?=ctype?>_add
-<?makeAdds(ctype)?>
-
 <?=ctype?> <?=ctype?>_mul_add(<?=ctype?> const a, <?=ctype?> const b, real const c) {
 	return <?=ctype?>_add(a, <?=ctype?>_real_mul(b, c));
 }
@@ -162,10 +115,6 @@ real <?=ctype?>_lenSq(<?=ctype?> const a) {
 real <?=ctype?>_len(<?=ctype?> const a) {
 	return sqrt(<?=ctype?>_lenSq(a));
 }
-
-// "norm" name for vectors and tensors
-#define <?=ctype?>_normSq <?=ctype?>_lenSq
-#define <?=ctype?>_norm <?=ctype?>_len
 
 <?
 end
@@ -194,12 +143,6 @@ real4 real3_to_real4(real3 const a) {
 }
 
 <?makeops("real4", "real", {"s0", "s1", "s2", "s3"})?>
-
-#define real3s3_ident ((real3s3){\
-	.s00 = 1, .s01 = 0, .s02 = 0,\
-	.s11 = 1, .s12 = 0,\
-	.s22 = 1,\
-})
 
 real real3s3_det(real3s3 const m) {
 	return m.s00 * m.s11 * m.s22
@@ -281,15 +224,11 @@ real4x4 real4s4_real4s4_mul(
 ?>	};
 }
 
-static real3 real4s4_i0(
-	real4s4 const a
-) {
+real3 real4s4_i0(real4s4 const a) {
 	return _real3(a.s01, a.s02, a.s03);
 }
 
-static real3s3 real4s4_ij(
-	real4s4 const a
-) {
+real3s3 real4s4_ij(real4s4 const a) {
 	return (real3s3){
 <?
 for i=0,2 do

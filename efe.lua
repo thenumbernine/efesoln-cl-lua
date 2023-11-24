@@ -15,6 +15,7 @@ local clnumber = require 'cl.obj.number'
 
 
 -- TODO move this to cl?
+-- and rename this? or just use the original CLProgram name?
 local CLProgram = require 'cl.obj.program'
 local CLClangProgram = CLProgram:subclass()
 
@@ -37,6 +38,7 @@ end
 		
 local exec = require 'make.exec'
 local targets = require 'make.targets'
+-- TODO would be nice to do this once and let the caller / subclass modify it
 function CLClangProgram:setupBuildTargets(args)
 	self.buildTargets = targets{
 		verbose = true,
@@ -76,6 +78,11 @@ function CLClangProgram:setupBuildTargets(args)
 end
 
 function CLClangProgram:build(args)
+	local code = self:getCode()
+	-- only write (and invalidate) when necessary
+	if path(self.cacheFileCL):read() ~= code then
+		assert(path(self.cacheFileCL):write(code))
+	end
 	self:setupBuildTargets(args)
 	self.buildTargets:run(self.cacheFileBC)
 end
@@ -83,15 +90,13 @@ end
 function CLClangProgram:link(args)
 	self:setupBuildTargets(args)
 	self.buildTargets:run(self.cacheFileSPV)
+	self.IL = assert(path(self.cacheFileSPV):read())
 end
 
 function CLClangProgram:compile(args)
 	if self.cacheFileCL or self.cacheFileBC or self.cacheFileSPV then
-		path(self.cacheFileCL):write(self:getCode())
-		self:setupBuildTargets(args)
-		self.buildTargets:run(self.cacheFileBC)
-		self.buildTargets:run(self.cacheFileSPV)
-		self.IL = path(self.cacheFileSPV):read()
+		self:build(args)
+		self:link(args)
 		args = table(args):setmetatable(nil)
 		args.verbose = true
 	end
@@ -569,7 +574,7 @@ typedef char int8_t;
 		}
 		--]]
 
-		local gPrim_mt, gPrim_code = struct{
+		self.gPrim_mt, self.gPrim_code = struct{
 			name = 'gPrim_t',
 			fields = {
 				{alpha = 'real'},
@@ -580,8 +585,8 @@ typedef char int8_t;
 			unionType = 'real',
 			unionField = 's',
 		}
---print(gPrim_code)
-		self.code = self.code..'\n'..gPrim_code
+--print(self.gPrim_code)
+		self.code = self.code..'\n'..self.gPrim_code
 
 		local TPrim_fields = table()
 		--source terms:
@@ -621,15 +626,15 @@ typedef char int8_t;
 			..'_'..tostring(self.useFourPotential)
 			..'_t'
 
-		local TPrim_mt, TPrim_code = struct{
+		self.TPrim_mt, self.TPrim_code = struct{
 			name = self.TPrim_t,
 			fields = TPrim_fields,
 			-- real s[] as union access
 			unionType = 'real',
 			unionField = 's',
 		}
---print(TPrim_code)
-		self.code = self.code..'\n'..TPrim_code
+--print(self.TPrim_code)
+		self.code = self.code..'\n'..self.TPrim_code
 	end
 	--]]
 
@@ -1178,79 +1183,11 @@ function EFESolver:refreshKernels()
 
 	path'cache':mkdir()
 	--path'cache/efe.cl':write(self.efeCode)
-	
+
+	path'cache/efe.funcs.h':write(self:template(assert(path'efe.funcs.h':read())))
+
 	print'compiling code...'
 
---[==[ using cl api for compiling/linking...
-	--[[ all at once
-	local program = self:program{code=self.efeCode}
-	program:compile()
-	--]]
-	-- [[ try to link 
-	-- 'obj' as in .o file ...
-	timer('compiling efeProgram cl shared object', function()
-		self.efeProgramObj = self:program{
-			cacheFile = 'cache/efe',
-			code = self.efeCode,
-		}
-		self.efeProgramObj:compile{
-			verbose = true,
-			dontLink = true,
-		}
-	end)
-
--- [[ ... hmm
--- if I create program from code, compile code to program-object, then save program, there is a binary (1.9 mb)
--- but if I create the program from binary, compile the binary to program-object, then save program, the binary is empty (800 bytes)
-path'cache/efe.alreadycached_bin':write(require 'ext.tolua'(
-	self.efeProgramObj.obj:getBinaries()
-))
---]]
-
---[[ doesn't work via spec on clGetProgramInfo , which says	it needs to be linked first ...
-print'self.efeProgramObj'
-print'CL_PROGRAM_KERNEL_NAMES:'
-print(require 'ext.tolua'(self.efeProgramObj.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
---]]
-	timer('linking efeProgram with cl shared object', function()
-		self.efeProgramLib = self:program{
-			programs = {self.efeProgramObj},
-			verbose = true,
-			-- TODO?  https://community.intel.com/t5/OpenCL-for-CPU/How-to-link-to-OpenCL-binary-library-created-with-clLinkProgram/m-p/1045739
-			buildOptions = '-create-library',	-- uhhh ... where is this documented?
-			-- Unrecognized build options: -create-library
-		}
-	end)
-
---[=[ doesn't work.
-path'cache/efe.linked_bin':write(require 'ext.tolua'(
-	self.efeProgramLib.obj:getBinaries()
-))
-print'self.efeProgramLib'
-print'CL_PROGRAM_KERNEL_NAMES:'
-print(require 'ext.tolua'(self.efeProgramLib.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
---]=]
-
-	local efeProgram
-	timer('linking efeProgram with cl shared object ... again', function()
-		efeProgram = self:program{
-			programs = {self.efeProgramLib},
-			verbose = true,
-		}
-	end)
-
--- [=[ when clLinkProgram is called from a program created with clCreateProgramWithSource, it is fine
--- but when clLinkProgram is called from a program created with clCreateProgramWithBinary, it is empty ....
-path'cache/efe.linked_bin':write(require 'ext.tolua'(
-	efeProgram.obj:getBinaries()
-))
-print'efeProgram'
-print'CL_PROGRAM_KERNEL_NAMES:'
-print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
---]=]
-	--]]
---]==]
--- [==[ using clang for compiling/linking...
 	local efeProgram = self:program{
 		name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
 		code = self.efeCode,
@@ -1260,7 +1197,6 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 print'efeProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
--- ]==]
 
 	-- init
 	self.init_TPrims = efeProgram:kernel{
@@ -1377,37 +1313,60 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 end
 
 function EFESolver:refreshDisplayKernel()
-timer('refreshDisplayKernel', function()
-	-- if we got bad display code then don't crash the whole app
-	xpcall(function()
---[=[ recompile everything into a full new program 
-		self.updateDisplayKernel = self:kernel{
-			name = 'display',
-			header = self.efeCode,
-			body = template(self.displayCode, {
-					sDim = self.sDim,
-					sym = sym,
-					solver = self,
-				}),
-			argsIn = table{
-				self.TPrims,
-				self.gPrims,
-				self.gLLs,
-				self.gUUs,
-				self.GammaULLs,
-				self.EFEs,
-			},
-			argsOut = {
-				self.texCLBuf,
-			},
-		}
-		self.updateDisplayKernel:compile()
---]=]
---[=[ link into the previous .o 
-		local displayProgramObj = self:program{
-			-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
-			name = 'display',
-			code = self:template[[
+	timer('refreshDisplayKernel', function()
+		-- if we got bad display code then don't crash the whole app
+		xpcall(function()
+
+-- [=[ get rid of multiple constants 
+self.code = table{
+	self:getTypeCode(),
+	self.gPrim_code,
+	self.TPrim_code,
+	self:template([[
+//macro for the index
+#define globalInt4()	(int4)((int)get_global_id(0), (int)get_global_id(1), (int)get_global_id(2), 0)
+
+//macros for arbitrary sizes
+#define indexForInt4ForSize(i, sx, sy, sz) (i.x + sx * (i.y + sy * i.z))
+#define initKernelForSize(sx, sy, sz) \
+	int4 i = globalInt4(); \
+	if (i.x >= sx || i.y >= sy || i.z >= sz) return; \
+	int index = indexForInt4ForSize(i, sx, sy, sz);
+
+
+// THIS DIFFERS FROM THE ENV CODE
+// ONLY COMPILE THAT ONCE, EVERYONE ELSE USE EXTERNS TO ACCESS IT
+extern constant const int dim;
+extern constant const int4 stepsize;
+
+#if 1	//gives "unresolved external symbol"
+extern constant const int4 size;
+#elif 0	//gives "multiply defined"
+constant const int4 size = (int4)(<?=
+	tonumber(size.x)?>, <?=
+	tonumber(size.y)?>, <?=
+	tonumber(size.z)?>, 0);
+#else	//works...
+static constant const int4 size = (int4)(<?=
+	tonumber(size.x)?>, <?=
+	tonumber(size.y)?>, <?=
+	tonumber(size.z)?>, 0);
+#endif
+
+//macros for the base domain
+#define indexForInt4(i)	indexForInt4ForSize(i, size.x, size.y, size.z)
+#define initKernel()	initKernelForSize(size.x, size.y, size.z)
+]], {
+		size = self.base.size,
+	}),
+}:concat'\n'
+--]=]			
+			local displayProgram = self:program{
+				-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
+				name = 'display',
+				code = self:template[[
+#include "efe.funcs.h"
+
 kernel void display(
 	global real * const texCLBuf,
 	global <?=TPrim_t?> const * const TPrims,
@@ -1421,86 +1380,96 @@ kernel void display(
 <?=solver.displayCode?>
 }
 ]],
-		}
-		displayProgramObj:compile{
-			dontLink = true,
-		}
-		local displayProgramLib = self:program{
-			programs = {displayProgramObj},
-			verbose = true,
-			buildOptions = '-create-library',
-		}
-
-		-- getting link errors
-		local displayProgram = self:program{
-			name = 'display',
-			programs = {
-				displayProgramLib,
-				self.efeProgramLib,
-				--self.efeProgramObj,
-				--displayProgramObj,
-			},
-		}
-
-		self.updateDisplayKernel = displayProgram:kernel{
-			name = 'display',
-			argsIn = table{
-				self.TPrims,
-				self.gPrims,
-				self.gLLs,
-				self.gUUs,
-				self.GammaULLs,
-				self.EFEs,
-			},
-			argsOut = {
-				self.texCLBuf,
-			},
-		}
---]=]
--- [==[ using clang for compiling / linking
-		local displayProgram = self:program{
-			-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
-			name = 'display',
-			code = self:template[[
-kernel void display(
-	global real * const texCLBuf,
-	global <?=TPrim_t?> const * const TPrims,
-	global gPrim_t const * const gPrims,
-	global real4s4 const * const gLLs,
-	global real4s4 const * const gUUs,
-	global real4x4s4 const * const GammaULLs,
-	global real4s4 const * const EFEs
-) {
-	initKernel();
-<?=solver.displayCode?>
-}
-]],
-		}
-		displayProgram:compile()
+			}
+			--[[ can't just link multiple bc files into a spv file ...
+			displayProgram:compile{
+				linkOptions = ('%q'):format('cache/efe.bc'),
+			}
+			--]]
+			-- [[ maybe i have to do this? 
+			-- TODO sort out how to specify this in the CLClangProgram class
+			displayProgram.cacheFileCL = 'cache/display.cl'
+			displayProgram.cacheFileBC = 'cache/display.bc'	-- cl -> bc 
+			displayProgram.cacheFileOutBC = 'cache/display-out.bc'	-- bc + other bc's -> merged bc 
+			displayProgram.cacheFileSPV = 'cache/display.spv'	-- merged bc -> spv 
+			--displayProgram:build()
+			local displayCode = self:template(displayProgram:getCode())
+			if path(displayProgram.cacheFileCL):read() ~= displayCode then
+				assert(path(displayProgram.cacheFileCL):write(displayCode))
+			end
+			targets{
+				verbose = true,
+				{
+					srcs = {displayProgram.cacheFileCL},
+					dsts = {displayProgram.cacheFileBC},
+					rule = function()
+						-- cache/display.cl => cache/display.bc
+						exec(table{
+							'clang',
+							'-v',
+							'--target=spir-unknown-unknown',
+							'-emit-llvm',
+							'-c',
+							'-O0',
+							'-o', ('%q'):format(displayProgram.cacheFileBC),
+							('%q'):format(displayProgram.cacheFileCL),
+						}:concat' ')
+					end,
+				},
+				{
+					srcs = {'cache/efe.bc', displayProgram.cacheFileBC},
+					dsts = {displayProgram.cacheFileOutBC},
+					rule = function()
+						-- cache/efe.bc + cache/display.bc => cache/display-out.bc
+						exec(table{
+							'llvm-link',
+							('%q'):format'cache/efe.bc',
+							('%q'):format(displayProgram.cacheFileBC),
+							'-o', ('%q'):format(displayProgram.cacheFileOutBC),
+						}:concat' ')
+					end,
+				},
+				{
+					srcs = {displayProgram.cacheFileOutBC},
+					dsts = {displayProgram.cacheFileSPV},
+					rule = function()
+						-- cache/display-out.bc => cache/display.spv
+						--displayProgram:link()
+						exec(table{
+							'llvm-spirv',
+							('%q'):format(displayProgram.cacheFileOutBC),
+							'-o',
+							('%q'):format(displayProgram.cacheFileSPV),
+						}:concat' ')
+					end,
+				},
+			}:run(displayProgram.cacheFileSPV)
+			displayProgram.IL = assert(path(displayProgram.cacheFileSPV):read())
+			CLClangProgram.super.compile(displayProgram)
+			--]]
 print'displayProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
---]==]
-		self.updateDisplayKernel = displayProgram:kernel{
-			name = 'display',
-			argsIn = table{
-				self.TPrims,
-				self.gPrims,
-				self.gLLs,
-				self.gUUs,
-				self.GammaULLs,
-				self.EFEs,
-			},
-			argsOut = {
-				self.texCLBuf,
-			},
-		}
+			self.updateDisplayKernel = displayProgram:kernel{
+				name = 'display',
+				argsIn = table{
+					self.TPrims,
+					self.gPrims,
+					self.gLLs,
+					self.gUUs,
+					self.GammaULLs,
+					self.EFEs,
+				},
+				argsOut = {
+					self.texCLBuf,
+				},
+			}
 
-		self:updateTex()
-	end, function(err)
-		print(err..'\n'..debug.traceback())
+			self:updateTex()
+		end, function(err)
+			print(err..'\n'..debug.traceback())
+		end)
 	end)
-end)
 end
 
 function EFESolver:refreshDisplayVar()
