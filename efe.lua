@@ -21,7 +21,7 @@ local function writeIfChanged(filename, data)
 	local srcpath = path(filename)
 	local srcdata = srcpath:read()
 	if srcdata ~= data then
---[[
+--[[ if you want to diff what's been changed ...
 		path'cache/tmp':write(data)
 		exec(table{'diff', ('%q'):format(filename), 'cache/tmp'}:concat' ', false)
 		path'cache/tmp':remove()
@@ -69,7 +69,7 @@ function CLClangProgram:setupBuildTargets(args)
 					'--target=spir-unknown-unknown',
 					'-emit-llvm',
 					'-c',
-					'-O0',
+					--'-O0',	-- -O0 makes some code break ... smh
 					--'-O3',
 					'-o', ('%q'):format(path(self.cacheFileBC):fixpathsep()),
 					('%q'):format(path(self.cacheFileCL):fixpathsep()),
@@ -1349,21 +1349,8 @@ self.code = table{
 // THIS DIFFERS FROM THE ENV CODE
 // ONLY COMPILE THAT ONCE, EVERYONE ELSE USE EXTERNS TO ACCESS IT
 extern constant const int dim;
-extern constant const int4 stepsize;
-
-#if 1	//gives "unresolved external symbol"
 extern constant const int4 size;
-#elif 0	//gives "multiply defined"
-constant const int4 size = (int4)(<?=
-	tonumber(size.x)?>, <?=
-	tonumber(size.y)?>, <?=
-	tonumber(size.z)?>, 0);
-#else	//works...
-static constant const int4 size = (int4)(<?=
-	tonumber(size.x)?>, <?=
-	tonumber(size.y)?>, <?=
-	tonumber(size.z)?>, 0);
-#endif
+extern constant const int4 stepsize;
 
 //macros for the base domain
 #define indexForInt4(i)	indexForInt4ForSize(i, size.x, size.y, size.z)
@@ -1380,7 +1367,7 @@ static constant const int4 size = (int4)(<?=
 #include "efe.funcs.h"
 
 kernel void display(
-	global real * const texCLBuf,
+	global float * const texCLBuf,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4s4 const * const gLLs,
@@ -1489,9 +1476,9 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
-print'init_gPrims'
+--print'init_gPrims'
 	self.init_gPrims()	-- initialize gPrims
-self:printbuf'gPrims'
+--self:printbuf'gPrims'
 
 --print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims
@@ -1504,7 +1491,7 @@ self:printbuf'gPrims'
 --self:printbuf'EFEs'
 
 	self:updateTex()
-print('residual', self:calcResidual())
+print('residual', self:calcBufferNorm())
 
 	self.iteration = 0
 end
@@ -1562,18 +1549,19 @@ substitute back into harmonic slicing condition:
 end
 
 -- calc norm of self.EFEs
-function EFESolver:calcResidual()
+function EFESolver:calcBufferNorm(srcbuf)
+	srcbuf = srcbuf or self.EFEs
 	--[[ hmmm....
 	self.jfnkSolver.args.scale(
 		self.tmpBuf,
-		self.EFEs,
+		srcbuf,
 		1 / G)
 	return self.conjResSolver.args.dot(self.tmpBuf, self.tmpBuf)
 	--]]
 	-- [[
-	local cpu = self.EFEs:toCPU()
+	local cpu = srcbuf:toCPU()
 	local sum = 0
-	local m = ffi.sizeof(self.EFEs.type) / ffi.sizeof'real'
+	local m = ffi.sizeof(srcbuf.type) / ffi.sizeof'real'
 	assert(m == 10)	-- real4s4
 	local volume = tonumber(self.base.size:volume())
 	for i=0,volume-1 do
@@ -1602,9 +1590,10 @@ function EFESolver:updateNewton()
 	--]]
 
 	-- here's the newton update method
---print'calc_partial_gPrim_of_Phis_kernel'
+print'calc_partial_gPrim_of_Phis_kernel'
 	self.calc_partial_gPrim_of_Phis_kernel()
 --self:printbuf'partial_gPrim_of_Phis'
+print('partial_gPrim_of_Phis norm '..self:calcBufferNorm(self.partial_gPrim_of_Phis))
 	-- now that we have ∂Φ/∂g_ab
 	-- trace along g_ab - λ * ∂Φ/∂g_ab
 	-- to find what λ gives us minimal residual
@@ -1621,7 +1610,7 @@ function EFESolver:updateNewton()
 			self.update_gPrims.obj:setArg(2, lambdaPtr)
 			self.update_gPrims()
 			self:updateAux()	-- calcs from gPrims on down to EFE
-			local residual = self:calcResidual()
+			local residual = self:calcBufferNorm()
 print(('lambda=%.16e residual=%.16e'):format(lambda, residual))
 			return residual
 		end
@@ -1687,7 +1676,7 @@ print('lambda', self.updateLambda)
 	--]]
 
 	self:updateAux()
-print('residual', self:calcResidual())
+print('residual', self:calcBufferNorm())
 	self:updateTex()
 end
 
@@ -1732,7 +1721,7 @@ function EFESolver:updateTex()
 	-- get the min and max
 	-- then rescale the data according
 
--- notice soem of my results might not survive the double->float cast
+-- notice some of my results might not survive the double->float cast
 -- because they exist in 1e-40 and what not
 
 	-- now copy from cl buffer to gl buffer

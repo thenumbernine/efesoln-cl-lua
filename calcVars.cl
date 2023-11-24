@@ -1,12 +1,16 @@
 // different initial conditions / boundary conditions of gPrims
 // this is the only code that uses solver.body
 
+#define new_gPrim_flat() ((gPrim_t){\
+	.alpha = 1,\
+	.betaU = new_real3_zero(),\
+	.gammaLL = real3s3_ident,\
+})
+
+constant gPrim_t const gPrim_flat = new_gPrim_flat();
+
 gPrim_t calc_gPrim_flat(real3 const x) {
-	return (gPrim_t){
-		.alpha = 1,
-		.betaU = real3_zero,
-		.gammaLL = real3s3_ident,
-	};
+	return gPrim_flat;
 }
 
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
@@ -1014,6 +1018,9 @@ real4s4 calc_partial_gLL_of_Phi(
 	return partial_gLL_of_Phi;
 }
 
+_Static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
+_Static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
+
 gPrim_t calc_partial_gPrim_of_Phi(
 	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
@@ -1034,9 +1041,9 @@ gPrim_t calc_partial_gPrim_of_Phi(
 
 	gPrim_t partial_gPrim_of_Phi;
 
-	partial_gPrim_of_Phi.alpha = -2. * gPrim.alpha * partial_gLL_of_Phi.s[sym4[0][0]];
+	partial_gPrim_of_Phi.alpha = -2. * gPrim.alpha * partial_gLL_of_Phi.s00;
 	for (int m = 0; m < sDim; ++m) {
-		partial_gPrim_of_Phi.betaU.s[m] = 2. * partial_gLL_of_Phi.s[sym4[0][0]] * betaL.s[m];
+		partial_gPrim_of_Phi.betaU.s[m] = 2. * partial_gLL_of_Phi.s00 * betaL.s[m];
 		for (int n = 0; n < sDim; ++n) {
 			partial_gPrim_of_Phi.betaU.s[m] += partial_gLL_of_Phi.s[sym4[0][n+1]] * gammaLL.s[sym3[n][m]];
 		}
