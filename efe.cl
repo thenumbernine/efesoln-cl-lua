@@ -472,6 +472,47 @@ real3 getX(int4 const i) {
 		xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
 }
 
+constant int4 const int4_dirs[3] = {
+	(int4)(1, 0, 0, 0),
+	(int4)(0, 1, 0, 0),
+	(int4)(0, 0, 1, 0),
+};
+int4 int4_dir(int const dim, int const offset) {
+	return int4_dirs[dim] * offset;
+}
+
+
+//use this for all finite-difference access
+//and put the boundary condition code in here, in one place
+real4s4 gLL_at(
+	int4 const i,
+	global real4s4 const * const gLLs
+) {
+	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+		i.x >= size.x || i.y >= size.y || i.z >= size.z
+	) {
+		return real4s4_Minkowski;
+	}
+	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	return gLLs[index];
+}
+
+// this is hardcoded to g_ab = η_ab at boundaries
+// NOTICE THIS SHOULD ALWAYS MATCH gLL_at ABOVE
+real4s4 gUU_at(
+	int4 const i,
+	global real4s4 const * const gUUs
+) {
+	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+		i.x >= size.x || i.y >= size.y || i.z >= size.z
+	) {
+		return real4s4_Minkowski;
+	}
+	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	return gUUs[index];
+}
+
+
 real4s4 calc_RicciLL(
 	int4 const i,
 	global real4s4 const * const gLLs,
@@ -501,12 +542,12 @@ real4s4 calc_RicciLL(
 	//partial_xU2_of_gLL.ab.cd := ∂_a ∂_b (g_cd)
 	// = ∂^2/(∂x^a ∂x^b) (g_cd)
 	// = g_cd,ab
-<?= solver:finiteDifference2{
-	bufferName = "gLLs",
+<?=solver:finiteDifference2{
 	srcType = "4s4",
 	resultName = "partial_xU2_of_gLL",
-	getBoundary = function(args) return "real4s4_Minkowski" end,
-} ?>
+	getValue = function(args) return "gLL_at("..args.i..", gLLs)" end,
+	getBoundary = function(args) return "gLL_at("..args.i..", gLLs)" end,
+}?>
 
 <? if false then -- testing to make sure contraction of Riemann == Ricci
 -- ... looks the same as the simplified version below ?>

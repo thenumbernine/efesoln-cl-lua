@@ -150,6 +150,18 @@ extern constant real3 const xmax;
 extern constant real3 const dx;
 extern constant real3 const inv_dx; 
 real3 getX(int4 const i);
+extern constant int4 const int4_dirs[3];
+int4 int4_dir(int const dim, int const offset);
+
+real4s4 gLL_at(
+	int4 const i,
+	global real4s4 const * const gLLs
+);
+
+real4s4 gUU_at(
+	int4 const i,
+	global real4s4 const * const gUUs
+);
 
 real4s4 calc_RicciLL(
 	int4 const i,

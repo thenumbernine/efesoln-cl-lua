@@ -252,12 +252,12 @@ kernel void init_gPrims(
 <? end 
 ?>	} else {
 		*gPrim = (gPrim_t){
-			.alpha = 0/0,
-			.betaU = _real3(0/0, 0/0, 0/0),
+			.alpha = -1,
+			.betaU = _real3(-2, -3, -4),
 			.gammaLL = (real3s3){
-				.s00 = 0/0, .s01 = 0/0, .s02 = 0/0,
-				.s11 = 0/0, .s12 = 0/0,
-				.s22 = 0/0,
+				.s00 = -5, .s01 = -6, .s02 = -7,
+				.s11 = -8, .s12 = -9,
+				.s22 = -10,
 			},
 		};
 	}
@@ -314,11 +314,10 @@ kernel void calc_GammaULLs(
 
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
 <?=solver:finiteDifference{
-	bufferName = "gLLs",
 	srcType = "4s4",
 	resultName = "partial_xU_of_gLL",
-	--getBoundary = function(args) return "new_real4s4_Minkowski()" end,
-	getBoundary = function(args) return "real4s4_Minkowski" end,
+	getValue = function(args) return "gLL_at("..args.i..", gLLs)" end,
+	getBoundary = function(args) return "gLL_at("..args.i..", gLLs)" end,
 }?>
 
 	//Γ_abc := GammaLLL.a.bc
@@ -641,15 +640,6 @@ end
 	return real4s4x4s4_real_mul(partial_gLL_of_8piTLL, 8. * M_PI);
 }
 
-static constant int4 const int4_dirs[3] = {
-	(int4)(1, 0, 0, 0),
-	(int4)(0, 1, 0, 0),
-	(int4)(0, 0, 1, 0),
-};
-int4 int4_dir(int dim, int offset) {
-	return int4_dirs[dim] * offset;
-}
-
 real4s4 EFE_LL_minus_half_trace_at(
 	int4 const i,
 	global real4s4 const * const gLLs,
@@ -674,22 +664,6 @@ real4s4 EFE_LL_minus_half_trace_at(
 	// common term in the gradient descent:
 	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
 	return real4s4_mul_add(EFE, gUU, -.5 * EFE_LL_dot_gLL);
-}
-
-// this is hardcoded to g_ab = η_ab at boundaries
-//TODO ... consider boundary conditions
-// or TODO ... put all g^ab boundary conditions here, and use this function in the finite-difference calculations
-real4s4 gUU_at(
-	int4 const i,
-	global real4s4 const * const gUUs
-) {
-	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
-		i.x >= size.x || i.y >= size.y || i.z >= size.z
-	) {
-		return real4s4_Minkowski;
-	}
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
-	return gUUs[index];
 }
 
 //GammaULL.a.b.c := Γ^a_bc
@@ -738,12 +712,12 @@ real4s4 calc_partial_gLL_of_Phi(
 	real4x4s4 const GammaULL = GammaULLs[index];
 
 	//partial_xU2_of_gLL.cd.ab := g_ab,cd
-<?= solver:finiteDifference2{
-	bufferName = "gLLs",
+<?=solver:finiteDifference2{
 	srcType = "4s4",
 	resultName = "partial_xU2_of_gLL",
-	getBoundary = function(args) return "real4s4_Minkowski" end,
-} ?>
+	getValue = function(args) return "gLL_at("..args.i..", gLLs)" end,
+	getBoundary = function(args) return "gLL_at("..args.i..", gLLs)" end,
+}?>
 
 	//TODO or store this?
 	//GammaLLL.a.bc := Γ_abc = g_au Γ^u_bc

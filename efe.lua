@@ -453,6 +453,7 @@ end
 -- 2nd deriv
 function EFESolver:finiteDifference2(args)
 	return template([[<?
+local range = require 'ext.range'
 local srcType = args.srcType
 local getValue = args.getValue or function(args)
 	return args.bufferName.."["..args.index.."]"
@@ -470,10 +471,16 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 <? if i == j then -- 2nd-deriv kernel
 ?>
 			<? for k,coeff in pairs(d2coeffs) do
+				args.i = "i + (int4)("
+					..range(0,3):mapi(function(ii) return ii==i and -k or 0 end):concat', '
+					..")"
 				args.index = "index - stepsize.s"..i.." * "..k
 			?>{
 				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?				args.index = "index + stepsize.s"..i.." * "..k
+<?				args.i = "i + (int4)("
+					..range(0,3):mapi(function(ii) return ii==i and k or 0 end):concat', '
+					..")"
+				args.index = "index + stepsize.s"..i.." * "..k
 ?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 				<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 					<?=resultName?>.s<?=i+1?><?=j+1?>,
@@ -488,15 +495,31 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 ?>
 			<? for k,coeff_k in pairs(d1coeffs) do ?>{
 				<? for l,coeff_l in pairs(d1coeffs) do
+					args.i = "i + (int4)("
+						..range(0,3):mapi(function(ii) return ii==i and -k or (ii==j and -l or 0) end):concat', '
+						..")"
 					args.index = "index - stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
 				?>{
 					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?					args.index = "index - stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
+<?					
+					args.i = "i + (int4)("
+						..range(0,3):mapi(function(ii) return ii==i and -k or (ii==j and l or 0) end):concat', '
+						..")"
+					args.index = "index - stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?					args.index = "index + stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
+<?					
+					args.i = "i + (int4)("
+						..range(0,3):mapi(function(ii) return ii==i and k or (ii==j and -l or 0) end):concat', '
+						..")"
+					args.index = "index + stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?					args.index = "index + stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
+<?					
+					args.i = "i + (int4)("
+						..range(0,3):mapi(function(ii) return ii==i and k or (ii==j and l or 0) end):concat', '
+						..")"
+					args.index = "index + stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> + <?=l?> >= size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+					
 					<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 						<?=resultName?>.s<?=i+1?><?=j+1?>,
 						real<?=srcType?>_real_mul(
