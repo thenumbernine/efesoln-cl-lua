@@ -51,7 +51,24 @@ function CLClangProgram:init(args)
 	
 	CLClangProgram.super.init(self, args)
 end
-		
+
+local function clangCompile(dst, src, buildOptions)
+	exec(table{
+		'clang',
+		buildOptions or '',
+		'-v',
+		'--target=spirv64-unknown-unknown',
+		--'--target=spirv',	--unsupported
+		--'--target=spir-unknown-unknown',
+		'-emit-llvm',
+		'-c',
+		--'-O0',	-- -O0 makes some code break ... smh
+		--'-O3',
+		'-o', ('%q'):format(path(dst):fixpathsep()),
+		('%q'):format(path(src):fixpathsep()),
+	}:concat' ')
+end
+
 -- TODO would be nice to do this once and let the caller / subclass modify it
 function CLClangProgram:setupBuildTargets(args)
 	self.buildTargets = makeTargets{
@@ -60,20 +77,9 @@ function CLClangProgram:setupBuildTargets(args)
 			srcs = {self.cacheFileCL},
 			dsts = {self.cacheFileBC},
 			rule = function()
-				exec(table{
-					'clang',
-					args and args.buildOptions or '',
-					'-v',
-					--'--target=spirv64-unknown-unknown',	-- cl<->gl tex gets weird memory errors
-					--'--target=spirv',	--unsupported
-					'--target=spir-unknown-unknown',
-					'-emit-llvm',
-					'-c',
-					--'-O0',	-- -O0 makes some code break ... smh
-					--'-O3',
-					'-o', ('%q'):format(path(self.cacheFileBC):fixpathsep()),
-					('%q'):format(path(self.cacheFileCL):fixpathsep()),
-				}:concat' ')
+				assert(#rule.dsts == 1)
+				assert(#rule.srcs == 1)
+				clangCompile(rule.dsts[1], rule.srcs[1], args and arg.buildOption or nil)
 			end,
 		},
 		{
@@ -1219,6 +1225,7 @@ function EFESolver:refreshKernels()
 	path'cache':mkdir()
 
 	writeIfChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
+	writeIfChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
 
 	local efeProgram = self:program{
 		name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
@@ -1428,16 +1435,9 @@ kernel void display(
 					dsts = {displayProgram.cacheFileBC},
 					rule = function()
 						-- cache/display.cl => cache/display.bc
-						exec(table{
-							'clang',
-							'-v',
-							'--target=spir-unknown-unknown',
-							'-emit-llvm',
-							'-c',
-							'-O0',
-							'-o', ('%q'):format(displayProgram.cacheFileBC),
-							('%q'):format(displayProgram.cacheFileCL),
-						}:concat' ')
+						assert(#rule.dsts == 1)
+						assert(#rule.srcs == 1)
+						clangCompile(rule.dsts[1], rule.srcs[1], args and arg.buildOption or nil)
 					end,
 				},
 				{

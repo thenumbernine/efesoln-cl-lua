@@ -481,9 +481,20 @@ int4 int4_dir(int const dim, int const offset) {
 	return int4_dirs[dim] * offset;
 }
 
+#include "calcVars.h"	//calc_gPrim_stellar_Schwarzschild
+
+//put the boundary condition code in here, in one place
+// this is hardcoded to g_ab = η_ab at boundaries
+gPrim_t calc_gPrim_boundary(real3 const x) {
+#if 0	// boundary condition : flat
+	return gPrim_flat;
+#endif
+#if 1	// boundary condition : stellar schwarzschild
+	return calc_gPrim_stellar_Schwarzschild(x);
+#endif
+}
 
 //use this for all finite-difference access
-//and put the boundary condition code in here, in one place
 real4s4 gLL_at(
 	int4 const i,
 	global real4s4 const * const gLLs
@@ -491,14 +502,12 @@ real4s4 gLL_at(
 	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
-		return real4s4_Minkowski;
+		return calc_gLL_from_gPrim(calc_gPrim_boundary(getX(i)));
 	}
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
 	return gLLs[index];
 }
 
-// this is hardcoded to g_ab = η_ab at boundaries
-// NOTICE THIS SHOULD ALWAYS MATCH gLL_at ABOVE
 real4s4 gUU_at(
 	int4 const i,
 	global real4s4 const * const gUUs
@@ -506,7 +515,7 @@ real4s4 gUU_at(
 	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
-		return real4s4_Minkowski;
+		return calc_gUU_from_gPrim(calc_gPrim_boundary(getX(i)));
 	}
 	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
 	return gUUs[index];
