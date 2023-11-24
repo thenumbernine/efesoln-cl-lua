@@ -465,7 +465,7 @@ constant real3 const inv_dx = _real3(<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
 
-real3 getX(int4 i) {
+real3 getX(int4 const i) {
 	return _real3(
 		xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),
 		xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),

@@ -120,13 +120,52 @@ real real4s4_det(real4s4 const m);
 real4s4 new_real4s4_Minkowski();
 extern constant real4s4 const real4s4_Minkowski;
 
+real4s4 real4x4_real4s4_to_real4s4_mul(real4x4 const a, real4s4 const b);
+real real4x4_tr(real4x4 const a);
 
 <?makeOpsHeader("real4x4x4", "real4x4", {"s0", "s1", "s2", "s3"})?>
 
 <?makeOpsHeader("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
 
+real3 real4x4s4_i00(real4x4s4 const a);
+real4 real4x4s4_tr12(real4x4s4 const a);
+real4 real4x4x4_tr23(real4x4x4 const a);
+real4x4s4 real4s4_real4x4s4_mul(real4s4 const a, real4x4s4 const b);
+real4x4x4 real4x4s4_real4s4_mul21(real4x4s4 const a, real4s4 const b);
+
 <?makeOpsHeader("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 <?makeOpsHeader("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
 
+real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(real4x4x4x4 const a, real4s4 const b);
+real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(real4x4x4x4 const a, real4s4 const b);
+real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const a);
+
 <?makeOpsHeader("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
+
+extern constant int const stDim;
+extern constant int const sDim;
+extern constant real3 const xmin;
+extern constant real3 const xmax;
+extern constant real3 const dx;
+extern constant real3 const inv_dx; 
+real3 getX(int4 const i);
+
+real4s4 calc_RicciLL(
+	int4 const i,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
+	global real4x4s4 const * const GammaULLs
+);
+
+real4s4 calc_EinsteinLL(
+	int4 const i,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
+	global real4x4s4 const * const GammaULLs
+);
+
+real4s4 calc_8piTLL(
+	real4s4 const gLL,
+	<?=TPrim_t?> const TPrim
+);
