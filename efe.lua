@@ -14,28 +14,31 @@ local CLEnv = require 'cl.obj.env'
 local clnumber = require 'cl.obj.number'
 
 
+-- TODO move this to cl?
 local CLProgram = require 'cl.obj.program'
 local CLClangProgram = CLProgram:subclass()
 
 function CLClangProgram:init(args)
-	self.name = assert(args.name)
+	if args.name then
+		self.name = args.name
+		path'cache':mkdir()
+		self.cacheFileCL = 'cache/'..self.name..'.cl'
+		self.cacheFileBC = 'cache/'..self.name..'.bc'
+		self.cacheFileSPV = 'cache/'..self.name..'.spv'
+	end
 
 	-- ok I don't want super to hit the args.code condition
 	-- but I want to store the code for later, so
 	self.code = args.code
 	args.code = nil
 	
-	path'cache':mkdir()
-	self.cacheFileCL = 'cache/'..self.name..'.cl'
-	self.cacheFileBC = 'cache/'..self.name..'.bc'
-	self.cacheFileSPV = 'cache/'..self.name..'.spv'
 	CLClangProgram.super.init(self, args)
 end
-
-function CLClangProgram:compile(args)
-	local exec = require 'make.exec'
-	path(self.cacheFileCL):write(self:getCode())
-	require 'make.targets'{
+		
+local exec = require 'make.exec'
+local targets = require 'make.targets'
+function CLClangProgram:setupBuildTargets(args)
+	self.buildTargets = targets{
 		verbose = true,
 		{
 			srcs = {self.cacheFileCL},
@@ -43,11 +46,15 @@ function CLClangProgram:compile(args)
 			rule = function()
 				exec(table{
 					'clang',
+					args and args.buildOptions or '',
 					'-v',
-					'--target=spir',
-					'-O0',
+					--'--target=spirv64-unknown-unknown',	-- cl<->gl tex gets weird memory errors
+					--'--target=spirv',	--unsupported
+					'--target=spir-unknown-unknown',
 					'-emit-llvm',
 					'-c',
+					'-O0',
+					--'-O3',
 					'-o', ('%q'):format(path(self.cacheFileBC):fixpathsep()),
 					('%q'):format(path(self.cacheFileCL):fixpathsep()),
 				}:concat' ')
@@ -58,16 +65,36 @@ function CLClangProgram:compile(args)
 			dsts = {self.cacheFileSPV},
 			rule = function()
 				exec(table{
-					'llvm-spirv-16',
+					'llvm-spirv',
+					args and args.linkOptions or '',
 					('%q'):format(self.cacheFileBC),
 					'-o', ('%q'):format(self.cacheFileSPV),
 				}:concat' ')
 			end,
 		},
-	}:run(self.cacheFileSPV)
-	self.IL = path(self.cacheFileSPV):read()
-	args = table(args):setmetatable(nil)
-	args.verbose = true
+	}
+end
+
+function CLClangProgram:build(args)
+	self:setupBuildTargets(args)
+	self.buildTargets:run(self.cacheFileBC)
+end
+
+function CLClangProgram:link(args)
+	self:setupBuildTargets(args)
+	self.buildTargets:run(self.cacheFileSPV)
+end
+
+function CLClangProgram:compile(args)
+	if self.cacheFileCL or self.cacheFileBC or self.cacheFileSPV then
+		path(self.cacheFileCL):write(self:getCode())
+		self:setupBuildTargets(args)
+		self.buildTargets:run(self.cacheFileBC)
+		self.buildTargets:run(self.cacheFileSPV)
+		self.IL = path(self.cacheFileSPV):read()
+		args = table(args):setmetatable(nil)
+		args.verbose = true
+	end
 	local results = CLClangProgram.super.compile(self, args)
 	assert(self.obj, "there must have been an error in your error handler")	-- otherwise it would have thrown an error
 	do--if self.obj then	-- did compile
@@ -301,6 +328,8 @@ local bodies = {
 -- initial conditions:
 
 local EFESolver = CLEnv:subclass()
+
+EFESolver.Program = CLClangProgram
 
 -- finite difference
 
@@ -1222,12 +1251,15 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	--]]
 --]==]
 -- [==[ using clang for compiling/linking...
-	local efeProgram = CLClangProgram{
-		name = 'efe',
-		env = self,
+	local efeProgram = self:program{
+		name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
 		code = self.efeCode,
 	}
+	-- builds efe.cl, efe.bc, efe.spv
 	efeProgram:compile()
+print'efeProgram'
+print'CL_PROGRAM_KERNEL_NAMES:'
+print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 -- ]==]
 
 	-- init
@@ -1371,9 +1403,10 @@ timer('refreshDisplayKernel', function()
 		}
 		self.updateDisplayKernel:compile()
 --]=]
--- [=[ link into the previous .o 
+--[=[ link into the previous .o 
 		local displayProgramObj = self:program{
 			-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
+			name = 'display',
 			code = self:template[[
 kernel void display(
 	global real * const texCLBuf,
@@ -1400,6 +1433,7 @@ kernel void display(
 
 		-- getting link errors
 		local displayProgram = self:program{
+			name = 'display',
 			programs = {
 				displayProgramLib,
 				self.efeProgramLib,
@@ -1421,8 +1455,47 @@ kernel void display(
 			argsOut = {
 				self.texCLBuf,
 			},
-		}	
+		}
 --]=]
+-- [==[ using clang for compiling / linking
+		local displayProgram = self:program{
+			-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
+			name = 'display',
+			code = self:template[[
+kernel void display(
+	global real * const texCLBuf,
+	global <?=TPrim_t?> const * const TPrims,
+	global gPrim_t const * const gPrims,
+	global real4s4 const * const gLLs,
+	global real4s4 const * const gUUs,
+	global real4x4s4 const * const GammaULLs,
+	global real4s4 const * const EFEs
+) {
+	initKernel();
+<?=solver.displayCode?>
+}
+]],
+		}
+		displayProgram:compile()
+print'displayProgram'
+print'CL_PROGRAM_KERNEL_NAMES:'
+print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
+--]==]
+		self.updateDisplayKernel = displayProgram:kernel{
+			name = 'display',
+			argsIn = table{
+				self.TPrims,
+				self.gPrims,
+				self.gLLs,
+				self.gUUs,
+				self.GammaULLs,
+				self.EFEs,
+			},
+			argsOut = {
+				self.texCLBuf,
+			},
+		}
+
 		self:updateTex()
 	end, function(err)
 		print(err..'\n'..debug.traceback())
@@ -1437,9 +1510,9 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
-print'init_gPrims'
+--print'init_gPrims'
 	self.init_gPrims()	-- initialize gPrims
-self:printbuf'gPrims'
+--self:printbuf'gPrims'
 
 --print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims
