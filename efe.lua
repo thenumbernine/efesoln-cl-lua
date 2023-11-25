@@ -39,10 +39,58 @@ local CLClangProgram = CLProgram:subclass()
 function CLClangProgram:init(args)
 	if args.cacheFileName then
 		self.cacheFileName = args.cacheFileName
-		path'cache':mkdir()
-		self.cacheFileCL = 'cache/'..self.cacheFileName..'.cl'
-		self.cacheFileBC = 'cache/'..self.cacheFileName..'.bc'
-		self.cacheFileSPV = 'cache/'..self.cacheFileName..'.spv'
+		path(path(self.cacheFileName):getdir()):mkdir()
+		-- TODO how to distinguish between caching via Binary and via IL (aka using SPIR-V toolchain?)
+		self.cacheFileCL = self.cacheFileName..'.cl'
+		self.cacheFileBC = self.cacheFileName..'.bc'
+		self.cacheFileSPV = self.cacheFileName..'.spv'
+	end
+
+	-- If we specify multiple programs as input then we link immediately and return.
+	-- Same behavior as with Binaries.
+	if args.cacheFileName
+	and args.programs 
+	then
+		-- assert all our input programs have .bc files
+		makeTargets{
+			{
+				srcs = table.mapi(args.programs, function(program)
+					return assert(program.cacheFileBC, "CLProgram constructed with .programs, expected all those programs to have .cacheFileBC's, but one didn't: "..tostring(program.cacheFileName))
+				end),
+				dsts = {self.cacheFileBC},
+				rule = function(rule)
+					-- other .bc' => our .bc 
+					exec(table{
+						'llvm-link',
+						table.mapi(rule.srcs, function(src)
+							return ('%q'):format(src)
+						end):concat' ',
+						'-o', ('%q'):format(self.cacheFileBC),
+					}:concat' ')
+				end,
+			},
+			{	-- same rule as in :compile() for building from .cl ...
+				srcs = {self.cacheFileBC},
+				dsts = {self.cacheFileSPV},
+				rule = function()
+					exec(table{
+						'llvm-spirv',
+						('%q'):format(self.cacheFileBC),
+						'-o',
+						('%q'):format(self.cacheFileSPV),
+					}:concat' ')
+				end,
+			},
+		}:run(self.cacheFileBC)
+		-- the rest of this is just like the SPRIV :compile() pathway too...
+		self.IL = assert(path(self.cacheFileSPV):read())
+		local results = CLClangProgram.super.compile(displayProgram)
+		do--if self.obj then	-- did compile
+			print((self.cacheFileName and self.cacheFileName..' ' or '')..'log:')
+			-- TODO log per device ...
+			print(string.trim(self.obj:getLog(self.env.devices[1])))
+		end
+		return
 	end
 
 	-- ok I don't want super to hit the args.code condition
@@ -117,9 +165,15 @@ function CLClangProgram:link(args)
 end
 
 function CLClangProgram:compile(args)
-	if self.cacheFileCL or self.cacheFileBC or self.cacheFileSPV then
-		self:build(args)
-		self:link(args)
+	-- if we're using the spirv toolchain...
+	if self.cacheFileCL 
+	or self.cacheFileBC 
+	or self.cacheFileSPV 
+	then
+		self:build(args)	-- cl -> bc
+		-- if 'dontLink' then just leave the .bc file for another Program to use ... or not?
+		if args and args.dontLink then return end
+		self:link(args)		-- cl -> bc -> spv
 		args = table(args):setmetatable(nil)
 		args.verbose = true
 	end
@@ -1233,7 +1287,7 @@ function EFESolver:refreshKernels()
 	writeIfChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
 
 	local efeProgram = self:program{
-		cacheFileName = 'efe',	-- produces cache/efe.bc and cache/efe.spv
+		cacheFileName = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
 		code = self.efeCode,
 	}
 
@@ -1406,7 +1460,7 @@ extern constant const int4 stepsize;
 --]=]			
 			local displayProgram = self:program{
 				-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
-				cacheFileName = 'display',
+				cacheFileName = 'cache/display',
 				code = self:template[[
 #include "efe.funcs.h"
 #include "calcVars.h"
@@ -1442,7 +1496,7 @@ kernel void display(
 			-- TODO sort out how to specify this in the CLClangProgram class
 			displayProgram.cacheFileCL = 'cache/display.cl'
 			displayProgram.cacheFileBC = 'cache/display.bc'	-- cl -> bc 
-			displayProgram.cacheFileOutBC = 'cache/display-out.bc'	-- bc + other bc's -> merged bc 
+			displayProgram.cacheFileLinkedBC = 'cache/display.linked.bc'	-- bc + other bc's -> merged bc 
 			displayProgram.cacheFileSPV = 'cache/display.spv'	-- merged bc -> spv 
 			--displayProgram:build()
 			local displayCode = self:template(displayProgram:getCode())
@@ -1461,26 +1515,26 @@ kernel void display(
 				},
 				{
 					srcs = {'cache/efe.bc', displayProgram.cacheFileBC},
-					dsts = {displayProgram.cacheFileOutBC},
+					dsts = {displayProgram.cacheFileLinkedBC},
 					rule = function()
 						-- cache/efe.bc + cache/display.bc => cache/display-out.bc
 						exec(table{
 							'llvm-link',
 							('%q'):format'cache/efe.bc',
 							('%q'):format(displayProgram.cacheFileBC),
-							'-o', ('%q'):format(displayProgram.cacheFileOutBC),
+							'-o', ('%q'):format(displayProgram.cacheFileLinkedBC),
 						}:concat' ')
 					end,
 				},
 				{
-					srcs = {displayProgram.cacheFileOutBC},
+					srcs = {displayProgram.cacheFileLinkedBC},
 					dsts = {displayProgram.cacheFileSPV},
 					rule = function()
 						-- cache/display-out.bc => cache/display.spv
 						--displayProgram:link()
 						exec(table{
 							'llvm-spirv',
-							('%q'):format(displayProgram.cacheFileOutBC),
+							('%q'):format(displayProgram.cacheFileLinkedBC),
 							'-o',
 							('%q'):format(displayProgram.cacheFileSPV),
 						}:concat' ')
