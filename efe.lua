@@ -31,17 +31,18 @@ local function writeIfChanged(filename, data)
 end
 
 -- TODO move this to cl?
--- and rename this? or just use the original CLProgram name?
+-- and rename this? 
+-- or just use the original CLProgram name?
 local CLProgram = require 'cl.obj.program'
 local CLClangProgram = CLProgram:subclass()
 
 function CLClangProgram:init(args)
-	if args.name then
-		self.name = args.name
+	if args.cacheFileName then
+		self.cacheFileName = args.cacheFileName
 		path'cache':mkdir()
-		self.cacheFileCL = 'cache/'..self.name..'.cl'
-		self.cacheFileBC = 'cache/'..self.name..'.bc'
-		self.cacheFileSPV = 'cache/'..self.name..'.spv'
+		self.cacheFileCL = 'cache/'..self.cacheFileName..'.cl'
+		self.cacheFileBC = 'cache/'..self.cacheFileName..'.bc'
+		self.cacheFileSPV = 'cache/'..self.cacheFileName..'.spv'
 	end
 
 	-- ok I don't want super to hit the args.code condition
@@ -125,7 +126,7 @@ function CLClangProgram:compile(args)
 	local results = CLClangProgram.super.compile(self, args)
 	assert(self.obj, "there must have been an error in your error handler")	-- otherwise it would have thrown an error
 	do--if self.obj then	-- did compile
-		print((self.name and self.name..' ' or '')..'log:')
+		print((self.cacheFileName and self.cacheFileName..' ' or '')..'log:')
 		-- TODO log per device ...
 		print(string.trim(self.obj:getLog(self.env.devices[1])))
 	end
@@ -1232,7 +1233,7 @@ function EFESolver:refreshKernels()
 	writeIfChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
 
 	local efeProgram = self:program{
-		name = 'efe',	-- produces cache/efe.bc and cache/efe.spv
+		cacheFileName = 'efe',	-- produces cache/efe.bc and cache/efe.spv
 		code = self.efeCode,
 	}
 
@@ -1405,7 +1406,7 @@ extern constant const int4 stepsize;
 --]=]			
 			local displayProgram = self:program{
 				-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
-				name = 'display',
+				cacheFileName = 'display',
 				code = self:template[[
 #include "efe.funcs.h"
 #include "calcVars.h"
