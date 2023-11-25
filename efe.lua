@@ -15,6 +15,8 @@ local clnumber = require 'cl.obj.number'
 
 local writeChanged = require 'make.writechanged'
 
+local useSpirvToolchain = false
+
 -- helper for indexing symmetric matrices
 local function sym(i,j)
 	if i <= j then return i..j else return j..i end
@@ -1129,19 +1131,42 @@ function EFESolver:refreshKernels()
 	writeChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
 	writeChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
 
-	self.efeProgram = self:program{
-		spirvToolchainFile = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
-		code = self.efeCode,
-	}
+	if useSpirvToolchain then
+		-- compile using clang & llvm-spirv ...
+		self.efeProgram = self:program{
+			spirvToolchainFile = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
+			code = self.efeCode,
+		}
+		-- builds efe.cl, efe.bc, efe.spv
+		-- why does clCreateProgramWithIL take 45 seconds, while clCreateProgramWithSource takes 10 ... and clCreateProgramWithBinary takes no time at all.
+		timer('compiling code...', function()
+			self.efeProgram:compile()
+		end)
+	else
+		timer('compiling code...', function()
+			path'cache':cd()
+			-- compile using intel opencl library
+			self.efeProgram = self:program{
+				cacheFile = 'cache/efe',
+				code = self.efeCode,
+			}
+			-- hmm cl api, clCreateProgramWithSource doesn't provide for build options, i.e. no -I flags ...
+			-- even when I do use separate build/link so I can pass build flags, -I doesn't have precedence over cwd,
+			-- so ...
+			-- just change cwd to 'cache' ... hmm 
+			-- but won't this make cache/cache/filenames for the binary cache? 
+			-- bleh what a mess
+			self.efeProgram:compile{
+				verbose = true,
+			}
+			path'..':cd()
+			--]]
+		end)
+	end
 
--- why does clCreateProgramWithIL take 45 seconds, while clCreateProgramWithSource takes 10 ... and clCreateProgramWithBinary takes no time at all.
-timer('compiling code...', function()
-	-- builds efe.cl, efe.bc, efe.spv
-	self.efeProgram:compile()
 print'efeProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
-end)
 
 	-- init
 	self.init_TPrims = self.efeProgram:kernel{
@@ -1300,11 +1325,10 @@ extern constant const int4 stepsize;
 		size = self.base.size,
 	}),
 }:concat'\n'
---]=]			
-			local displayProgramLib = self:program{
-				-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
-				spirvToolchainFile = 'cache/display',
-				code = self:template[[
+--]=]
+			-- self.displayCode is the custom displaly code
+			-- this displayCode is the display program's code
+			local displayCode = self:template[[
 #include "efe.funcs.h"
 #include "calcVars.h"
 
@@ -1328,20 +1352,44 @@ kernel void display(
 <? end
 ?>	}
 }
-]],
-			}
-			displayProgramLib:compile{
-				linkOptions = ('%q'):format('cache/efe.bc'),
-				dontLink = true,
-			}
+]]
+			local displayProgram 
+			if useSpirvToolchain then
+				local displayProgramLib = self:program{
+					-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
+					spirvToolchainFile = 'cache/display',
+					code = displayCode,
+				}
+				displayProgramLib:compile{
+					dontLink = true,
+				}
+				displayProgram = self:program{
+					spirvToolchainFile = 'display-out',
+					programs = {
+						self.efeProgram,
+						displayProgramLib,
+					},	-- link immediately
+				}
+			else
+				-- get around the -Icache and ./ vs cache/ file issue
+				path'cache':cd()
+				local displayProgramLib = self:program{
+					-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
+					cacheFile = 'cache/display',
+					code = displayCode,
+				}
+				displayProgramLib:compile{
+					dontLink = true,
+				}
+				displayProgram = self:program{
+					programs = {
+						self.efeProgram,
+						displayProgramLib,
+					},	-- link immediately
+				}
+				path'..':cd()
+			end
 
-			local displayProgram = self:program{
-				spirvToolchainFile = 'display-out',
-				programs = {
-					self.efeProgram,
-					displayProgramLib,	--rename to 'displayLib' or something
-				},	-- link immediately
-			}
 print'displayProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
