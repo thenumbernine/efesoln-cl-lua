@@ -39,7 +39,7 @@ local CLClangProgram = CLProgram:subclass()
 function CLClangProgram:init(args)
 	if args.cacheFileName then
 		self.cacheFileName = args.cacheFileName
-		path(path(self.cacheFileName):getdir()):mkdir()
+		path(self.cacheFileName):getdir():mkdir()
 		-- TODO how to distinguish between caching via Binary and via IL (aka using SPIR-V toolchain?)
 		self.cacheFileCL = self.cacheFileName..'.cl'
 		self.cacheFileBC = self.cacheFileName..'.bc'
@@ -49,20 +49,26 @@ function CLClangProgram:init(args)
 	-- If we specify multiple programs as input then we link immediately and return.
 	-- Same behavior as with Binaries.
 	if args.cacheFileName
-	and args.programs 
+	and args.programs
 	then
+		assert(not args.code, "either .programs for linking or .code for building, but not both")
+		local programs = args.programs
+		args.programs = nil	-- dont do the .programs in super / dont make a .obj yet
+		CLClangProgram.super.init(self, args)
+		assert(#programs > 0, "can't link from programs if no programs are provided")
 		-- assert all our input programs have .bc files
+		local srcs = table.mapi(programs, function(program)
+			return (assert(program.cacheFileBC, "CLProgram constructed with .programs, expected all those programs to have .cacheFileBC's, but one didn't: "..tostring(program.cacheFileName)))
+		end)
 		makeTargets{
 			{
-				srcs = table.mapi(args.programs, function(program)
-					return assert(program.cacheFileBC, "CLProgram constructed with .programs, expected all those programs to have .cacheFileBC's, but one didn't: "..tostring(program.cacheFileName))
-				end),
+				srcs = srcs,
 				dsts = {self.cacheFileBC},
-				rule = function(rule)
+				rule = function()
 					-- other .bc' => our .bc 
 					exec(table{
 						'llvm-link',
-						table.mapi(rule.srcs, function(src)
+						srcs:mapi(function(src)
 							return ('%q'):format(src)
 						end):concat' ',
 						'-o', ('%q'):format(self.cacheFileBC),
@@ -81,10 +87,10 @@ function CLClangProgram:init(args)
 					}:concat' ')
 				end,
 			},
-		}:run(self.cacheFileBC)
+		}:run(self.cacheFileSPV)
 		-- the rest of this is just like the SPRIV :compile() pathway too...
 		self.IL = assert(path(self.cacheFileSPV):read())
-		local results = CLClangProgram.super.compile(displayProgram)
+		local results = CLClangProgram.super.compile(self)
 		do--if self.obj then	-- did compile
 			print((self.cacheFileName and self.cacheFileName..' ' or '')..'log:')
 			-- TODO log per device ...
@@ -1286,7 +1292,7 @@ function EFESolver:refreshKernels()
 	writeIfChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
 	writeIfChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
 
-	local efeProgram = self:program{
+	self.efeProgram = self:program{
 		cacheFileName = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
 		code = self.efeCode,
 	}
@@ -1294,14 +1300,14 @@ function EFESolver:refreshKernels()
 -- why does clCreateProgramWithIL take 45 seconds, while clCreateProgramWithSource takes 10 ... and clCreateProgramWithBinary takes no time at all.
 timer('compiling code...', function()
 	-- builds efe.cl, efe.bc, efe.spv
-	efeProgram:compile()
+	self.efeProgram:compile()
 print'efeProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
-print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
+print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 end)
 
 	-- init
-	self.init_TPrims = efeProgram:kernel{
+	self.init_TPrims = self.efeProgram:kernel{
 		name = 'init_TPrims',
 		argsOut = {
 			self.TPrims,
@@ -1309,7 +1315,7 @@ end)
 	}
 
 	-- compute values for EFE
-	self.calc_gLLs_and_gUUs = efeProgram:kernel{
+	self.calc_gLLs_and_gUUs = self.efeProgram:kernel{
 		name = 'calc_gLLs_and_gUUs',
 		argsOut = {
 			self.gLLs,
@@ -1320,7 +1326,7 @@ end)
 		},
 	}
 
-	self.calc_GammaULLs = efeProgram:kernel{
+	self.calc_GammaULLs = self.efeProgram:kernel{
 		name = 'calc_GammaULLs',
 		argsOut = {
 			self.GammaULLs,
@@ -1333,7 +1339,7 @@ end)
 	}
 
 	if self.useFourPotential then
-		self.solveAL = efeProgram:kernel{
+		self.solveAL = self.efeProgram:kernel{
 			name = 'solveAL',
 			argsOut = {
 				self.TPrims,
@@ -1342,7 +1348,7 @@ end)
 	end
 
 	-- used by updateNewton and updateJFNK:
-	self.calc_EFEs = efeProgram:kernel{
+	self.calc_EFEs = self.efeProgram:kernel{
 		name = 'calc_EFEs',
 		argsOut = {
 			self.EFEs,
@@ -1357,7 +1363,7 @@ end)
 	}
 
 	-- used by updateNewton:
-	self.calc_partial_gPrim_of_Phis_kernel = efeProgram:kernel{
+	self.calc_partial_gPrim_of_Phis_kernel = self.efeProgram:kernel{
 		name = 'calc_partial_gPrim_of_Phis_kernel',
 		argsOut = {
 			self.partial_gPrim_of_Phis,
@@ -1372,7 +1378,7 @@ end)
 		},
 	}
 
-	self.update_gPrims = efeProgram:kernel{
+	self.update_gPrims = self.efeProgram:kernel{
 		name = 'update_gPrims',
 		argsOut = {
 			self.gPrims,
@@ -1383,7 +1389,7 @@ end)
 	}
 
 	-- used by updateConjRes and updateGMRes
-	self.calc_EinsteinLLs = efeProgram:kernel{
+	self.calc_EinsteinLLs = self.efeProgram:kernel{
 		name = 'calc_EinsteinLLs',
 		argsOut = {
 			-- don't provide an actual buffer here
@@ -1397,13 +1403,13 @@ end)
 			self.GammaULLs,
 		},
 	}
-	self.calc_8piTLLs = efeProgram:kernel{
+	self.calc_8piTLLs = self.efeProgram:kernel{
 		name = 'calc_8piTLLs',
 		argsOut = {self._8piTLLs},
 		argsIn = {self.TPrims, self.gLLs},
 	}
 
-	self.init_gPrims = efeProgram:kernel{
+	self.init_gPrims = self.efeProgram:kernel{
 		name = 'init_gPrims',
 		argsOut = {
 			self.gPrims,
@@ -1481,18 +1487,28 @@ kernel void display(
 <?=solver.displayCode?>
 <? for i,var in ipairs(solver.displayVars) do
 ?>	} else if (displayVarIndex == <?=i?>) {
-<?=var.body?>
+<?=solver:template(var.body)?>
 <? end
 ?>	}
 }
 ]],
 			}
-			--[[ can't just link multiple bc files into a spv file ...
+			-- [[ can't just link multiple bc files into a spv file ...
 			displayProgram:compile{
 				linkOptions = ('%q'):format('cache/efe.bc'),
+				dontLink = true,
 			}
+
+			local displayProgramOut = self:program{
+				cacheFileName = 'display-out',
+				programs = {
+					self.efeProgram,
+					displayProgram,	--rename to 'displayLib' or something
+				},	-- link immediately
+			}
+			displayProgram = displayProgramOut 	-- for compat with commented code
 			--]]
-			-- [[ maybe i have to do this? 
+			--[[ maybe i have to do this? 
 			-- TODO sort out how to specify this in the CLClangProgram class
 			displayProgram.cacheFileCL = 'cache/display.cl'
 			displayProgram.cacheFileBC = 'cache/display.bc'	-- cl -> bc 
