@@ -859,17 +859,6 @@ typedef char int8_t;
 		{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
 		{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
 		{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
-	-- u'^i = -Γ^i_ab u^a u^b
-	-- for weak-field, (u^i)^2 ≈ 0, u^t ≈ 1
-	-- u'^i = -Γ^i_tt
-	-- a^i = c^2 u'^i = -c^2 Γ^i_tt
-	-- |a^i| = c^2 |Γ^i_tt|
-		{['|Gamma^i_tt|'] = [[
-texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index]));
-]]},
-		{['numerical gravity'] = [[
-texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
-]]},
 		{['norm|EFE_ab|'] = 'texCLBuf[index] = real4s4_norm(EFEs[index]);'},
 		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
 		{['|EFE_ti|*c'] = [[texCLBuf[index] = real3_len(real4s4_i0(EFEs[index])) * c;]]},
@@ -946,6 +935,18 @@ real3 const x = getX(i);
 texCLBuf[index] = real3_len(real3_sub(real4_to_real3(dPhi_dx), getX(i)));
 ]]},
 --]=]
+	-- u'^i = -Γ^i_ab u^a u^b
+	-- for weak-field, (u^i)^2 ≈ 0, u^t ≈ 1
+	-- u'^i = -Γ^i_tt
+	-- a^i = c^2 u'^i = -c^2 Γ^i_tt
+	-- |a^i| = c^2 |Γ^i_tt|
+		{['|Gamma^i_tt|'] = [[
+texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index]));
+]]},
+		{['numerical gravity'] = [[
+// TODO dot it with the radial vector? ... like it was before?
+texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
+]]},
 	}
 	-- body-specific:
 	:append(self.body.density and {
@@ -957,6 +958,22 @@ real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRad
 real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
 real const dm_dr = 0;
 texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
+]]},
+		-- TODO FIXME
+		{['num vs ana rel err'] = [[
+real3 const x = getX(i);
+real const r = real3_len(x);
+real const matterRadius = min(r, (real)<?=solver.body.radius?>);
+real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
+real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
+real const dm_dr = 0;
+real const analyticalMagn = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
+real3 const analytical = _real3(
+	analyticalMagn * x.x / r,
+	analyticalMagn * x.y / r,
+	analyticalMagn * x.z / r);
+real3 const numerical = real3_real_mul(real4x4s4_i00(GammaULLs[index]), c * c);
+texCLBuf[index] = real3_len(real3_sub(numerical, analytical)) / analyticalMagn - 1.;
 ]]},
 	} or nil)
 	:append(self.body.useMatter and {
@@ -1484,7 +1501,7 @@ kernel void display(
 	initKernel();
 
 	if (displayVarIndex == 0) {
-<?=solver.displayCode?>
+<?=solver:template(solver.displayCode)?>
 <? for i,var in ipairs(solver.displayVars) do
 ?>	} else if (displayVarIndex == <?=i?>) {
 <?=solver:template(var.body)?>
