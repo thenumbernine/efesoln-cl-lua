@@ -8,6 +8,8 @@ local table = require 'ext.table'
 local path = require 'ext.path'
 local template = require 'template'
 local struct = require 'struct'
+local vec3i = require 'vec-ffi.vec3i'
+local vec3f = require 'vec-ffi.vec3f'
 local vec3d = require 'vec-ffi.vec3d'
 local gl = require 'gl'
 local CLEnv = require 'cl.obj.env'
@@ -15,7 +17,7 @@ local clnumber = require 'cl.obj.number'
 
 local writeChanged = require 'make.writechanged'
 
-local useSpirvToolchain = false
+local useSpirvToolchain = true
 
 -- helper for indexing symmetric matrices
 local function sym(i,j)
@@ -44,7 +46,7 @@ function SphericalBody:init(args)
 	self.useEM = false
 
 	self.init = template([[
-	real3 const x = getX(i);						//[m]
+	real3 const x = getX(env, i);						//[m]
 	real const r = real3_len(x);					//[m]
 
 	real const rho0 = <?=self.density?>;			//[1/m^2]
@@ -74,7 +76,7 @@ function EMRing:init(args)
 	self.init = template([[
 	real const radius = <?=self.radius?>;
 
-	real3 const x = getX(i);
+	real3 const x = getX(env, i);
 
 	real const polar_rSq = x.x*x.x + x.y*x.y;
 	real const polar_r = sqrt(polar_rSq);		//r in polar coordinates
@@ -173,7 +175,7 @@ function EMLine:init(args)
 	self.init = template([[
 	real const radius = <?=self.radius?>;
 
-	real3 const x = getX(i);
+	real3 const x = getX(env, i);
 
 	real const r2Sq = x.x*x.x + x.y*x.y;
 	real const r2 = sqrt(r2Sq);		//r in polar coordinates
@@ -293,6 +295,7 @@ end
 function EFESolver:finiteDifference(args)
 	return template([[<?
 local range = require 'ext.range'
+local table = require 'ext.table'
 local srcType = args.srcType
 local getValue = args.getValue or function(args)
 	return args.bufferName.."["..args.index.."]"
@@ -313,26 +316,32 @@ for i=0,sDim-1 do
 ?>		.s<?=i+1?> = real<?=srcType?>_add<?=#d1coeffs*2?>(
 <?	for offset_i,coeff in ipairs(d1coeffs) do
 ?>			real<?=srcType?>_real_mul(
-<?			-- setup rhs index
+<?			
+			-- setup rhs index
+			args.is = table{"i.x", "i.y", "i.z"}
+			args.is[i+1] = args.is[i+1].." + "..offset_i
 			args.i = "i + (int4)("
 				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
 				..")"
-			args.index = "index + stepsize.s"..i.." * "..offset_i
+			args.index = "index + env->stepsize.s"..i.." * "..offset_i
 			local bc = getBoundary(args)
 			local val = getValue(args)
 			if bc == val then
 ?>				<?=val?>,
 <?			else
-?>				(i.s<?=i?> + <?=offset_i?> >= size.s<?=i?>) ? <?=bc?> : <?=val?>,
+?>				(i.s<?=i?> + <?=offset_i?> >= env->size.s<?=i?>) ? <?=bc?> : <?=val?>,
 <?			end				
 ?>				<?=coeff?> * inv_dx.s<?=i?>
 			),
 			real<?=srcType?>_real_mul(
-<?			-- setup lhs index
+<?			
+			-- setup lhs index
+			args.is = table{"i.x", "i.y", "i.z"}
+			args.is[i+1] = args.is[i+1].." - "..offset_i
 			args.i = "i - (int4)("
 				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
 				..")"
-			args.index = "index - stepsize.s"..i.." * "..offset_i
+			args.index = "index - env->stepsize.s"..i.." * "..offset_i
 			local bc = getBoundary(args)
 			local val = getValue(args)
 			if bc == val then
@@ -359,6 +368,7 @@ end
 function EFESolver:finiteDifference2(args)
 	return template([[<?
 local range = require 'ext.range'
+local table = require 'ext.table'
 local srcType = args.srcType
 local getValue = args.getValue or function(args)
 	return args.bufferName.."["..args.index.."]"
@@ -376,17 +386,23 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 <? if i == j then -- 2nd-deriv kernel
 ?>
 			<? for k,coeff in pairs(d2coeffs) do
+				
+				args.is = table{"i.x", "i.y", "i.z"}
+				args.is[i+1] = args.is[i+1].." - "..k
 				args.i = "i + (int4)("
 					..range(0,3):mapi(function(ii) return ii==i and -k or 0 end):concat', '
 					..")"
-				args.index = "index - stepsize.s"..i.." * "..k
+				args.index = "index - env->stepsize.s"..i.." * "..k
 			?>{
 				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?				args.i = "i + (int4)("
+<?				
+				args.is = table{"i.x", "i.y", "i.z"}
+				args.is[i+1] = args.is[i+1].." + "..k
+				args.i = "i + (int4)("
 					..range(0,3):mapi(function(ii) return ii==i and k or 0 end):concat', '
 					..")"
-				args.index = "index + stepsize.s"..i.." * "..k
-?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+				args.index = "index + env->stepsize.s"..i.." * "..k
+?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 				<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 					<?=resultName?>.s<?=i+1?><?=j+1?>,
 					real<?=srcType?>_real_mul(
@@ -400,30 +416,43 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 ?>
 			<? for k,coeff_k in pairs(d1coeffs) do ?>{
 				<? for l,coeff_l in pairs(d1coeffs) do
+					
+					args.is = table{"i.x", "i.y", "i.z"}
+					args.is[i+1] = args.is[i+1].." - "..k
+					args.is[j+1] = args.is[j+1].." - "..l
 					args.i = "i + (int4)("
 						..range(0,3):mapi(function(ii) return ii==i and -k or (ii==j and -l or 0) end):concat', '
 						..")"
-					args.index = "index - stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
+					args.index = "index - env->stepsize.s"..i.." * "..k.." - env->stepsize.s"..j.." * "..l
 				?>{
 					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?					
+					args.is = table{"i.x", "i.y", "i.z"}
+					args.is[i+1] = args.is[i+1].." - "..k
+					args.is[j+1] = args.is[j+1].." + "..l
 					args.i = "i + (int4)("
 						..range(0,3):mapi(function(ii) return ii==i and -k or (ii==j and l or 0) end):concat', '
 						..")"
-					args.index = "index - stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+					args.index = "index - env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
+?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?					
+					args.is = table{"i.x", "i.y", "i.z"}
+					args.is[i+1] = args.is[i+1].." + "..k
+					args.is[j+1] = args.is[j+1].." - "..l
 					args.i = "i + (int4)("
 						..range(0,3):mapi(function(ii) return ii==i and k or (ii==j and -l or 0) end):concat', '
 						..")"
-					args.index = "index + stepsize.s"..i.." * "..k.." - stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+					args.index = "index + env->stepsize.s"..i.." * "..k.." - env->stepsize.s"..j.." * "..l
+?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?> || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?					
+					args.is = table{"i.x", "i.y", "i.z"}
+					args.is[i+1] = args.is[i+1].." + "..k
+					args.is[j+1] = args.is[j+1].." + "..l
 					args.i = "i + (int4)("
 						..range(0,3):mapi(function(ii) return ii==i and k or (ii==j and l or 0) end):concat', '
 						..")"
-					args.index = "index + stepsize.s"..i.." * "..k.." + stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= size.s<?=i?> || i.s<?=j?> + <?=l?> >= size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+					args.index = "index + env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
+?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?> || i.s<?=j?> + <?=l?> >= env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 					
 					<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
 						<?=resultName?>.s<?=i+1?><?=j+1?>,
@@ -488,6 +517,29 @@ function EFESolver:init(args)
 		verbose = true,
 	})
 
+	-- don't use that fixed-size code constants ...
+	self.code = table{
+		self:getTypeCode(),
+		[[
+//macro for the index
+#define globalInt4()	(int4)((int)get_global_id(0), (int)get_global_id(1), (int)get_global_id(2), 0)
+
+//macros for arbitrary sizes
+#define indexForInt4ForSize(i, sx, sy, sz) ((i).x + (sx) * ((i).y + (sy) * (i).z))
+#define initKernelForSize(sx, sy, sz) \
+	int4 i = globalInt4(); \
+	if ((i).x >= (sx) || (i).y >= (sy) || (i).z >= (sz)) return; \
+	int index = indexForInt4ForSize(i, sx, sy, sz);
+
+//macros for the base domain
+#define indexForInt4(i)	indexForInt4ForSize(i, env->size.x, env->size.y, env->size.z)
+#define initKernel()	initKernelForSize(env->size.x, env->size.y, env->size.z)
+]],
+		vec3i.typeCode,
+	}:concat'\n'
+
+
+
 	-- [[ I would put this in the type code, but it requires the type code to already be cdef'd
 	-- that means it has to be inserted into the kernels' codes, or appended to the self.code
 	do
@@ -513,6 +565,25 @@ typedef char int8_t;
 			end):unpack())
 		}
 		--]]
+
+-- TODO put the type code and macros (self.code) in its own regenerated file
+-- and include it in all cl files
+-- that way it isn't pasted everywhere, and it can be used in headers.
+
+		local env_mt, env_code = struct{
+			name = 'env_t',
+			fields = {
+				{size = 'vec3i_t'},
+				{stepsize = 'vec3i_t'},
+				{xmin = 'real3'},
+				{xmax = 'real3'},
+				{dim = 'int'},
+			},
+			-- TODO packed=false
+			dontMakeExtraUnion = true,	-- TODO make this default behavior
+		}
+print(env_code)
+		self.code = self.code..'\n'..env_code
 
 		self.gPrim_mt, self.gPrim_code = struct{
 			name = 'gPrim_t',
@@ -622,11 +693,17 @@ typedef char int8_t;
 		'real4x4s4',
 		'real4x4x4s4',
 		'real4s4x4s4',
+		'env_t',
 		'gPrim_t',
 		self.TPrim_t,
 	}
 	os.exit()
 	--]]
+
+	path'cache':mkdir()
+	path'cache/autogen.h':write(self.code)
+	self.code = '#include "autogen.h"'
+
 
 	-- parameters:
 
@@ -699,40 +776,40 @@ typedef char int8_t;
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 texCLBuf[index] = real4s4_norm(EinsteinLL);
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
 ]]},
 		{['det|Einstein_ij| (kg/(m s^2))'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 		{['Gaussian'] = [[
-real4s4 const RicciLL = calc_RicciLL(i, gPrims, GammaULLs);
+real4s4 const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
 real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 texCLBuf[index] = real4s4_dot(RicciLL, gUU);
 ]]},
 		{['partial_gLL_of_Phi'] = [[
-real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
+real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = real4s4_normSq(partial_gLL_of_Phi);
 ]]},
 		{['partial_gPrim_of_Phi.alpha'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = partial_gPrim_of_Phi.alpha;
 ]]},
 		{['norm|partial_gPrim_of_Phi.beta|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = real3_norm(partial_gPrim_of_Phi.betaU);
 ]]},
 		{['norm|partial_gPrim_of_Phi.gamma|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = real3s3_norm(partial_gPrim_of_Phi.gammaLL);
 ]]},
 --[=[
@@ -742,15 +819,15 @@ Phi(x) = 1/2 |x|^2
 dPhi(x)/dx^i = x^i
 --]]
 		{['test f(x)'] = [[
-real3 const x = getX(i);
+real3 const x = getX(env, i);
 texCLBuf[index] = .5 * real3_lenSq(x);
 ]]},
 		{['test |∇f(x)|'] = [[
-real3 const x = getX(i);
+real3 const x = getX(env, i);
 texCLBuf[index] = real3_len(x);
 ]]},
 		{['test |D[f(x)]|'] = [[
-real3 const x = getX(i);
+real3 const x = getX(env, i);
 <?=solver:finiteDifference{
 	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
 	getBoundary = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
@@ -760,14 +837,14 @@ real3 const x = getX(i);
 texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx));
 ]]},
 		{['test |D[f(x)] - ∇f(x)|'] = [[
-real3 const x = getX(i);
+real3 const x = getX(env, i);
 <?=solver:finiteDifference{
 	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
 	getBoundary = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
-texCLBuf[index] = real3_len(real3_sub(real4_to_real3(dPhi_dx), getX(i)));
+texCLBuf[index] = real3_len(real3_sub(real4_to_real3(dPhi_dx), getX(env, i)));
 ]]},
 --]=]
 	-- u'^i = -Γ^i_ab u^a u^b
@@ -786,7 +863,7 @@ texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
 	-- body-specific:
 	:append(self.body.density and {
 		{['analytical gravity'] = [[
-real3 const x = getX(i);
+real3 const x = getX(env, i);
 real const r = real3_len(x);
 real const matterRadius = min(r, (real)<?=solver.body.radius?>);
 real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
@@ -796,7 +873,7 @@ texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r
 ]]},
 		-- TODO FIXME
 		{['num vs ana rel err'] = [[
-real3 const x = getX(i);
+real3 const x = getX(env, i);
 real const r = real3_len(x);
 real const matterRadius = min(r, (real)<?=solver.body.radius?>);
 real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
@@ -877,7 +954,7 @@ texCLBuf[index] = real3_len(real3_sub(numerical, analytical)) / analyticalMagn -
 			self:updateAux()
 
 			-- bind our output to 'y'
-			self.calc_EinsteinLLs.obj:setArg(0, y)
+			self.calc_EinsteinLLs.obj:setArg(1, y)
 			self.calc_EinsteinLLs()
 
 			-- fix the kernel arg state changes
@@ -925,7 +1002,7 @@ texCLBuf[index] = real3_len(real3_sub(numerical, analytical)) / analyticalMagn -
 			self:updateAux()
 
 			-- bind our output to 'y'
-			self.calc_EinsteinLLs.obj:setArg(0, y)
+			self.calc_EinsteinLLs.obj:setArg(2, y)
 			self.calc_EinsteinLLs()
 
 			-- fix the kernel arg state changes
@@ -1063,6 +1140,23 @@ typedef <?=real?> real;
 end
 
 function EFESolver:initBuffers()
+	self.envPtr = ffi.new'env_t[1]'
+	-- TODO where is int4 defined again?
+	self.envPtr[0].size.x = self.base.size.x
+	self.envPtr[0].size.y = self.base.size.y
+	self.envPtr[0].size.z = self.base.size.z
+	self.envPtr[0].stepsize.x = 1
+	self.envPtr[0].stepsize.y = self.base.size.x
+	self.envPtr[0].stepsize.z = self.base.size.x * self.base.size.y
+	self.envPtr[0].xmin.x = self.xmin.x
+	self.envPtr[0].xmin.y = self.xmin.y
+	self.envPtr[0].xmin.z = self.xmin.z
+	self.envPtr[0].xmax.x = self.xmax.x
+	self.envPtr[0].xmax.y = self.xmax.y
+	self.envPtr[0].xmax.z = self.xmax.z
+	self.envPtr[0].dim = self.base.dim
+	self.envBuf = self:buffer{name='env', type='env_t', count=1, data=self.envPtr}
+
 	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
 	self.GammaULLs = self:buffer{name='GammaULLs', type='real4x4s4'}
@@ -1182,17 +1276,17 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	-- init
 	self.init_TPrims = self.efeProgram:kernel{
 		name = 'init_TPrims',
-		argsOut = {
+		setArgs  = {
+			self.envBuf,
 			self.TPrims,
 		},
 	}
 
 	self.calc_GammaULLs = self.efeProgram:kernel{
 		name = 'calc_GammaULLs',
-		argsOut = {
+		setArgs = {
+			self.envBuf,
 			self.GammaULLs,
-		},
-		argsIn = {
 			self.gPrims,
 		},
 	}
@@ -1200,7 +1294,8 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	if self.useFourPotential then
 		self.solveAL = self.efeProgram:kernel{
 			name = 'solveAL',
-			argsOut = {
+			setArgs = {
+				self.envBuf,
 				self.TPrims,
 			},
 		}
@@ -1209,10 +1304,9 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	-- used by updateNewton and updateJFNK:
 	self.calc_EFEs = self.efeProgram:kernel{
 		name = 'calc_EFEs',
-		argsOut = {
+		setArgs = {
+			self.envBuf,
 			self.EFEs,
-		},
-		argsIn = {
 			self.TPrims,
 			self.gPrims,
 			self.GammaULLs,
@@ -1222,10 +1316,9 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	-- used by updateNewton:
 	self.calc_partial_gPrim_of_Phis_kernel = self.efeProgram:kernel{
 		name = 'calc_partial_gPrim_of_Phis_kernel',
-		argsOut = {
+		setArgs = {
+			self.envBuf,
 			self.partial_gPrim_of_Phis,
-		},
-		argsIn = {
 			self.TPrims,
 			self.gPrims,
 			self.GammaULLs,
@@ -1235,10 +1328,9 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 
 	self.update_gPrims = self.efeProgram:kernel{
 		name = 'update_gPrims',
-		argsOut = {
+		setArgs = {
+			self.envBuf,
 			self.gPrims,
-		},
-		argsIn = {
 			self.partial_gPrim_of_Phis,
 		},
 	}
@@ -1246,20 +1338,20 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	-- used by updateConjRes and updateGMRes
 	self.calc_EinsteinLLs = self.efeProgram:kernel{
 		name = 'calc_EinsteinLLs',
-		argsOut = {
+		setArgs = {
+			self.envBuf,
 			-- don't provide an actual buffer here
 			-- the conjResSolver will provide its own
 			{name='EinsteinLLs', type='real4s4', obj=true},
-		},
-		argsIn = {
 			self.gPrims,
 			self.GammaULLs,
 		},
 	}
 	self.calc_8piTLLs = self.efeProgram:kernel{
 		name = 'calc_8piTLLs',
-		argsOut = {self._8piTLLs},
-		argsIn = {
+		setArgs = {
+			self.envBuf,
+			self._8piTLLs,
 			self.TPrims,
 			self.gPrims,
 		},
@@ -1267,10 +1359,9 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 
 	self.init_gPrims = self.efeProgram:kernel{
 		name = 'init_gPrims',
-		argsOut = {
+		setArgs = {
+			self.envBuf,
 			self.gPrims,
-		},
-		argsIn = {
 			{type='int'},
 		},
 	}
@@ -1289,37 +1380,6 @@ function EFESolver:refreshDisplayKernel()
 		-- if we got bad display code then don't crash the whole app
 		xpcall(function()
 
--- [=[ get rid of multiple constants 
-self.code = table{
-	self:getTypeCode(),
-	self.gPrim_code,
-	self.TPrim_code,
-	self:template([[
-//macro for the index
-#define globalInt4()	(int4)((int)get_global_id(0), (int)get_global_id(1), (int)get_global_id(2), 0)
-
-//macros for arbitrary sizes
-#define indexForInt4ForSize(i, sx, sy, sz) (i.x + sx * (i.y + sy * i.z))
-#define initKernelForSize(sx, sy, sz) \
-	int4 i = globalInt4(); \
-	if (i.x >= sx || i.y >= sy || i.z >= sz) return; \
-	int index = indexForInt4ForSize(i, sx, sy, sz);
-
-
-// THIS DIFFERS FROM THE ENV CODE
-// ONLY COMPILE THAT ONCE, EVERYONE ELSE USE EXTERNS TO ACCESS IT
-extern constant const int dim;
-extern constant const int4 size;
-extern constant const int4 stepsize;
-
-//macros for the base domain
-#define indexForInt4(i)	indexForInt4ForSize(i, size.x, size.y, size.z)
-#define initKernel()	initKernelForSize(size.x, size.y, size.z)
-]], {
-		size = self.base.size,
-	}),
-}:concat'\n'
---]=]
 			-- self.displayCode is the custom displaly code
 			-- this displayCode is the display program's code
 			local displayCode = self:template[[
@@ -1327,6 +1387,7 @@ extern constant const int4 stepsize;
 #include "calcVars.h"
 
 kernel void display(
+	constant env_t const * const env,
 	global float * const texCLBuf,
 	int const displayVarIndex,
 	global <?=TPrim_t?> const * const TPrims,
@@ -1356,7 +1417,7 @@ kernel void display(
 					dontLink = true,
 				}
 				displayProgram = self:program{
-					spirvToolchainFile = 'display-out',
+					spirvToolchainFile = 'cache/display-out',
 					programs = {
 						self.efeProgram,
 						displayProgramLib,
@@ -1389,6 +1450,7 @@ print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 			self.displayKernel = displayProgram:kernel{
 				name = 'display',
 				setArgs = {
+					self.envBuf,
 					self.texCLBuf,
 					{type='int', name='displayVarIndex'},
 					assert(self.TPrims),
@@ -1414,7 +1476,7 @@ function EFESolver:refreshDisplayVar()
 	
 	local displayVarIndex = ffi.new('int[1]') 
 	displayVarIndex[0] = self.displayVarIndex
-	self.displayKernel.obj:setArg(1, displayVarIndex)
+	self.displayKernel.obj:setArg(2, displayVarIndex)
 	self:updateTex()
 end
 
@@ -1422,7 +1484,7 @@ function EFESolver:resetState()
 print'init_gPrims'
 	local initCondIndex = ffi.new('int[1]') 
 	initCondIndex[0] = self.initCond
-	self.init_gPrims.obj:setArg(1, initCondIndex)
+	self.init_gPrims.obj:setArg(2, initCondIndex)
 	self.init_gPrims()	-- initialize gPrims
 self:printbuf'gPrims'
 
@@ -1551,7 +1613,7 @@ print('partial_gPrim_of_Phis norm '..self:calcBufferNorm(self.partial_gPrim_of_P
 		local function residualAtLambda(lambda)
 			self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
 			lambdaPtr[0] = lambda
-			self.update_gPrims.obj:setArg(2, lambdaPtr)
+			self.update_gPrims.obj:setArg(3, lambdaPtr)
 			self.update_gPrims()
 			self:updateAux()	-- calcs from gPrims on down to EFE
 			local residual = self:calcBufferNorm()
@@ -1600,13 +1662,13 @@ print(('rev lambda=%.16e residual=%.16e'):format(lambdaRev, residualRev))
 		end
 print(('using lambda=%.16e residual=%.16e'):format(lambda, residualRev))
 		lambdaPtr[0] = lambda
-		self.update_gPrims.obj:setArg(2, lambdaPtr)
+		self.update_gPrims.obj:setArg(3, lambdaPtr)
 		self.update_gPrims()
 	else	-- no line search
 		-- update gPrims from ∂Φ/∂g_ab
 print('self.update_gPrims')
 print('lambda', self.updateLambda)
-		self.update_gPrims.obj:setArg(2, ffi.new('real[1]', self.updateLambda))
+		self.update_gPrims.obj:setArg(3, ffi.new('real[1]', self.updateLambda))
 		self.update_gPrims()
 	end
 

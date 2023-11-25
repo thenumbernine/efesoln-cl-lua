@@ -267,7 +267,7 @@ end
 ?>	};
 #else //doesn't work so well
 	int4 i = globalInt4();
-	real3 const x = getX(i);
+	real3 const x = getX(env, i);
 	return calc_gLL_from_gPrim(calc_gPrim_flat(x));
 #endif
 }
@@ -462,11 +462,14 @@ constant real3 const inv_dx = _real3(<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
 
-real3 getX(int4 const i) {
+real3 getX(
+	constant env_t const * const env,
+	int4 const i
+) {
 	return _real3(
-		xmin.x + ((real)i.x + .5)/(real)size.x * (xmax.x - xmin.x),
-		xmin.y + ((real)i.y + .5)/(real)size.y * (xmax.y - xmin.y),
-		xmin.z + ((real)i.z + .5)/(real)size.z * (xmax.z - xmin.z));
+		env->xmin.x + ((real)i.x + .5)/(real)env->size.x * (env->xmax.x - env->xmin.x),
+		env->xmin.y + ((real)i.y + .5)/(real)env->size.y * (env->xmax.y - env->xmin.y),
+		env->xmin.z + ((real)i.z + .5)/(real)env->size.z * (env->xmax.z - env->xmin.z));
 }
 
 constant int4 const int4_dirs[3] = {
@@ -483,58 +486,88 @@ int4 int4_dir(int const dim, int const offset) {
 //put the boundary condition code in here, in one place
 // this is hardcoded to g_ab = η_ab at boundaries
 gPrim_t calc_gPrim_boundary(
-	int4 i,
-	global gPrim_t const * const gPrims
+	constant env_t const * const env,
+	global gPrim_t const * const gPrims,
+	int4 i
 ) {
 #if 0	// boundary condition : flat
 	return gPrim_flat;
 #endif
 #if 1	// boundary condition : fixed (constant zero first-derivatives)
-	i.x = clamp(i.x, 0, size.x-1);
-	i.y = clamp(i.y, 0, size.y-1);
-	i.z = clamp(i.z, 0, size.z-1);
-	return gPrims[indexForInt4(i)];
+	i.x = clamp(i.x, 0, env->size.x-1);
+	i.y = clamp(i.y, 0, env->size.y-1);
+	i.z = clamp(i.z, 0, env->size.z-1);
+	int const index = indexForInt4(i);
+	return gPrims[index];
 #endif
 #if 0	// boundary condition : stellar schwarzschild
-	return calc_gPrim_stellar_Schwarzschild(getX(i));
+	return calc_gPrim_stellar_Schwarzschild(getX(env, i));
 #endif
 }
 
-//use this for all finite-difference access
-//TODO
-// this is producing bad data
-// is it a matter of argument order?
-// YES SURE ENOUGH
-// put the pointer 1st and int4 2nd and it works
-// put the pointer 2nd and int4 1st and it fails
+/*
+use this for all finite-difference access
+TODO
+this is producing bad data
+is it a matter of argument order?
+YES SURE ENOUGH
+put the pointer 1st and int4 2nd and it works
+put the pointer 2nd and int4 1st and it fails
+wait,
+STILL THERE
+it did work when I made a *copy* and switched the arg order.
+but upon modifying the original, it still fails.
+ok next test of a working copy:
+expand the int arg ...
+STILL THERE
+honestly I copied this code identiclaly over to another function with only a dif name
+the other functin behaved correctly.
+this one failed.
+STILL THERE
+removed the prototype?
+STILL THERE
+moved the function in the code, next to the working copy?
+STILL THERE
+renamed
+STILL THERE
+*/
+//inlining the gLL_from_gPrims_at function made the error go away so ....
+//what about calling it is so bad ....
+// yup this works, whereas the other one fails
 real4s4 gLL_from_gPrims_at(
-	int4 const i,
-	global gPrim_t const * const gPrims
+	constant env_t const * const env,
+	global gPrim_t const * const gPrims,
+	int4 const i
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= size.x || i.y >= size.y || i.z >= size.z
+		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
-		return calc_gLL_from_gPrim(calc_gPrim_boundary(i, gPrims));
+		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
+		return calc_gLL_from_gPrim(gPrim);
+	} else {
+		int const index = indexForInt4(i);
+		return calc_gLL_from_gPrim(gPrims[index]);
 	}
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
-	return calc_gLL_from_gPrim(gPrims[index]);
 }
 
 real4s4 gUU_from_gPrims_at(
-	int4 const i,
-	global gPrim_t const * const gPrims
+	constant env_t const * const env,
+	global gPrim_t const * const gPrims,
+	int4 const i
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= size.x || i.y >= size.y || i.z >= size.z
+		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
-		return calc_gUU_from_gPrim(calc_gPrim_boundary(i, gPrims));
+		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i); 
+		return calc_gUU_from_gPrim(gPrim);
+	} else {
+		int const index = indexForInt4(i);
+		return calc_gUU_from_gPrim(gPrims[index]);
 	}
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
-	return calc_gUU_from_gPrim(gPrims[index]);
 }
 
-
 real4s4 calc_RicciLL(
+	constant env_t const * const env,
 	int4 const i,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs
@@ -565,8 +598,8 @@ real4s4 calc_RicciLL(
 <?=solver:finiteDifference2{
 	srcType = "4s4",
 	resultName = "partial_xU2_of_gLL",
-	getValue = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
-	getBoundary = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
+	getValue = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
+	getBoundary = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
 }?>
 
 <? if false then -- testing to make sure contraction of Riemann == Ricci
@@ -657,6 +690,7 @@ real4s4 calc_RicciLL(
 
 //[1/m^2]
 real4s4 calc_EinsteinLL(
+	constant env_t const * const env,
 	int4 const i,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs
@@ -670,7 +704,7 @@ real4s4 calc_EinsteinLL(
 	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
 
 	//RicciLL.ab := R_ab
-	real4s4 const RicciLL = calc_RicciLL(i, gPrims, GammaULLs);
+	real4s4 const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
 
 	//Gaussian := R = R_ab g^ab
 	real const Gaussian = real4s4_dot(RicciLL, gUU);

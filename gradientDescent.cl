@@ -4,6 +4,7 @@ _Static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
 _Static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
 
 kernel void calc_partial_gPrim_of_Phis_kernel(
+	constant env_t const * const env,
 	global gPrim_t * const partial_gPrim_of_Phis,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
@@ -13,6 +14,7 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 	initKernel();
 
 	partial_gPrim_of_Phis[index] = calc_partial_gPrim_of_Phi(
+		env,
 		i,
 		TPrims,
 		gPrims,
@@ -33,6 +35,7 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 }
 
 kernel void update_gPrims(
+	constant env_t const * const env,
 	global gPrim_t * const gPrims,
 	global gPrim_t const * const partial_gPrim_of_Phis,
 	real const updateLambda

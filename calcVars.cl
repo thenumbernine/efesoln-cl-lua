@@ -236,11 +236,12 @@ real4s4 calc_gUU_from_gPrim(
 // init
 
 kernel void init_gPrims(
+	constant env_t const * const env,
 	global gPrim_t * const gPrims,
 	int initCond
 ) {
 	initKernel();
-	real3 const x = getX(i);
+	real3 const x = getX(env, i);
 
 	global gPrim_t * const gPrim = gPrims + index;
 
@@ -264,6 +265,7 @@ kernel void init_gPrims(
 }
 
 kernel void init_TPrims(
+	constant env_t const * const env,
 	global <?=TPrim_t?> * const TPrims
 ) {
 	initKernel();
@@ -292,73 +294,41 @@ if solver.body.useEM then ?>
 <? end ?>
 }
 
-
-//inlining the gLL_from_gPrims_at function made the error go away so ....
-//what about calling it is so bad ....
-// yup this works, whereas the other one fails
-real4s4 gLL_from_gPrims_at_v2(
-	global gPrim_t const * const gPrims,
-	int const ix,
-	int const iy,
-	int const iz
-) {
-	if (ix < 0 || iy < 0 || iz < 0 ||
-		ix >= size.x || iy >= size.y || iz >= size.z
-	) {
-		return calc_gLL_from_gPrim(calc_gPrim_boundary((int4)(ix, iy, iz, 0), gPrims));
-	}
-	int const index = ix + size.x * (iy + size.y * iz);
-	return calc_gLL_from_gPrim(gPrims[index]);
-}
-
-// is it a matter of argument order?
-// YES SURE ENOUGH
-// put the pointer 1st and it works
-// put the pointer 2nd and it fails
-real4s4 gLL_from_gPrims_at_v3(
-	global gPrim_t const * const gPrims,
-	int4 const i
-) {
-	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= size.x || i.y >= size.y || i.z >= size.z
-	) {
-		return calc_gLL_from_gPrim(calc_gPrim_boundary(i, gPrims));
-	}
-	int const index = i.x + size.x * (i.y + size.y * i.z);
-	return calc_gLL_from_gPrim(gPrims[index]);
-}
-
-
-
-
 // compute buffers to compute EFE
 
 kernel void calc_GammaULLs(
+	constant env_t const * const env,
 	global real4x4s4 * const GammaULLs,
 	global gPrim_t const * const gPrims
 ) {
 	initKernel();
 
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
-#if 0 //debugging nans
+#if 1 //debugging nans
 <?=solver:finiteDifference{
 	srcType = "4s4",
 	resultName = "partial_xU_of_gLL",
-	getValue = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
-	getBoundary = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
+	getValue = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
+	getBoundary = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
 }?>
 #else
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
 	real4x4s4 gLL_L;
-	gLL_L.s0 = real4s4_zero;
-	gLL_L.s1 = gLL_from_gPrims_at(i - (int4)(1, 0, 0, 0), gPrims);
-	gLL_L.s2 = gLL_from_gPrims_at(i - (int4)(0, 1, 0, 0), gPrims);
-	gLL_L.s3 = gLL_from_gPrims_at(i - (int4)(0, 0, 1, 0), gPrims);
+	//gLL_L.s0 = real4s4_zero;
+	for (int a = 0; a < 10; ++a) {
+		gLL_L.s0.s[a] = 0;
+	}
+	gLL_L.s1 = gLL_from_gPrims_at(gPrims, i.x - 1, i.y, i.z);
+	gLL_L.s2 = gLL_from_gPrims_at(gPrims, i.x, i.y - 1, i.z);
+	gLL_L.s3 = gLL_from_gPrims_at(gPrims, i.x, i.y, i.z - 1);
 	real4x4s4 gLL_R;
-	gLL_R.s0 = real4s4_zero;
-	gLL_R.s1 = gLL_from_gPrims_at(i + (int4)(1, 0, 0, 0), gPrims);
-	gLL_R.s2 = gLL_from_gPrims_at(i + (int4)(0, 1, 0, 0), gPrims);
-	gLL_R.s3 = gLL_from_gPrims_at(i + (int4)(0, 0, 1, 0), gPrims);
+	//gLL_R.s0 = real4s4_zero;
+	for (int a = 0; a < 10; ++a) {
+		gLL_R.s0.s[a] = 0;
+	}
+	gLL_R.s1 = gLL_from_gPrims_at(gPrims, i.x + 1, i.y, i.z);
+	gLL_R.s2 = gLL_from_gPrims_at(gPrims, i.x, i.y + 1, i.z);
+	gLL_R.s3 = gLL_from_gPrims_at(gPrims, i.x, i.y, i.z + 1);
 	real4x4s4 partial_xU_of_gLL;
 	for (int bc = 0; bc < 10; ++bc) {
 		partial_xU_of_gLL.s[0].s[bc] = 0;
@@ -404,128 +374,9 @@ kernel void calc_GammaULLs(
 
 	//Γ^a_bc = GammaULL.a.bc
 	//Γ^a_bc = g^ad Γ_dbc
-	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
-#if 0	//nans...
+	//real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
+	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
 	GammaULLs[index] = real4s4_real4x4s4_mul(gUU, GammaLLL);
-#endif
-#if 0	//nans....
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = b; c < stDim; ++c) {
-				int const bc = sym4[b][c];
-				real sum = 0;
-				for (int d = 0; d < stDim; ++d) {
-					sum += gUU.s[sym4[a][d]] * GammaLLL.s[d].s[bc];
-				}
-				GammaULLs[index].s[a].s[bc] = sum;
-			}
-		}
-	}
-#endif
-#if 0 //... works.
-	for (int a = 0; a < stDim; ++a) {
-		for (int bc = 0; bc < 10; ++bc) {
-			GammaULLs[index].s[a].s[bc] = real4s4_Minkowski.s[bc];
-		}
-	}
-#endif
-#if 0 //... works.
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = b; c < stDim; ++c) {
-				int const bc = sym4[b][c];
-				GammaULLs[index].s[a].s[bc] = real4s4_Minkowski.s[bc];
-			}
-		}
-	}
-#endif
-#if 0	//works
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = b; c < stDim; ++c) {
-				int const bc = sym4[b][c];
-				GammaULLs[index].s[a].s[bc] = gUU.s[bc];
-			}
-		}
-	}
-#endif
-#if 0	//works
-	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = gUU;
-	}
-#endif
-#if 0	//works
-	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = calc_gLL_from_gPrim(gPrims[index]);
-	}
-#endif
-#if 0	//works
-	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = gLL_from_gPrims_at(i, gPrims);
-	}
-#endif
-#if 1	//incorrect values as well ...
-	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = gLL_from_gPrims_at(i - (int4)(1, 0, 0, 0), gPrims);
-	}
-#endif
-#if 0	//works
-	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = gLL_from_gPrims_at_v2(gPrims, i.x - 1, i.y, i.z);
-	}
-#endif
-#if 0	//works
-	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = gLL_from_gPrims_at_v3(gPrims, i - (int4)(1, 0, 0, 0));
-	}
-#endif
-#if 0	//works
-	//inlining the gLL_from_gPrims_at function ... works
-	// so why is calling it so bad?
-	for (int a = 0; a < stDim; ++a) {
-		int4 i2 = i - (int4)(1,0,0,0);
-		if (i2.x < 0 || i2.y < 0 || i2.z < 0 ||
-			i2.x >= size.x || i2.y >= size.y || i2.z >= size.z
-		) {
-			GammaULLs[index].s[a] = calc_gLL_from_gPrim(calc_gPrim_boundary(i2, gPrims));
-		} else {
-			int const index2 = indexForInt4ForSize(i2, size.x, size.y, size.z);
-			GammaULLs[index].s[a] = calc_gLL_from_gPrim(gPrims[index2]);
-		}
-	}
-#endif
-#if 0	//not nans ... but gives incorrect values ...
-	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = gLL_L.s[a];
-	}
-#endif
-#if 0	//doesn't work
-	GammaULLs[index] = GammaLLL;
-#endif
-#if 0	//doesn't work
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = b; c < stDim; ++c) {
-				int const bc = sym4[b][c];
-				GammaULLs[index].s[a].s[bc] = GammaLLL.s[a].s[bc];
-			}
-		}
-	}
-#endif
-#if 0	//doesn't work
-	// writes the first struct, nans within the rest ...
-	GammaULLs[index] = partial_xU_of_gLL;
-#endif
-#if 0	//doesn't work -- same
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = b; c < stDim; ++c) {
-				int const bc = sym4[b][c];
-				GammaULLs[index].s[a].s[bc] = partial_xU_of_gLL.s[a].s[bc];
-			}
-		}
-	}
-#endif
 }
 
 /*
@@ -592,6 +443,7 @@ which means subtract out the potential (in curved space)
 */
 <? if solver.useFourPotential then ?>
 kernel void solveAL(
+	constant env_t const * const env,
 	global <?=TPrim_t?> * const TPrims
 ) {
 	initKernel();
@@ -656,15 +508,17 @@ kernel void solveAL(
 // T is T_ab (which is also a function of x but don't tell)
 // and x is gPrims
 kernel void calc_EinsteinLLs(
+	constant env_t const * const env,
 	global real4s4 * const EinsteinLLs,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
-	EinsteinLLs[index] = calc_EinsteinLL(i, gPrims, GammaULLs);
+	EinsteinLLs[index] = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 }
 
 kernel void calc_8piTLLs(
+	constant env_t const * const env,
 	global real4s4 * const _8piTLLs,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims
@@ -677,6 +531,7 @@ kernel void calc_8piTLLs(
 }
 
 kernel void calc_EFEs(
+	constant env_t const * const env,
 	global real4s4 * const EFEs,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
@@ -685,7 +540,7 @@ kernel void calc_EFEs(
 	initKernel();
 	<?=TPrim_t?> const TPrim = TPrims[index];
 	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);
-	real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
+	real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
 //debugging
@@ -828,17 +683,18 @@ end
 }
 
 real4s4 EFE_LL_minus_half_trace_at(
+	constant env_t const * const env,
 	int4 const i,
 	global gPrim_t const * const gPrims,
 	global real4s4 const * const EFEs
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= size.x || i.y >= size.y || i.z >= size.z
+		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
 		return real4s4_zero;	//TODO ... consider boundary conditions
 	}
 
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	int const index = indexForInt4(i);
 	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);	// g_ab
 	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);	// g^ab
 	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
@@ -854,31 +710,33 @@ real4s4 EFE_LL_minus_half_trace_at(
 
 //GammaULL.a.b.c := Γ^a_bc
 real4x4s4 GammaULL_at(
+	constant env_t const * const env,
 	int4 const i,
 	global real4x4s4 const * const GammaULLs
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= size.x || i.y >= size.y || i.z >= size.z
+		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
 		return real4x4s4_zero;
 	}
 
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	int const index = indexForInt4(i);
 	return GammaULLs[index];
 }
 
 //GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
 real4x4x4 GammaUUL_at(
+	constant env_t const * const env,
 	int4 const i,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= size.x || i.y >= size.y || i.z >= size.z
+		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
 		return real4x4x4_zero;
 	}
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	int const index = indexForInt4(i);
 
 	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 
@@ -886,13 +744,14 @@ real4x4x4 GammaUUL_at(
 }
 
 real4s4 calc_partial_gLL_of_Phi(
+	constant env_t const * const env,
 	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs
 ) {
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	int const index = indexForInt4(i);
 
 	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);
 	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
@@ -902,8 +761,8 @@ real4s4 calc_partial_gLL_of_Phi(
 <?=solver:finiteDifference2{
 	srcType = "4s4",
 	resultName = "partial_xU2_of_gLL",
-	getValue = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
-	getBoundary = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
+	getValue = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
+	getBoundary = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
 }?>
 
 	//TODO or store this?
@@ -1082,17 +941,17 @@ real4s4 calc_partial_gLL_of_Phi(
 					*/
 					int const a = dim+1;
 					for (int b = 0; b < stDim; ++b) {
-						sum += .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[pq] * GammaUUL_at(iofs, gPrims, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[p][b]] * GammaUUL_at(iofs, gPrims, GammaULLs).s[a].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[b][q]] * GammaUUL_at(iofs, gPrims, GammaULLs).s[a].s[p].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum += .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[pq] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[p][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[p].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						for (int c = 0; c < stDim; ++c) {
-							sum += .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[b][c]] * GammaULL_at(iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_from_gPrims_at(iofs, gPrims).s[pq] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+							sum += .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_from_gPrims_at(env, gPrims, iofs).s[pq] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						}
-						sum -= EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[a][q]] * GammaUUL_at(iofs, gPrims, GammaULLs).s[p].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum += EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[a][b]] * GammaUUL_at(iofs, gPrims, GammaULLs).s[p].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum += EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[b][q]] * GammaUUL_at(iofs, gPrims, GammaULLs).s[p].s[a].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum -= EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[a][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum += EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[a][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum += EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[a].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						for (int c = 0; c < stDim; ++c) {
-							sum -= EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[b][c]] * GammaULL_at(iofs, GammaULLs).s[p].s[sym4[c][b]] * gUU_from_gPrims_at(iofs, gPrims).s[sym4[a][q]] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+							sum -= EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[p].s[sym4[c][b]] * gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[a][q]] * d1coeff_for_offset(offset) * inv_dx.s[dim];
 						}
 					}
 				}
@@ -1110,32 +969,32 @@ real4s4 calc_partial_gLL_of_Phi(
 								// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (d2coeff_ud) |x'=x + dx^u=dx^d
 								int const u = dim1+1;
 								int const d = u;
-								sum += .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[u][q]]
-									* gUU_from_gPrims_at(iofs, gPrims).s[sym4[p][d]]
+								sum += .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[u][q]]
+									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[p][d]]
 									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d2coeff_cv)
 								// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d2coeff_cv) |x'=x + dx^v=dx^c
 								int const v = dim1+1;
 								int const c = v;
-								sum += .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[p][v]]
-									* gUU_from_gPrims_at(iofs, gPrims).s[sym4[c][q]]
+								sum += .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[p][v]]
+									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][q]]
 									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d2coeff_cd)
 								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d2coeff_cd) |x'=x + dx^c=dx^d
 								int const c = dim1+1;
 								int const d = c;
-								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[pq]
-									* gUU_from_gPrims_at(iofs, gPrims).s[sym4[c][d]]
+								sum -= .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[pq]
+									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][d]]
 									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d2coeff_uv)
 								// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d2coeff_uv) |x'=x + dx^u=dx^v
 								int const u = dim1+1;
 								int const v = u;
-								sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[u][v]]
-									* gUU_from_gPrims_at(iofs, gPrims).s[pq]
+								sum -= .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[u][v]]
+									* gUU_from_gPrims_at(env, gPrims, iofs).s[pq]
 									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
 							}
 						}
@@ -1152,8 +1011,8 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const d = dim2+1;
 									int const offset_u = offset1;
 									int const offset_d = offset2;
-									sum += .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[u][q]]
-										* gUU_from_gPrims_at(iofs, gPrims).s[sym4[p][d]]
+									sum += .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[u][q]]
+										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[p][d]]
 										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_d) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d1coeff_c d1coeff_v)
@@ -1162,8 +1021,8 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const c = dim2+1;
 									int const offset_v = offset1;
 									int const offset_c = offset2;
-									sum += .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[p][v]]
-										* gUU_from_gPrims_at(iofs, gPrims).s[sym4[c][q]]
+									sum += .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[p][v]]
+										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][q]]
 										* (d1coeff_for_offset(offset_v) * d1coeff_for_offset(offset_c) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d1coeff_c d1coeff_d)
@@ -1172,8 +1031,8 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const d = dim2+1;
 									int const offset_c = offset1;
 									int const offset_d = offset2;
-									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[pq]
-										* gUU_from_gPrims_at(iofs, gPrims).s[sym4[c][d]]
+									sum -= .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[pq]
+										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][d]]
 										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d1coeff_u d1coeff_v)
@@ -1182,8 +1041,8 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const v = dim2+1;
 									int const offset_u = offset1;
 									int const offset_v = offset2;
-									sum -= .5 * EFE_LL_minus_half_trace_at(iofs, gPrims, EFEs).s[sym4[u][v]]
-										* gUU_from_gPrims_at(iofs, gPrims).s[pq]
+									sum -= .5 * EFE_LL_minus_half_trace_at(env, iofs, gPrims, EFEs).s[sym4[u][v]]
+										* gUU_from_gPrims_at(env, gPrims, iofs).s[pq]
 										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * inv_dx.s[dim1] * inv_dx.s[dim2]);
 								}
 							}
@@ -1203,15 +1062,16 @@ _Static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
 _Static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
 
 gPrim_t calc_partial_gPrim_of_Phi(
+	constant env_t const * const env,
 	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs
 ) {
-	int const index = indexForInt4ForSize(i, size.x, size.y, size.z);
+	int const index = indexForInt4(i);
 
-	real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
+	real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
 
 	gPrim_t const gPrim = gPrims[index];
 	real3s3 const gammaLL = gPrim.gammaLL;
