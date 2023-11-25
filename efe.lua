@@ -13,185 +13,7 @@ local gl = require 'gl'
 local CLEnv = require 'cl.obj.env'
 local clnumber = require 'cl.obj.number'
 
-local exec = require 'make.exec'
-local makeTargets = require 'make.targets'
-
--- only write if the contents have changed, to not update the write date
-local function writeIfChanged(filename, data)
-	local srcpath = path(filename)
-	local srcdata = srcpath:read()
-	if srcdata ~= data then
---[[ if you want to diff what's been changed ...
-		path'cache/tmp':write(data)
-		exec(table{'diff', ('%q'):format(filename), 'cache/tmp'}:concat' ', false)
-		path'cache/tmp':remove()
---]]
-		assert(srcpath:write(data))
-	end
-end
-
--- TODO move this to cl?
--- and rename this? 
--- or just use the original CLProgram name?
-local CLProgram = require 'cl.obj.program'
-local CLClangProgram = CLProgram:subclass()
-
-function CLClangProgram:init(args)
-	if args.cacheFileName then
-		self.cacheFileName = args.cacheFileName
-		path(self.cacheFileName):getdir():mkdir()
-		-- TODO how to distinguish between caching via Binary and via IL (aka using SPIR-V toolchain?)
-		self.cacheFileCL = self.cacheFileName..'.cl'
-		self.cacheFileBC = self.cacheFileName..'.bc'
-		self.cacheFileSPV = self.cacheFileName..'.spv'
-	end
-
-	-- If we specify multiple programs as input then we link immediately and return.
-	-- Same behavior as with Binaries.
-	if args.cacheFileName
-	and args.programs
-	then
-		assert(not args.code, "either .programs for linking or .code for building, but not both")
-		local programs = args.programs
-		args.programs = nil	-- dont do the .programs in super / dont make a .obj yet
-		CLClangProgram.super.init(self, args)
-		assert(#programs > 0, "can't link from programs if no programs are provided")
-		-- assert all our input programs have .bc files
-		local srcs = table.mapi(programs, function(program)
-			return (assert(program.cacheFileBC, "CLProgram constructed with .programs, expected all those programs to have .cacheFileBC's, but one didn't: "..tostring(program.cacheFileName)))
-		end)
-		makeTargets{
-			{
-				srcs = srcs,
-				dsts = {self.cacheFileBC},
-				rule = function()
-					-- other .bc' => our .bc 
-					exec(table{
-						'llvm-link',
-						srcs:mapi(function(src)
-							return ('%q'):format(src)
-						end):concat' ',
-						'-o', ('%q'):format(self.cacheFileBC),
-					}:concat' ')
-				end,
-			},
-			{	-- same rule as in :compile() for building from .cl ...
-				srcs = {self.cacheFileBC},
-				dsts = {self.cacheFileSPV},
-				rule = function()
-					exec(table{
-						'llvm-spirv',
-						('%q'):format(self.cacheFileBC),
-						'-o',
-						('%q'):format(self.cacheFileSPV),
-					}:concat' ')
-				end,
-			},
-		}:run(self.cacheFileSPV)
-		-- the rest of this is just like the SPRIV :compile() pathway too...
-		self.IL = assert(path(self.cacheFileSPV):read())
-		local results = CLClangProgram.super.compile(self)
-		do--if self.obj then	-- did compile
-			print((self.cacheFileName and self.cacheFileName..' ' or '')..'log:')
-			-- TODO log per device ...
-			print(string.trim(self.obj:getLog(self.env.devices[1])))
-		end
-		return
-	end
-
-	-- ok I don't want super to hit the args.code condition
-	-- but I want to store the code for later, so
-	self.code = args.code
-	args.code = nil
-	
-	CLClangProgram.super.init(self, args)
-end
-
-local function clangCompile(dst, src, buildOptions)
-	exec(table{
-		'clang',
-		buildOptions or '',
-		'-v',
-		-- residual and numerical gravity giving nans ... 
-		-- problem starts from GammaULLs getting nans.
-		-- that comes from partial_xU_of_gLL getting nans
-		-- that comes from return-struct-by-value producing corrupted values
-		--'--target=spirv64-unknown-unknown',	
-		--'--target=spirv',	--unsupported
-		'--target=spir-unknown-unknown',
-		'-emit-llvm',
-		'-c',
-		--'-O0',	-- -O0 makes some code break ... smh
-		--'-O3',
-		'-o', ('%q'):format(path(dst):fixpathsep()),
-		('%q'):format(path(src):fixpathsep()),
-	}:concat' ')
-end
-
--- TODO would be nice to do this once and let the caller / subclass modify it
-function CLClangProgram:setupBuildTargets(args)
-	self.buildTargets = makeTargets{
-		verbose = true,
-		{
-			srcs = {self.cacheFileCL},
-			dsts = {self.cacheFileBC},
-			rule = function(rule)
-				assert(#rule.dsts == 1)
-				assert(#rule.srcs == 1)
-				clangCompile(rule.dsts[1], rule.srcs[1], args and arg.buildOption or nil)
-			end,
-		},
-		{
-			srcs = {self.cacheFileBC},
-			dsts = {self.cacheFileSPV},
-			rule = function()
-				exec(table{
-					'llvm-spirv',
-					args and args.linkOptions or '',
-					('%q'):format(self.cacheFileBC),
-					'-o', ('%q'):format(self.cacheFileSPV),
-				}:concat' ')
-			end,
-		},
-	}
-end
-
-function CLClangProgram:build(args)
-	local code = self:getCode()
-	-- only write (and invalidate) when necessary
-	writeIfChanged(self.cacheFileCL, code)
-	self:setupBuildTargets(args)
-	self.buildTargets:run(self.cacheFileBC)
-end
-
-function CLClangProgram:link(args)
-	self:setupBuildTargets(args)
-	self.buildTargets:run(self.cacheFileSPV)
-	self.IL = assert(path(self.cacheFileSPV):read())
-end
-
-function CLClangProgram:compile(args)
-	-- if we're using the spirv toolchain...
-	if self.cacheFileCL 
-	or self.cacheFileBC 
-	or self.cacheFileSPV 
-	then
-		self:build(args)	-- cl -> bc
-		-- if 'dontLink' then just leave the .bc file for another Program to use ... or not?
-		if args and args.dontLink then return end
-		self:link(args)		-- cl -> bc -> spv
-		args = table(args):setmetatable(nil)
-		args.verbose = true
-	end
-	local results = CLClangProgram.super.compile(self, args)
-	assert(self.obj, "there must have been an error in your error handler")	-- otherwise it would have thrown an error
-	do--if self.obj then	-- did compile
-		print((self.cacheFileName and self.cacheFileName..' ' or '')..'log:')
-		-- TODO log per device ...
-		print(string.trim(self.obj:getLog(self.env.devices[1])))
-	end
-	return results
-end
+local writeChanged = require 'make.writechanged'
 
 -- helper for indexing symmetric matrices
 local function sym(i,j)
@@ -416,8 +238,6 @@ local bodies = {
 -- initial conditions:
 
 local EFESolver = CLEnv:subclass()
-
-EFESolver.Program = CLClangProgram
 
 -- finite difference
 
@@ -1306,11 +1126,11 @@ function EFESolver:refreshKernels()
 
 	path'cache':mkdir()
 
-	writeIfChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
-	writeIfChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
+	writeChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
+	writeChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
 
 	self.efeProgram = self:program{
-		cacheFileName = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
+		spirvToolchainFile = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
 		code = self.efeCode,
 	}
 
@@ -1481,9 +1301,9 @@ extern constant const int4 stepsize;
 	}),
 }:concat'\n'
 --]=]			
-			local displayProgram = self:program{
+			local displayProgramLib = self:program{
 				-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
-				cacheFileName = 'cache/display',
+				spirvToolchainFile = 'cache/display',
 				code = self:template[[
 #include "efe.funcs.h"
 #include "calcVars.h"
@@ -1510,73 +1330,18 @@ kernel void display(
 }
 ]],
 			}
-			-- [[ can't just link multiple bc files into a spv file ...
-			displayProgram:compile{
+			displayProgramLib:compile{
 				linkOptions = ('%q'):format('cache/efe.bc'),
 				dontLink = true,
 			}
 
-			local displayProgramOut = self:program{
-				cacheFileName = 'display-out',
+			local displayProgram = self:program{
+				spirvToolchainFile = 'display-out',
 				programs = {
 					self.efeProgram,
-					displayProgram,	--rename to 'displayLib' or something
+					displayProgramLib,	--rename to 'displayLib' or something
 				},	-- link immediately
 			}
-			displayProgram = displayProgramOut 	-- for compat with commented code
-			--]]
-			--[[ maybe i have to do this? 
-			-- TODO sort out how to specify this in the CLClangProgram class
-			displayProgram.cacheFileCL = 'cache/display.cl'
-			displayProgram.cacheFileBC = 'cache/display.bc'	-- cl -> bc 
-			displayProgram.cacheFileLinkedBC = 'cache/display.linked.bc'	-- bc + other bc's -> merged bc 
-			displayProgram.cacheFileSPV = 'cache/display.spv'	-- merged bc -> spv 
-			--displayProgram:build()
-			local displayCode = self:template(displayProgram:getCode())
-			writeIfChanged(displayProgram.cacheFileCL, displayCode)
-			makeTargets{
-				verbose = true,
-				{
-					srcs = {displayProgram.cacheFileCL},
-					dsts = {displayProgram.cacheFileBC},
-					rule = function(rule)
-						-- cache/display.cl => cache/display.bc
-						assert(#rule.dsts == 1)
-						assert(#rule.srcs == 1)
-						clangCompile(rule.dsts[1], rule.srcs[1], args and arg.buildOption or nil)
-					end,
-				},
-				{
-					srcs = {'cache/efe.bc', displayProgram.cacheFileBC},
-					dsts = {displayProgram.cacheFileLinkedBC},
-					rule = function()
-						-- cache/efe.bc + cache/display.bc => cache/display-out.bc
-						exec(table{
-							'llvm-link',
-							('%q'):format'cache/efe.bc',
-							('%q'):format(displayProgram.cacheFileBC),
-							'-o', ('%q'):format(displayProgram.cacheFileLinkedBC),
-						}:concat' ')
-					end,
-				},
-				{
-					srcs = {displayProgram.cacheFileLinkedBC},
-					dsts = {displayProgram.cacheFileSPV},
-					rule = function()
-						-- cache/display-out.bc => cache/display.spv
-						--displayProgram:link()
-						exec(table{
-							'llvm-spirv',
-							('%q'):format(displayProgram.cacheFileLinkedBC),
-							'-o',
-							('%q'):format(displayProgram.cacheFileSPV),
-						}:concat' ')
-					end,
-				},
-			}:run(displayProgram.cacheFileSPV)
-			displayProgram.IL = assert(path(displayProgram.cacheFileSPV):read())
-			CLClangProgram.super.compile(displayProgram)
-			--]]
 print'displayProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
 print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
