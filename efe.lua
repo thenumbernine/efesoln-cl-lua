@@ -538,8 +538,6 @@ function EFESolver:init(args)
 		vec3i.typeCode,
 	}:concat'\n'
 
-
-
 	-- [[ I would put this in the type code, but it requires the type code to already be cdef'd
 	-- that means it has to be inserted into the kernels' codes, or appended to the self.code
 	do
@@ -700,9 +698,11 @@ print(env_code)
 	os.exit()
 	--]]
 
+local oldHeader = self.code
 	path'cache':mkdir()
 	path'cache/autogen.h':write(self.code)
-	self.code = '#include "autogen.h"'
+	local includeHeader = '#include "autogen.h"'
+	self.code = includeHeader 
 
 
 	-- parameters:
@@ -922,6 +922,9 @@ texCLBuf[index] = real3_len(real3_sub(numerical, analytical)) / analyticalMagn -
 	self:refreshKernels()
 
 
+-- ok now while making solvers, I want the old cl header ...
+	self.code = oldHeader
+
 	-- EFE: G_ab(g_ab) = 8 π T_ab(g_ab)
 	-- consider x = α, β^i, γ_ij
 	-- b = 8 π T_ab (and ignore the fact that it is based on x as well)
@@ -1097,6 +1100,10 @@ assert(type(name)=='string')
 		jfnkEpsilon = 1e-6,
 		epsilon = 1e-48,	-- efe error is G/c^4 ~ 6.67e-47
 	}
+
+	-- and for display. .. back to the future
+	self.code = includeHeader 
+
 
 	self:resetState()
 end
