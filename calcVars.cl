@@ -292,6 +292,45 @@ if solver.body.useEM then ?>
 <? end ?>
 }
 
+
+//inlining the gLL_from_gPrims_at function made the error go away so ....
+//what about calling it is so bad ....
+// yup this works, whereas the other one fails
+real4s4 gLL_from_gPrims_at_v2(
+	global gPrim_t const * const gPrims,
+	int const ix,
+	int const iy,
+	int const iz
+) {
+	if (ix < 0 || iy < 0 || iz < 0 ||
+		ix >= size.x || iy >= size.y || iz >= size.z
+	) {
+		return calc_gLL_from_gPrim(calc_gPrim_boundary((int4)(ix, iy, iz, 0), gPrims));
+	}
+	int const index = ix + size.x * (iy + size.y * iz);
+	return calc_gLL_from_gPrim(gPrims[index]);
+}
+
+// is it a matter of argument order?
+// YES SURE ENOUGH
+// put the pointer 1st and it works
+// put the pointer 2nd and it fails
+real4s4 gLL_from_gPrims_at_v3(
+	global gPrim_t const * const gPrims,
+	int4 const i
+) {
+	if (i.x < 0 || i.y < 0 || i.z < 0 ||
+		i.x >= size.x || i.y >= size.y || i.z >= size.z
+	) {
+		return calc_gLL_from_gPrim(calc_gPrim_boundary(i, gPrims));
+	}
+	int const index = i.x + size.x * (i.y + size.y * i.z);
+	return calc_gLL_from_gPrim(gPrims[index]);
+}
+
+
+
+
 // compute buffers to compute EFE
 
 kernel void calc_GammaULLs(
@@ -427,10 +466,32 @@ kernel void calc_GammaULLs(
 #endif
 #if 1	//incorrect values as well ...
 	for (int a = 0; a < stDim; ++a) {
-		GammaULLs[index].s[a] = gLL_from_gPrims_at(
-			i - (int4)(1, 0, 0, 0),
-			gPrims
-		);
+		GammaULLs[index].s[a] = gLL_from_gPrims_at(i - (int4)(1, 0, 0, 0), gPrims);
+	}
+#endif
+#if 0	//works
+	for (int a = 0; a < stDim; ++a) {
+		GammaULLs[index].s[a] = gLL_from_gPrims_at_v2(gPrims, i.x - 1, i.y, i.z);
+	}
+#endif
+#if 0	//works
+	for (int a = 0; a < stDim; ++a) {
+		GammaULLs[index].s[a] = gLL_from_gPrims_at_v3(gPrims, i - (int4)(1, 0, 0, 0));
+	}
+#endif
+#if 0	//works
+	//inlining the gLL_from_gPrims_at function ... works
+	// so why is calling it so bad?
+	for (int a = 0; a < stDim; ++a) {
+		int4 i2 = i - (int4)(1,0,0,0);
+		if (i2.x < 0 || i2.y < 0 || i2.z < 0 ||
+			i2.x >= size.x || i2.y >= size.y || i2.z >= size.z
+		) {
+			GammaULLs[index].s[a] = calc_gLL_from_gPrim(calc_gPrim_boundary(i2, gPrims));
+		} else {
+			int const index2 = indexForInt4ForSize(i2, size.x, size.y, size.z);
+			GammaULLs[index].s[a] = calc_gLL_from_gPrim(gPrims[index2]);
+		}
 	}
 #endif
 #if 0	//not nans ... but gives incorrect values ...

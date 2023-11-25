@@ -501,6 +501,12 @@ gPrim_t calc_gPrim_boundary(
 }
 
 //use this for all finite-difference access
+//TODO
+// this is producing bad data
+// is it a matter of argument order?
+// YES SURE ENOUGH
+// put the pointer 1st and int4 2nd and it works
+// put the pointer 2nd and int4 1st and it fails
 real4s4 gLL_from_gPrims_at(
 	int4 const i,
 	global gPrim_t const * const gPrims
