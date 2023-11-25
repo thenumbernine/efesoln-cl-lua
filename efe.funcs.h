@@ -143,12 +143,14 @@ real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const a);
 
 <?makeOpsHeader("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
 
-extern constant int const stDim;
-extern constant int const sDim;
+//I don't trust constant int const ...
+#define stDim		<?=stDim?>
+#define sDim		<?=sDim?>
 extern constant real3 const xmin;
 extern constant real3 const xmax;
 extern constant real3 const dx;
 extern constant real3 const inv_dx; 
+
 real3 getX(int4 const i);
 extern constant int4 const int4_dirs[3];
 int4 int4_dir(int const dim, int const offset);

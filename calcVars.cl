@@ -301,12 +301,35 @@ kernel void calc_GammaULLs(
 	initKernel();
 
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
+#if 0 //debugging nans
 <?=solver:finiteDifference{
 	srcType = "4s4",
 	resultName = "partial_xU_of_gLL",
 	getValue = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
 	getBoundary = function(args) return "gLL_from_gPrims_at("..args.i..", gPrims)" end,
 }?>
+#else
+	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
+	real4x4s4 gLL_L;
+	gLL_L.s0 = real4s4_zero;
+	gLL_L.s1 = gLL_from_gPrims_at(i - (int4)(1, 0, 0, 0), gPrims);
+	gLL_L.s2 = gLL_from_gPrims_at(i - (int4)(0, 1, 0, 0), gPrims);
+	gLL_L.s3 = gLL_from_gPrims_at(i - (int4)(0, 0, 1, 0), gPrims);
+	real4x4s4 gLL_R;
+	gLL_R.s0 = real4s4_zero;
+	gLL_R.s1 = gLL_from_gPrims_at(i + (int4)(1, 0, 0, 0), gPrims);
+	gLL_R.s2 = gLL_from_gPrims_at(i + (int4)(0, 1, 0, 0), gPrims);
+	gLL_R.s3 = gLL_from_gPrims_at(i + (int4)(0, 0, 1, 0), gPrims);
+	real4x4s4 partial_xU_of_gLL;
+	for (int bc = 0; bc < 10; ++bc) {
+		partial_xU_of_gLL.s[0].s[bc] = 0;
+	}
+	for (int a = 1; a < stDim; ++a) {
+		for (int bc = 0; bc < 10; ++bc) {
+			partial_xU_of_gLL.s[a].s[bc] = (gLL_R.s[a].s[bc] - gLL_L.s[a].s[bc]) * .5 *  inv_dx.s[a-1];
+		}
+	}
+#endif
 
 #if 0 //debugging nans
 	// spirv target
@@ -343,18 +366,101 @@ kernel void calc_GammaULLs(
 	//Γ^a_bc = GammaULL.a.bc
 	//Γ^a_bc = g^ad Γ_dbc
 	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
-#if 1	//debugging nans with spirv target ...	
+#if 0	//nans...
 	GammaULLs[index] = real4s4_real4x4s4_mul(gUU, GammaLLL);
-#else
-	for (int a = 0; a < 4; ++a) {
-		for (int b = 0; b < 4; ++b) {
-			for (int c = b; c < 4; ++c) {
+#endif
+#if 0	//nans....
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = b; c < stDim; ++c) {
 				int const bc = sym4[b][c];
 				real sum = 0;
-				for (int d = 0; d < 4; ++d) {
+				for (int d = 0; d < stDim; ++d) {
 					sum += gUU.s[sym4[a][d]] * GammaLLL.s[d].s[bc];
 				}
 				GammaULLs[index].s[a].s[bc] = sum;
+			}
+		}
+	}
+#endif
+#if 0 //... works.
+	for (int a = 0; a < stDim; ++a) {
+		for (int bc = 0; bc < 10; ++bc) {
+			GammaULLs[index].s[a].s[bc] = real4s4_Minkowski.s[bc];
+		}
+	}
+#endif
+#if 0 //... works.
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = b; c < stDim; ++c) {
+				int const bc = sym4[b][c];
+				GammaULLs[index].s[a].s[bc] = real4s4_Minkowski.s[bc];
+			}
+		}
+	}
+#endif
+#if 0	//works
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = b; c < stDim; ++c) {
+				int const bc = sym4[b][c];
+				GammaULLs[index].s[a].s[bc] = gUU.s[bc];
+			}
+		}
+	}
+#endif
+#if 0	//works
+	for (int a = 0; a < stDim; ++a) {
+		GammaULLs[index].s[a] = gUU;
+	}
+#endif
+#if 0	//works
+	for (int a = 0; a < stDim; ++a) {
+		GammaULLs[index].s[a] = calc_gLL_from_gPrim(gPrims[index]);
+	}
+#endif
+#if 0	//works
+	for (int a = 0; a < stDim; ++a) {
+		GammaULLs[index].s[a] = gLL_from_gPrims_at(i, gPrims);
+	}
+#endif
+#if 1	//incorrect values as well ...
+	for (int a = 0; a < stDim; ++a) {
+		GammaULLs[index].s[a] = gLL_from_gPrims_at(
+			i - (int4)(1, 0, 0, 0),
+			gPrims
+		);
+	}
+#endif
+#if 0	//not nans ... but gives incorrect values ...
+	for (int a = 0; a < stDim; ++a) {
+		GammaULLs[index].s[a] = gLL_L.s[a];
+	}
+#endif
+#if 0	//doesn't work
+	GammaULLs[index] = GammaLLL;
+#endif
+#if 0	//doesn't work
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = b; c < stDim; ++c) {
+				int const bc = sym4[b][c];
+				GammaULLs[index].s[a].s[bc] = GammaLLL.s[a].s[bc];
+			}
+		}
+	}
+#endif
+#if 0	//doesn't work
+	// writes the first struct, nans within the rest ...
+	GammaULLs[index] = partial_xU_of_gLL;
+#endif
+#if 0	//doesn't work -- same
+	for (int a = 0; a < stDim; ++a) {
+		for (int b = 0; b < stDim; ++b) {
+			for (int c = b; c < stDim; ++c) {
+				int const bc = sym4[b][c];
+				GammaULLs[index].s[a].s[bc] = partial_xU_of_gLL.s[a].s[bc];
 			}
 		}
 	}
@@ -665,7 +771,7 @@ real4s4 EFE_LL_minus_half_trace_at(
 	global gPrim_t const * const gPrims,
 	global real4s4 const * const EFEs
 ) {
-	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
 		return real4s4_zero;	//TODO ... consider boundary conditions
@@ -690,7 +796,7 @@ real4x4s4 GammaULL_at(
 	int4 const i,
 	global real4x4s4 const * const GammaULLs
 ) {
-	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
 		return real4x4s4_zero;
@@ -706,7 +812,7 @@ real4x4x4 GammaUUL_at(
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs
 ) {
-	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
 		return real4x4x4_zero;

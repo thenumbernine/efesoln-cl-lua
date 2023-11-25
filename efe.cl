@@ -450,9 +450,6 @@ end
 <?makeops("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
 
 
-constant int const stDim = <?=stDim?>;
-constant int const sDim = <?=sDim?>;
-
 constant real3 const xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
 constant real3 const xmax = _real3(<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>);
 constant real3 const dx = _real3(<?=
@@ -508,7 +505,7 @@ real4s4 gLL_from_gPrims_at(
 	int4 const i,
 	global gPrim_t const * const gPrims
 ) {
-	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
 		return calc_gLL_from_gPrim(calc_gPrim_boundary(i, gPrims));
@@ -521,7 +518,7 @@ real4s4 gUU_from_gPrims_at(
 	int4 const i,
 	global gPrim_t const * const gPrims
 ) {
-	if (i.x <= 0 || i.y <= 0 || i.z <= 0 ||
+	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= size.x || i.y >= size.y || i.z >= size.z
 	) {
 		return calc_gUU_from_gPrim(calc_gPrim_boundary(i, gPrims));
