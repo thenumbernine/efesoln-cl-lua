@@ -534,8 +534,6 @@ real4s4 gUU_from_gPrims_at(
 real4s4 calc_RicciLL(
 	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4s4 const * const gLLs,
-	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
 	int const index = indexForInt4(i);
@@ -546,8 +544,8 @@ real4s4 calc_RicciLL(
 
 	real4x4s4 const GammaULL = GammaULLs[index];
 
-	real4s4 const gLL = gLLs[index];
-	real4s4 const gUU = gUUs[index];
+	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);
+	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 
 	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
 	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
@@ -658,20 +656,24 @@ real4s4 calc_RicciLL(
 real4s4 calc_EinsteinLL(
 	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4s4 const * const gLLs,
-	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 ) {
 	int const index = indexForInt4(i);
 
+	//gLL.ab := g_ab
+	real4s4 gLL = calc_gLL_from_gPrim(gPrims[index]);
+	
+	//gUU.ab := g_ab
+	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
+
 	//RicciLL.ab := R_ab
-	real4s4 const RicciLL = calc_RicciLL(i, gPrims, gLLs, gUUs, GammaULLs);
+	real4s4 const RicciLL = calc_RicciLL(i, gPrims, GammaULLs);
 
 	//Gaussian := R = R_ab g^ab
-	real const Gaussian = real4s4_dot(RicciLL, gUUs[index]);
+	real const Gaussian = real4s4_dot(RicciLL, gUU);
 
 	//G_uv = R_uv - 1/2 g_uv R
-	return real4s4_mul_add(RicciLL, gLLs[index], -.5 * Gaussian);
+	return real4s4_mul_add(RicciLL, gLL, -.5 * Gaussian);
 }
 
 //[1/m^2]

@@ -166,16 +166,12 @@ real4s4 gUU_from_gPrims_at(
 real4s4 calc_RicciLL(
 	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4s4 const * const gLLs,
-	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 );
 
 real4s4 calc_EinsteinLL(
 	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4s4 const * const gLLs,
-	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs
 );
 

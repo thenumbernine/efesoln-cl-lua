@@ -7,8 +7,6 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 	global gPrim_t * const partial_gPrim_of_Phis,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
-	global real4s4 const * const gLLs,
-	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs
 ) {
@@ -18,8 +16,6 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 		i,
 		TPrims,
 		gPrims,
-		gLLs,
-		gUUs,
 		GammaULLs,
 		EFEs
 	);

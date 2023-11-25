@@ -318,8 +318,14 @@ for i=0,sDim-1 do
 				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
 				..")"
 			args.index = "index + stepsize.s"..i.." * "..offset_i
-?>				(i.s<?=i?> + <?=offset_i?> >= size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>,
-				<?=coeff?> * inv_dx.s<?=i?>
+			local bc = getBoundary(args)
+			local val = getValue(args)
+			if bc == val then
+?>				<?=val?>,
+<?			else
+?>				(i.s<?=i?> + <?=offset_i?> >= size.s<?=i?>) ? <?=bc?> : <?=val?>,
+<?			end				
+?>				<?=coeff?> * inv_dx.s<?=i?>
 			),
 			real<?=srcType?>_real_mul(
 <?			-- setup lhs index
@@ -327,8 +333,14 @@ for i=0,sDim-1 do
 				..range(0,3):mapi(function(ii) return ii==i and offset_i or 0 end):concat', '
 				..")"
 			args.index = "index - stepsize.s"..i.." * "..offset_i
-?>				(i.s<?=i?> - <?=offset_i?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>,
-				<?=-coeff?> * inv_dx.s<?=i?>
+			local bc = getBoundary(args)
+			local val = getValue(args)
+			if bc == val then
+?>				<?=val?>,
+<?			else
+?>				(i.s<?=i?> - <?=offset_i?> < 0) ? <?=bc?> : <?=val?>,
+<?			end
+?>				<?=-coeff?> * inv_dx.s<?=i?>
 			)<?=offset_i == #d1coeffs and "" or ","?>
 <?	end
 ?>		),
@@ -687,39 +699,40 @@ typedef char int8_t;
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
 texCLBuf[index] = real4s4_norm(EinsteinLL);
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
 texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
 texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
 ]]},
 		{['det|Einstein_ij| (kg/(m s^2))'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, gLLs, gUUs, GammaULLs);
+real4s4 const EinsteinLL = calc_EinsteinLL(i, gPrims, GammaULLs);
 texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
 ]]},
 		{['Gaussian'] = [[
-real4s4 const RicciLL = calc_RicciLL(i, gPrims, gLLs, gUUs, GammaULLs);
-texCLBuf[index] = real4s4_dot(RicciLL, gUUs[index]);
+real4s4 const RicciLL = calc_RicciLL(i, gPrims, GammaULLs);
+real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
+texCLBuf[index] = real4s4_dot(RicciLL, gUU);
 ]]},
 		{['partial_gLL_of_Phi'] = [[
-real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
+real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = real4s4_normSq(partial_gLL_of_Phi);
 ]]},
 		{['partial_gPrim_of_Phi.alpha'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = partial_gPrim_of_Phi.alpha;
 ]]},
 		{['norm|partial_gPrim_of_Phi.beta|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = real3_norm(partial_gPrim_of_Phi.betaU);
 ]]},
 		{['norm|partial_gPrim_of_Phi.gamma|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, gLLs, gUUs, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(i, TPrims, gPrims, GammaULLs, EFEs);
 texCLBuf[index] = real3s3_norm(partial_gPrim_of_Phi.gammaLL);
 ]]},
 --[=[
@@ -1052,8 +1065,6 @@ end
 function EFESolver:initBuffers()
 	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
-	self.gLLs = self:buffer{name='gLLs', type='real4s4'}
-	self.gUUs = self:buffer{name='gUUs', type='real4s4'}
 	self.GammaULLs = self:buffer{name='GammaULLs', type='real4x4s4'}
 
 	-- used by updateNewton:
@@ -1176,18 +1187,6 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		},
 	}
 
-	-- compute values for EFE
-	self.calc_gLLs_and_gUUs = self.efeProgram:kernel{
-		name = 'calc_gLLs_and_gUUs',
-		argsOut = {
-			self.gLLs,
-			self.gUUs,
-		},
-		argsIn = {
-			self.gPrims,
-		},
-	}
-
 	self.calc_GammaULLs = self.efeProgram:kernel{
 		name = 'calc_GammaULLs',
 		argsOut = {
@@ -1195,8 +1194,6 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		},
 		argsIn = {
 			self.gPrims,
-			self.gLLs,
-			self.gUUs,
 		},
 	}
 
@@ -1218,8 +1215,6 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		argsIn = {
 			self.TPrims,
 			self.gPrims,
-			self.gLLs,
-			self.gUUs,
 			self.GammaULLs,
 		},
 	}
@@ -1233,8 +1228,6 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		argsIn = {
 			self.TPrims,
 			self.gPrims,
-			self.gLLs,
-			self.gUUs,
 			self.GammaULLs,
 			self.EFEs,
 		},
@@ -1260,15 +1253,16 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		},
 		argsIn = {
 			self.gPrims,
-			self.gLLs,
-			self.gUUs,
 			self.GammaULLs,
 		},
 	}
 	self.calc_8piTLLs = self.efeProgram:kernel{
 		name = 'calc_8piTLLs',
 		argsOut = {self._8piTLLs},
-		argsIn = {self.TPrims, self.gLLs},
+		argsIn = {
+			self.TPrims,
+			self.gPrims,
+		},
 	}
 
 	self.init_gPrims = self.efeProgram:kernel{
@@ -1337,8 +1331,6 @@ kernel void display(
 	int const displayVarIndex,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
-	global real4s4 const * const gLLs,
-	global real4s4 const * const gUUs,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs
 ) {
@@ -1375,13 +1367,14 @@ kernel void display(
 				path'cache':cd()
 				local displayProgramLib = self:program{
 					-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
-					cacheFile = 'cache/display',
+					cacheFile = 'cache/display_lib',
 					code = displayCode,
 				}
 				displayProgramLib:compile{
 					dontLink = true,
 				}
 				displayProgram = self:program{
+					cacheFile = 'cache/display',
 					programs = {
 						self.efeProgram,
 						displayProgramLib,
@@ -1400,8 +1393,6 @@ print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 					{type='int', name='displayVarIndex'},
 					assert(self.TPrims),
 					assert(self.gPrims),
-					assert(self.gLLs),
-					assert(self.gUUs),
 					assert(self.GammaULLs),
 					assert(self.EFEs),
 				},
@@ -1428,25 +1419,23 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
---print'init_gPrims'
+print'init_gPrims'
 	local initCondIndex = ffi.new('int[1]') 
 	initCondIndex[0] = self.initCond
 	self.init_gPrims.obj:setArg(1, initCondIndex)
 	self.init_gPrims()	-- initialize gPrims
---self:printbuf'gPrims'
+self:printbuf'gPrims'
 
---print'init_TPrims'
+print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims
---self:printbuf'TPrims'
+self:printbuf'TPrims'
 
-	self:updateAux()	-- calc gLLs, gUUs, GammaLLs, EFEs
---self:printbuf'gLLs'
---self:printbuf'gUUs'
---self:printbuf'GammaULLs'
---self:printbuf'EFEs'
+	self:updateAux()	-- calc GammaLLs, EFEs
+self:printbuf'GammaULLs'
+self:printbuf'EFEs'
 
 	self:updateTex()
---print('residual', self:calcBufferNorm())
+print('residual', self:calcBufferNorm())
 
 	self.iteration = 0
 end
@@ -1653,7 +1642,6 @@ end
 
 function EFESolver:updateAux()
 	-- every time gPrims changes, update these:
-	self.calc_gLLs_and_gUUs()
 	self.calc_GammaULLs()
 
 	if self.useFourPotential then
