@@ -31,31 +31,6 @@ struct gPrim_t {
 		betaU(betaU_),
 		gammaLL(gammaLL_)
 	{}
-
-	gPrim_t(
-		real const x0,
-		real const x1,
-		real const x2,
-		real const x3,
-		real const x4,
-		real const x5,
-		real const x6,
-		real const x7,
-		real const x8,
-		real const x9
-	) {
-		s[0] = x0;
-		s[1] = x1;
-		s[2] = x2;
-		s[3] = x3;
-		s[4] = x4;
-		s[5] = x5;
-		s[6] = x6;
-		s[7] = x7;
-		s[8] = x8;
-		s[9] = x9;
-	}
-
 };
 
 static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
@@ -165,7 +140,7 @@ inline real3 operator*(
 real4s4 real4s4_outer(real4 const & v);
 
 //a_i = b_ij c_j
-real4 operator*(
+inline real4 operator*(
 	real4s4 const & m,
 	real4 const & v
 ) {
@@ -181,7 +156,7 @@ real4 operator*(
 }
 
 //a_ij = b_ik c_kj
-real4x4 operator*(
+inline real4x4 operator*(
 	real4s4 const & a,
 	real4s4 const & b
 ) {
@@ -204,7 +179,25 @@ real real4s4_det(real4s4 const & m);
 real4s4 new_real4s4_Minkowski();
 extern constant real4s4 const real4s4_Minkowski;
 
-real4s4 real4x4_real4s4_to_real4s4_mul(real4x4 const & a, real4s4 const & b);
+//a_ij = b_ik c_kj
+inline real4s4 real4x4_real4s4_to_real4s4_mul(
+	real4x4 const & a,
+	real4s4 const & b
+) {
+	real4s4 result = {};
+	for (int i = 0; i < 4; ++i) {
+		for (int j = i; j < 4; ++j) {
+			real sum = {};
+			for (int k = 0; k < 4; ++k) {
+				sum += a.s[i].s[k] * b.s[sym4[k][j]];
+			}
+			result.s[sym4[i][j]] = sum;
+		}
+	}
+	return result;
+}
+
+
 real real4x4_tr(real4x4 const & a);
 
 <?makeOpsHeader("real4x4x4", "real4x4", {"s0", "s1", "s2", "s3"})?>
@@ -271,4 +264,31 @@ real4s4 calc_EinsteinLL(
 real4s4 calc_8piTLL(
 	real4s4 const gLL,
 	<?=TPrim_t?> const TPrim
+);
+
+//need to be here o calcVars.clcpp can see them
+// it calls them based on populated code from efe.initConds
+gPrim_t calc_gPrim_flat(real3 const x);
+gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x);
+gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x);
+
+real4s4 calc_gLL_from_gPrim(gPrim_t const & gPrim);
+real4s4 calc_gUU_from_gPrim(gPrim_t const & gPrim);
+
+real4s4 calc_partial_gLL_of_Phi(
+	constant env_t const * const env,
+	global <?=TPrim_t?> const * const TPrims,
+	global gPrim_t const * const gPrims,
+	global real4x4s4 const * const GammaULLs,
+	global real4s4 const * const EFEs,
+	int4 const i
+);
+
+gPrim_t calc_partial_gPrim_of_Phi(
+	constant env_t const * const env,
+	global <?=TPrim_t?> const * const TPrims,
+	global gPrim_t const * const gPrims,
+	global real4x4s4 const * const GammaULLs,
+	global real4s4 const * const EFEs,
+	int4 const i
 );

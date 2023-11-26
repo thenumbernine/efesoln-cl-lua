@@ -27,7 +27,7 @@ function CLProgram:clangCompile(dst, src, buildOptions)
 		buildOptions or '',
 		'-v',
 		--'-cc1',
-		'-Xclang -finclude-default-header',
+		--'-Xclang -finclude-default-header',
 		'--target=spirv64-unknown-unknown',
 		--'-cl-std=CL2.0',
 		'-emit-llvm',
@@ -632,8 +632,8 @@ function EFESolver:init(args)
 
 	local math_luajit_h = self:template(path'math.luajit.h':read())
 	ffi.cdef(math_luajit_h)
-	writeChanged('inc/math.luajit.h', math_luajit_h)
 	path'inc':mkdir()
+	writeChanged('inc/math.luajit.h', math_luajit_h)
 	writeChanged('inc/math.hpp', self:template(path'math.hpp':read()))
 
 
@@ -663,14 +663,6 @@ function EFESolver:init(args)
 	-- [[ I would put this in the type code, but it requires the type code to already be cdef'd
 	-- that means it has to be inserted into the kernels' codes, or appended to the autogenCode
 	do
-		-- ffi.cdef already has stdint.h's uint8_t etc defined
-		-- but OpenCL doesn't
-		-- so ...
-		autogenCode = autogenCode .. [[
-typedef uchar uint8_t;
-typedef char int8_t;
-]]
-
 		--[[
 		-- if I use 'struct' then I only get one listing of either sij or tt..zz
 		-- TODO change 'struct' to also have 'union', and make these as nested union+struct
@@ -807,7 +799,7 @@ typedef char int8_t;
 local oldHeader = autogenCode
 	writeChanged('inc/autogen.h', autogenCode)
 	-- update this every time body changes
-	writeChanged('inc/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
+	writeChanged('inc/efe.h', self:template(assert(path'efe.h':read())))
 	writeChanged('inc/calcVars.h', self:template(assert(path'calcVars.h':read())))
 	self.code = includeHeader
 
@@ -965,7 +957,7 @@ real3 const x = getX(env, i);
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
-texCLBuf[index] = real3_len(real3_sub(real4_to_real3(dPhi_dx), getX(env, i)));
+texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx) - getX(env, i)));
 ]]},
 --]=]
 	-- u'^i = -Γ^i_ab u^a u^b
@@ -1006,8 +998,8 @@ real3 const analytical = real3{
 	analyticalMagn * x.y / r,
 	analyticalMagn * x.z / r
 };
-real3 const numerical = real3_real_mul(real4x4s4_i00(GammaULLs[index]), c * c);
-texCLBuf[index] = real3_len(real3_sub(numerical, analytical)) / analyticalMagn - 1.;
+real3 const numerical = real4x4s4_i00(GammaULLs[index]) * (c * c);
+texCLBuf[index] = real3_len(numerical - analytical) / analyticalMagn - 1.;
 ]]},
 	} or nil)
 	:append(self.body.useMatter and {
@@ -1343,42 +1335,79 @@ function EFESolver:refreshKernels()
 	-- create code
 	print'preprocessing code...'
 
-	-- append efe.clcpp to the environment code
-	self.efeCode = self:template(table{
-			path'efe.clcpp':read(),
-			path'calcVars.clcpp':read(),
-			path'gradientDescent.clcpp':read(),
-		}:concat'\n')
+	local efeCode = self:template(path'efe.clcpp':read())							-- common with display
+	local calcVarsCode = self:template(path'calcVars.clcpp':read())					-- kernels
+	local gradientDescentCode = self:template(path'gradientDescent.clcpp':read())	-- kernels for updateNewton
 
+	--self.efeObjProgram	-- shared with display
+	local calcVarsProgram
+	local gradientDescentVarsProgram
+	local efeProgram	-- used for getting kernels
 	if useSpirvToolchain then
-		-- compile using clang & llvm-spirv ...
-		self.efeProgram = self:program{
-			spirvToolchainFile = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
-			spirvToolchainFileCL = 'cache/efe.clcpp',	-- use .clcpp with clang for c++ file 
-			code = self.efeCode,
-		}
 		-- builds efe.clcpp, efe.bc, efe.spv
 		-- why does clCreateProgramWithIL take 45 seconds, while clCreateProgramWithSource takes 10 ... and clCreateProgramWithBinary takes no time at all.
 		timer('compiling code...', function()
-			self.efeProgram:compile()
+			-- compile using clang & llvm-spirv ...
+			self.efeObjProgram = self:program{
+				spirvToolchainFile = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
+				spirvToolchainFileCL = 'cache/efe.clcpp',	-- use .clcpp with clang for c++ file 
+				code = efeCode,
+			}
+			calcVarsProgram = self:program{
+				spirvToolchainFile = 'cache/calcVars',	-- produces cache/efe.bc and cache/efe.spv
+				spirvToolchainFileCL = 'cache/calcVars.clcpp',	-- use .clcpp with clang for c++ file 
+				code = calcVarsCode,
+			}
+			gradientDescentProgram = self:program{
+				spirvToolchainFile = 'cache/gradientDescent',	-- produces cache/efe.bc and cache/efe.spv
+				spirvToolchainFileCL = 'cache/gradientDescent.clcpp',	-- use .clcpp with clang for c++ file 
+				code = gradientDescentCode,
+			}
+			self.efeObjProgram:compile{dontLink=true}
+			calcVarsProgram:compile{dontLink=true}
+			gradientDescentProgram:compile{dontLink=true}
+			efeProgram = self:program{
+				spirvToolchainFile = 'cache/efe-out',
+				programs = {
+					self.efeObjProgram,
+					calcVarsProgram,
+					gradientDescentProgram,
+				},
+			}
 		end)
 	else
 		timer('compiling code...', function()
 			path'cache':cd()
 			-- compile using intel opencl library
-			self.efeProgram = self:program{
+			self.efeObjProgram = self:program{
 				cacheFile = 'cache/efe',
-				code = self.efeCode,
+				code = efeCode,
 			}
+			calcVarsProgram = self:program{
+				cacheFile = 'cache/efe',
+				code = calcVarsCode,
+			}		
+			gradientDescentProgram = self:program{
+				cacheFile = 'cache/efe',
+				code = gradientDescentCode,
+			}		
 			-- hmm cl api, clCreateProgramWithSource doesn't provide for build options, i.e. no -I flags ...
 			-- even when I do use separate build/link so I can pass build flags, -I doesn't have precedence over cwd,
 			-- so ...
 			-- just change cwd to 'cache' ... hmm
 			-- but won't this make cache/cache/filenames for the binary cache?
 			-- bleh what a mess
-			self.efeProgram:compile{
-				verbose = true,
-			}
+			self.efeObjProgram:compile{dontLink=true, verbose=true}
+			calcVarsProgram:compile{dontLink=true, verbose=true}
+			gradientDescentProgram:compile{dontLink=true, verbose=true}
+			efeProgram = self:program{
+				spirvToolchainFile = 'cache/efe-out',
+				programs = {
+					self.efeObjProgram,
+					calcVarsProgram,
+					gradientDescentProgram,
+				},
+			}		
 			path'..':cd()
 			--]]
 		end)
@@ -1386,10 +1415,10 @@ function EFESolver:refreshKernels()
 
 print'efeProgram'
 print'CL_PROGRAM_KERNEL_NAMES:'
-print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
+print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 
 	-- init
-	self.init_TPrims = self.efeProgram:kernel{
+	self.init_TPrims = efeProgram:kernel{
 		name = 'init_TPrims',
 		setArgs  = {
 			self.envBuf,
@@ -1397,7 +1426,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		},
 	}
 
-	self.calc_GammaULLs = self.efeProgram:kernel{
+	self.calc_GammaULLs = efeProgram:kernel{
 		name = 'calc_GammaULLs',
 		setArgs = {
 			self.envBuf,
@@ -1407,7 +1436,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	}
 
 	if self.useFourPotential then
-		self.solveAL = self.efeProgram:kernel{
+		self.solveAL = efeProgram:kernel{
 			name = 'solveAL',
 			setArgs = {
 				self.envBuf,
@@ -1417,7 +1446,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	end
 
 	-- used by updateNewton and updateJFNK:
-	self.calc_EFEs = self.efeProgram:kernel{
+	self.calc_EFEs = efeProgram:kernel{
 		name = 'calc_EFEs',
 		setArgs = {
 			self.envBuf,
@@ -1429,7 +1458,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	}
 
 	-- used by updateNewton:
-	self.calc_partial_gPrim_of_Phis_kernel = self.efeProgram:kernel{
+	self.calc_partial_gPrim_of_Phis_kernel = efeProgram:kernel{
 		name = 'calc_partial_gPrim_of_Phis_kernel',
 		setArgs = {
 			self.envBuf,
@@ -1441,7 +1470,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		},
 	}
 
-	self.update_gPrims = self.efeProgram:kernel{
+	self.update_gPrims = efeProgram:kernel{
 		name = 'update_gPrims',
 		setArgs = {
 			self.envBuf,
@@ -1451,7 +1480,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	}
 
 	-- used by updateConjRes and updateGMRes
-	self.calc_EinsteinLLs = self.efeProgram:kernel{
+	self.calc_EinsteinLLs = efeProgram:kernel{
 		name = 'calc_EinsteinLLs',
 		setArgs = {
 			self.envBuf,
@@ -1462,7 +1491,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 			self.GammaULLs,
 		},
 	}
-	self.calc_8piTLLs = self.efeProgram:kernel{
+	self.calc_8piTLLs = efeProgram:kernel{
 		name = 'calc_8piTLLs',
 		setArgs = {
 			self.envBuf,
@@ -1472,7 +1501,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		},
 	}
 
-	self.init_gPrims = self.efeProgram:kernel{
+	self.init_gPrims = efeProgram:kernel{
 		name = 'init_gPrims',
 		setArgs = {
 			assert(self.envBuf),
@@ -1498,7 +1527,7 @@ function EFESolver:refreshDisplayKernel()
 			-- self.displayCode is the custom displaly code
 			-- this displayCode is the display program's code
 			local displayCode = self:template[[
-#include "efe.funcs.h"
+#include "efe.h"
 #include "calcVars.h"
 
 kernel void display(
@@ -1523,38 +1552,38 @@ kernel void display(
 ]]
 			local displayProgram
 			if useSpirvToolchain then
-				local displayProgramLib = self:program{
+				local displayObjProgram = self:program{
 					-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
 					spirvToolchainFile = 'cache/display',
 					spirvToolchainFileCL = 'cache/display.clcpp',
 					code = displayCode,
 				}
-				displayProgramLib:compile{
+				displayObjProgram:compile{
 					dontLink = true,
 				}
 				displayProgram = self:program{
 					spirvToolchainFile = 'cache/display-out',
 					programs = {
-						self.efeProgram,
-						displayProgramLib,
+						self.efeObjProgram,
+						displayObjProgram,
 					},	-- link immediately
 				}
 			else
 				-- get around the -Icache and ./ vs cache/ file issue
 				path'cache':cd()
-				local displayProgramLib = self:program{
+				local displayObjProgram = self:program{
 					-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
 					cacheFile = 'cache/display_lib',
 					code = displayCode,
 				}
-				displayProgramLib:compile{
+				displayObjProgram:compile{
 					dontLink = true,
 				}
 				displayProgram = self:program{
 					cacheFile = 'cache/display',
 					programs = {
-						self.efeProgram,
-						displayProgramLib,
+						self.efeObjProgram,
+						displayObjProgram,
 					},	-- link immediately
 				}
 				path'..':cd()

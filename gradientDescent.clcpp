@@ -1,7 +1,8 @@
 // here is the code used for updating weights based on the EFE
 
+#include "autogen.h"
 #include "math.hpp"
-#include "efe.funcs.h"
+#include "efe.h"
 
 kernel void calc_partial_gPrim_of_Phis_kernel(
 	constant env_t const * const env,
