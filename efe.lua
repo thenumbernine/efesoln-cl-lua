@@ -334,13 +334,12 @@ local getBoundary = args.getBoundary or function(args)
 end
 -- derivCoeffs[1] have [0]=0, so they start at 1, and have implied antisymmetry (for d[-i], use -d[i])
 local d1coeffs = assert(derivCoeffs[1][order])
-?>	<?=dstType?> const <?=resultName?> = (<?=dstType?>){
-		.s0 = real<?=srcType?>{},
+?>	<?=dstType?> const <?=resultName?> = <?=dstType?>{
+		real<?=srcType?>{},
 <?
 for i=0,sDim-1 do
-?>		.s<?=i+1?> = real<?=srcType?>{}
-<?	for offset_i,coeff in ipairs(d1coeffs) do
-?>			+ (
+	for offset_i,coeff in ipairs(d1coeffs) do
+?>			<?=offset_i==1 and "" or "+"?> (
 <?
 			-- setup rhs index
 			args.is = table{"i.x", "i.y", "i.z"}
@@ -800,7 +799,6 @@ local oldHeader = autogenCode
 	writeChanged('inc/autogen.h', autogenCode)
 	-- update this every time body changes
 	writeChanged('inc/efe.h', self:template(assert(path'efe.h':read())))
-	writeChanged('inc/calcVars.h', self:template(assert(path'calcVars.h':read())))
 	self.code = includeHeader
 
 	--[[
@@ -1528,7 +1526,6 @@ function EFESolver:refreshDisplayKernel()
 			-- this displayCode is the display program's code
 			local displayCode = self:template[[
 #include "efe.h"
-#include "calcVars.h"
 
 kernel void display(
 	constant env_t const * const env,

@@ -48,31 +48,6 @@ end
 ?>
 };
 
-<?
-local function makeops(ctype, fieldtype, fields)
-?>
-real <?=ctype?>_dot(<?=ctype?> const & a, <?=ctype?> const & b) {
-	return real{}
-<?	for _,field in ipairs(fields) do
-?>		+ <?=fieldtype?>_dot(a.<?=field?>, b.<?=field?>)
-<?	end
-?>	;
-}
-
-// "length" name for vectors
-real <?=ctype?>_lenSq(<?=ctype?> const & a) {
-	return <?=ctype?>_dot(a, a);
-}
-real <?=ctype?>_len(<?=ctype?> const & a) {
-	return sqrt(<?=ctype?>_lenSq(a));
-}
-
-<?
-end
-?>
-
-<?makeops("real3", "real", {"x", "y", "z"})?>
-
 //ε_ijk a_j b_k
 real3 real3_cross(real3 const & a, real3 const & b) {
 	return real3{
@@ -94,8 +69,6 @@ real4 real3_to_real4(real3 const & a) {
 	return real4{0, a.s0, a.s1, a.s2};
 }
 
-<?makeops("real4", "real", {"s0", "s1", "s2", "s3"})?>
-
 real real3s3_det(real3s3 const & m) {
 	return m.s00 * m.s11 * m.s22
 		+ m.s01 * m.s12 * m.s02
@@ -104,8 +77,6 @@ real real3s3_det(real3s3 const & m) {
 		- m.s01 * m.s01 * m.s22
 		- m.s00 * m.s12 * m.s12;
 }
-
-<?makeops("real3s3", "real", {"s00", "s01", "s02", "s11", "s12", "s22"})?>
 
 real3s3 real3s3_inv(real3s3 const & m, real const d) {
 	return real3s3{
@@ -117,10 +88,6 @@ real3s3 real3s3_inv(real3s3 const & m, real const d) {
 		(m.s00 * m.s11 - m.s01 * m.s01) / d,
 	};
 }
-
-<?makeops("real4x4", "real4", {"s0", "s1", "s2", "s3"})?>
-
-<?makeops("real4s4", "real", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
 real4s4 real4s4_outer(real4 const & v) {
 	return real4s4{
@@ -198,10 +165,6 @@ for a=0,3 do
 end ?>;
 }
 
-<?makeops("real4x4x4", "real4x4", {"s0", "s1", "s2", "s3"})?>
-
-<?makeops("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
-
 real3 real4x4s4_i00(real4x4s4 const & a) {
 	return real3{a.s1.s00, a.s2.s00, a.s3.s00};
 }
@@ -257,10 +220,6 @@ real4x4x4 real4x4s4_real4s4_mul21(
 <? end
 ?>	};
 }
-
-<?makeops("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
-
-<?makeops("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
 	real4x4x4x4 const & a,
@@ -332,8 +291,6 @@ end
 ?>	};
 }
 
-<?makeops("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
-
 
 constant real3 const xmin = real3{<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>};
 constant real3 const xmax = real3{<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>};
@@ -365,8 +322,6 @@ constant int4 const int4_dirs[3] = {
 int4 int4_dir(int const dim, int const offset) {
 	return int4_dirs[dim] * offset;
 }
-
-#include "calcVars.h"	//calc_gPrim_stellar_Schwarzschild
 
 //put the boundary condition code in here, in one place
 // this is hardcoded to g_ab = η_ab at boundaries
@@ -425,13 +380,61 @@ real4s4 gLL_from_gPrims_at(
 	int4 const i
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
+		i.x >= (int)env->size.x || (int)i.y >= env->size.y || (int)i.z >= env->size.z
 	) {
 		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
 		return calc_gLL_from_gPrim(gPrim);
 	} else {
 		int const index = indexForInt4(i);
-		return calc_gLL_from_gPrim(gPrims[index]);
+		gPrim_t const gPrim = gPrims[index];
+		//return calc_gLL_from_gPrim(gPrim);
+		//inline
+#if 0 //nans		
+		real const alphaSq = gPrim.alpha * gPrim.alpha;
+		real3 const betaL = gPrim.gammaLL * gPrim.betaU;
+		real const betaSq = real3_dot(betaL, gPrim.betaU);
+#endif
+#if 0	//nans ...
+		real const alphaSq = gPrim.alpha * gPrim.alpha;
+		real3 const betaL = gPrim.betaU;
+		real const betaSq = 
+			  gPrim.betaU.s0 * gPrim.betaU.s0
+			+ gPrim.betaU.s1 * gPrim.betaU.s1
+			+ gPrim.betaU.s2 * gPrim.betaU.s2;
+#endif
+#if 1	//
+		real const alphaSq = 1;
+		real3 const betaL = {};
+		real const betaSq = real3_dot(betaL, gPrim.betaU);;
+#endif
+#if 0	//works
+		real const alphaSq = 1;
+		real3 const betaL = {};
+		real const betaSq = 0;
+#endif
+
+#if 1	//nans
+		return real4s4{
+			//g_00
+			-alphaSq + betaSq,
+			//g_0i
+			betaL.s0, betaL.s1, betaL.s2,
+			//g_ij
+			gPrim.gammaLL.s00, gPrim.gammaLL.s01, gPrim.gammaLL.s02,
+			gPrim.gammaLL.s11, gPrim.gammaLL.s12, gPrim.gammaLL.s22
+		};
+#endif
+#if 0 // constant values... works
+		return real4s4{
+			//g_00
+			-1,
+			//g_0i
+			0,0,0,
+			//g_ij
+			1,0,0,
+			1,0,1
+		};
+#endif	
 	}
 }
 
@@ -879,7 +882,6 @@ real4s4 calc_gLL_from_gPrim(
 			gLL.s[sym4[i+1][j+1]] = gammaLL.s[sym3[i][j]];
 		}
 	}
-
 	return gLL;
 }
 

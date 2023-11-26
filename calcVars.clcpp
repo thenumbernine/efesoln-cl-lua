@@ -77,7 +77,7 @@ kernel void calc_GammaULLs(
 	initKernel();
 
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
-#if 1 //debugging nans
+#if 0 //debugging nans
 <?=solver:finiteDifference{
 	srcType = "4s4",
 	resultName = "partial_xU_of_gLL",
@@ -91,17 +91,17 @@ kernel void calc_GammaULLs(
 	for (int a = 0; a < 10; ++a) {
 		gLL_L.s0.s[a] = 0;
 	}
-	gLL_L.s1 = gLL_from_gPrims_at(gPrims, i.x - 1, i.y, i.z);
-	gLL_L.s2 = gLL_from_gPrims_at(gPrims, i.x, i.y - 1, i.z);
-	gLL_L.s3 = gLL_from_gPrims_at(gPrims, i.x, i.y, i.z - 1);
+	gLL_L.s1 = gLL_from_gPrims_at(env, gPrims, i - (int4)(1, 0, 0, 0));
+	gLL_L.s2 = gLL_from_gPrims_at(env, gPrims, i - (int4)(0, 1, 0, 0));
+	gLL_L.s3 = gLL_from_gPrims_at(env, gPrims, i - (int4)(0, 0, 1, 0));
 	real4x4s4 gLL_R;
 	//gLL_R.s0 = real4s4{};
 	for (int a = 0; a < 10; ++a) {
 		gLL_R.s0.s[a] = 0;
 	}
-	gLL_R.s1 = gLL_from_gPrims_at(gPrims, i.x + 1, i.y, i.z);
-	gLL_R.s2 = gLL_from_gPrims_at(gPrims, i.x, i.y + 1, i.z);
-	gLL_R.s3 = gLL_from_gPrims_at(gPrims, i.x, i.y, i.z + 1);
+	gLL_R.s1 = gLL_from_gPrims_at(env, gPrims, i + (int4)(1, 0, 0, 0));
+	gLL_R.s2 = gLL_from_gPrims_at(env, gPrims, i + (int4)(0, 1, 0, 0));
+	gLL_R.s3 = gLL_from_gPrims_at(env, gPrims, i + (int4)(0, 0, 1, 0));
 	real4x4s4 partial_xU_of_gLL;
 	for (int bc = 0; bc < 10; ++bc) {
 		partial_xU_of_gLL.s[0].s[bc] = 0;
@@ -161,8 +161,24 @@ kernel void calc_GammaULLs(
 					sum += gUU.s[sym4[a][d]] * GammaLLL.s[d].s[bc];
 				}
 				GammaULLs[index].s[a].s[bc] = sum;
+#if 0 //works
+GammaULLs[index].s[a].s00 = gPrims[index].alpha;
+GammaULLs[index].s[a].s01 = gPrims[index].betaU.s0;
+GammaULLs[index].s[a].s02 = gPrims[index].betaU.s1;
+GammaULLs[index].s[a].s03 = gPrims[index].betaU.s2;
+GammaULLs[index].s[a].s11 = gPrims[index].gammaLL.s00;
+GammaULLs[index].s[a].s12 = gPrims[index].gammaLL.s01;
+GammaULLs[index].s[a].s13 = gPrims[index].gammaLL.s02;
+GammaULLs[index].s[a].s22 = gPrims[index].gammaLL.s11;
+GammaULLs[index].s[a].s23 = gPrims[index].gammaLL.s12;
+GammaULLs[index].s[a].s33 = gPrims[index].gammaLL.s22;
+#endif
+//works
+//GammaULLs[index].s[a] = real4s4{1,2,3,4,5,6,7,8,9,10};
+// nans ...
+GammaULLs[index].s[a] = gLL_from_gPrims_at(env, gPrims, i - (int4)(1, 0, 0, 0));
 //nans in the spatial derivatives
-GammaULLs[index].s[a].s[bc] = partial_xU_of_gLL.s[a].s[bc];
+//GammaULLs[index].s[a].s[bc] = partial_xU_of_gLL.s[a].s[bc];
 //nans
 //GammaULLs[index].s[a].s[bc] = GammaLLL.s[a].s[bc];
 //works:

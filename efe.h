@@ -97,9 +97,22 @@ inline <?=ctype?> operator*(real const a, <?=ctype?> const & b) {
 ?>	};
 }
 
-real <?=ctype?>_dot(<?=ctype?> const & a, <?=ctype?> const & b);
-real <?=ctype?>_lenSq(<?=ctype?> const & a);
-real <?=ctype?>_len(<?=ctype?> const & a);
+<?
+local table = require "ext.table"
+?>
+inline real <?=ctype?>_dot(<?=ctype?> const & a, <?=ctype?> const & b) {
+	return <?=table(fields):mapi(function(field)
+	return fieldtype.."_dot(a."..field..", b."..field..")"
+end):concat" + "?>;
+}
+
+inline real <?=ctype?>_lenSq(<?=ctype?> const & a) {
+	return <?=ctype?>_dot(a, a);
+}
+
+inline real <?=ctype?>_len(<?=ctype?> const & a) {
+	return sqrt(<?=ctype?>_lenSq(a));
+}
 
 // "norm" name for vectors and tensors
 #define <?=ctype?>_normSq <?=ctype?>_lenSq
@@ -109,7 +122,7 @@ real <?=ctype?>_len(<?=ctype?> const & a);
 end
 ?>
 
-<?makeOpsHeader("real3", "real", {"x", "y", "z"})?>
+<?makeOpsHeader("real3", "real", {"s0", "s1", "s2"})?>
 real3 real3_cross(real3 const & a, real3 const & b);
 
 real3 real4_to_real3(real4 const & a);
