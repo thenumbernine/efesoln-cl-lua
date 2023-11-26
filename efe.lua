@@ -258,8 +258,8 @@ local bodies = {
 		useEM = true,
 		radius = 2,
 		init = [[
-	TPrim->E = real3{1,0,0};
-	TPrim->B = real3{0,1,0};
+	TPrim->E = real3(1,0,0);
+	TPrim->B = real3(0,1,0);
 ]],
 	},
 }
@@ -334,10 +334,12 @@ local getBoundary = args.getBoundary or function(args)
 end
 -- derivCoeffs[1] have [0]=0, so they start at 1, and have implied antisymmetry (for d[-i], use -d[i])
 local d1coeffs = assert(derivCoeffs[1][order])
-?>	<?=dstType?> const <?=resultName?> = <?=dstType?>{
-		real<?=srcType?>{},
+?>	<?=dstType?> <?=resultName?>;
+	<?=resultName?>.s0 = real<?=srcType?>();
 <?
 for i=0,sDim-1 do
+?>	<?=resultName?> = 
+<?
 	for offset_i,coeff in ipairs(d1coeffs) do
 ?>			<?=offset_i==1 and "" or "+"?> (
 <?
@@ -355,7 +357,7 @@ for i=0,sDim-1 do
 <?			else
 ?>				((i.s<?=i?> + <?=offset_i?> >= env->size.s<?=i?>) ? <?=bc?> : <?=val?>)
 <?			end
-?>				* (<?=coeff?> * inv_dx.s<?=i?>)
+?>				* (<?=coeff?> * env->invdx.s<?=i?>)
 			)
 			+ (
 <?
@@ -373,13 +375,13 @@ for i=0,sDim-1 do
 <?			else
 ?>				((i.s<?=i?> - <?=offset_i?> < 0) ? <?=bc?> : <?=val?>)
 <?			end
-?>				* (<?=-coeff?> * inv_dx.s<?=i?>)
+?>				* (<?=-coeff?> * env->invdx.s<?=i?>)
 			)
 <?	end
-?>		,
+?>		;
 <?
 end
-?>	};
+?>
 ]], {
 		args = args,
 		derivCoeffs = derivCoeffs,
@@ -404,7 +406,7 @@ local getBoundary = args.getBoundary or function(args)
 end
 local d1coeffs = assert(derivCoeffs[1][order])
 local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for order "..order)
-?>	<?=dstType?> <?=resultName?> = <?=dstType?>{};
+?>	<?=dstType?> <?=resultName?>;
 	<? for i=0,sDim-1 do ?>{
 		<? for j=i,sDim-1 do ?>{
 <? if i == j then -- 2nd-deriv kernel
@@ -427,7 +429,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					..")"
 				args.index = "index + env->stepsize.s"..i.." * "..k
 ?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-				<?=resultName?>.s<?=i+1?><?=j+1?> += (yR + yL) * (<?=coeff?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>);
+				<?=resultName?>.s<?=i+1?><?=j+1?> += (yR + yL) * (<?=coeff?> * env->invdx.s<?=i?> * env->invdx.s<?=j?>);
 			}<? end ?>
 
 <? else	-- two 1st-deriv kernels
@@ -474,7 +476,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 
 					<?=resultName?>.s<?=i+1?><?=j+1?> += 
 						(yRR + yLL - yLR - yRL)
-						* (<?=coeff_k * coeff_l?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>);
+						* (<?=coeff_k * coeff_l?> * env->invdx.s<?=i?> * env->invdx.s<?=j?>);
 				}<? end ?>
 			}<? end ?>
 <? end ?>
@@ -684,6 +686,8 @@ function EFESolver:init(args)
 				{stepsize = 'vec3sz_t'},
 				{xmin = 'real3'},
 				{xmax = 'real3'},
+				{dx = 'real3'},
+				{invdx = 'real3'},
 				{dim = 'int'},
 			},
 			-- TODO packed=false
@@ -860,7 +864,7 @@ local oldHeader = autogenCode
 			TPrim_next = TPrims[index];
 		}
 
-		div += (TPrim_next.<?=field?>.s<?=i?> - TPrim_prev.<?=field?>.s<?=i?>) * .5 * inv_dx.s<?=i?>;
+		div += (TPrim_next.<?=field?>.s<?=i?> - TPrim_prev.<?=field?>.s<?=i?>) * .5 * env->invdx.s<?=i?>;
 	}<? end ?>
 
 	texCLBuf[index] = div;
@@ -991,11 +995,11 @@ real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRad
 real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
 real const dm_dr = 0;
 real const analyticalMagn = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
-real3 const analytical = real3{
+real3 const analytical = real3(
 	analyticalMagn * x.x / r,
 	analyticalMagn * x.y / r,
 	analyticalMagn * x.z / r
-};
+);
 real3 const numerical = real4x4s4_i00(GammaULLs[index]) * (c * c);
 texCLBuf[index] = real3_len(numerical - analytical) / analyticalMagn - 1.;
 ]]},
@@ -1260,6 +1264,12 @@ function EFESolver:initBuffers()
 	self.envPtr[0].xmax.x = self.xmax.x
 	self.envPtr[0].xmax.y = self.xmax.y
 	self.envPtr[0].xmax.z = self.xmax.z
+	self.envPtr[0].dx.x = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
+	self.envPtr[0].dx.y = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
+	self.envPtr[0].dx.z = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
+	self.envPtr[0].invdx.x = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
+	self.envPtr[0].invdx.y = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
+	self.envPtr[0].invdx.z = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
 	self.envPtr[0].dim = self.base.dim
 print('env before writing to GPU:', self.envPtr[0])
 	self.envBuf = self:buffer{name='env', type='env_t', count=1, data=self.envPtr}

@@ -25,15 +25,15 @@ kernel void init_gPrims(
 		*gPrim = <?=initCond.code?>(x);
 <? end
 ?>	} else {
-		*gPrim = gPrim_t{
+		*gPrim = gPrim_t(
 			-1,
-			real3{-2, -3, -4},
-			real3s3{
+			real3(-2, -3, -4),
+			real3s3(
 				-5, -6, -7,
 				-8, -9,
-				-10,
-			},
-		};
+				-10
+			)
+		);
 	}
 }
 
@@ -87,7 +87,7 @@ kernel void calc_GammaULLs(
 #else
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
 	real4x4s4 gLL_L;
-	//gLL_L.s0 = real4s4{};
+	//gLL_L.s0 = real4s4();
 	for (int a = 0; a < 10; ++a) {
 		gLL_L.s0.s[a] = 0;
 	}
@@ -95,7 +95,7 @@ kernel void calc_GammaULLs(
 	gLL_L.s2 = gLL_from_gPrims_at(env, gPrims, i - (int4)(0, 1, 0, 0));
 	gLL_L.s3 = gLL_from_gPrims_at(env, gPrims, i - (int4)(0, 0, 1, 0));
 	real4x4s4 gLL_R;
-	//gLL_R.s0 = real4s4{};
+	//gLL_R.s0 = real4s4();
 	for (int a = 0; a < 10; ++a) {
 		gLL_R.s0.s[a] = 0;
 	}
@@ -108,7 +108,7 @@ kernel void calc_GammaULLs(
 	}
 	for (int a = 1; a < stDim; ++a) {
 		for (int bc = 0; bc < 10; ++bc) {
-			partial_xU_of_gLL.s[a].s[bc] = (gLL_R.s[a].s[bc] - gLL_L.s[a].s[bc]) * .5 *  inv_dx.s[a-1];
+			partial_xU_of_gLL.s[a].s[bc] = (gLL_R.s[a].s[bc] - gLL_L.s[a].s[bc]) * .5 *  env->invdx.s[a-1];
 		}
 	}
 #endif
@@ -174,9 +174,11 @@ GammaULLs[index].s[a].s23 = gPrims[index].gammaLL.s12;
 GammaULLs[index].s[a].s33 = gPrims[index].gammaLL.s22;
 #endif
 //works
-//GammaULLs[index].s[a] = real4s4{1,2,3,4,5,6,7,8,9,10};
+//GammaULLs[index].s[a] = real4s4(1,2,3,4,5,6,7,8,9,10);
 // nans ...
-GammaULLs[index].s[a] = gLL_from_gPrims_at(env, gPrims, i - (int4)(1, 0, 0, 0));
+//GammaULLs[index].s[a] = gLL_from_gPrims_at(env, gPrims, i - (int4)(1, 0, 0, 0));
+// 
+GammaULLs[index].s[a] = gLL_L.s1;	// {{0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 //nans in the spatial derivatives
 //GammaULLs[index].s[a].s[bc] = partial_xU_of_gLL.s[a].s[bc];
 //nans
@@ -270,7 +272,7 @@ kernel void solveAL(
 --]]
 ?>
 
-	real4 skewSum = real4{};
+	real4 skewSum;
 	for (int i = 0; i < sDim; ++i) {
 
 		<?=TPrim_t?> TPrim_prev;
@@ -295,9 +297,7 @@ kernel void solveAL(
 			TPrim_next = TPrims[index];
 		}
 
-		skewSum = skewSum +
-			(TPrim_prev.JU + TPrim_next.JU)
-			* (inv_dx.s[i] * inv_dx.s[i]);
+		skewSum += (TPrim_prev.JU + TPrim_next.JU) * (env->invdx.s[i] * env->invdx.s[i]);
 	}
 
 	real const diag = -2. * (0.
@@ -353,7 +353,7 @@ kernel void calc_EFEs(
 	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
 //debugging
-	//EFEs[index] = real4s4{};	//no nans
+	//EFEs[index] = real4s4();	//no nans
 	//EFEs[index] = _8piTLL;	//no nans
 	//EFEs[index] = EinsteinLL;	//no nans
 	EFEs[index] -= _8piTLL;

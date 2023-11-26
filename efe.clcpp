@@ -50,11 +50,11 @@ end
 
 //ε_ijk a_j b_k
 real3 real3_cross(real3 const & a, real3 const & b) {
-	return real3{
+	return real3(
 		a.y * b.z - a.z * b.y,
 		a.z * b.x - a.x * b.z,
 		a.x * b.y - a.y * b.x
-	};
+	);
 }
 
 // ok weird convention ...
@@ -62,11 +62,11 @@ real3 real3_cross(real3 const & a, real3 const & b) {
 // but for opencl vars (i, etc), real4 is named xyzw (time dimension last)
 // this is going to assume the former (spacetime vars)
 real3 real4_to_real3(real4 const & a) {
-	return real3{a.s1, a.s2, a.s3};
+	return real3(a.s1, a.s2, a.s3);
 }
 
 real4 real3_to_real4(real3 const & a) {
-	return real4{0, a.s0, a.s1, a.s2};
+	return real4(0, a.s0, a.s1, a.s2);
 }
 
 real real3s3_det(real3s3 const & m) {
@@ -79,39 +79,40 @@ real real3s3_det(real3s3 const & m) {
 }
 
 real3s3 real3s3_inv(real3s3 const & m, real const d) {
-	return real3s3{
-		(m.s11 * m.s22 - m.s12 * m.s12) / d,
-		(m.s02 * m.s12 - m.s01 * m.s22) / d,
-		(m.s01 * m.s12 - m.s02 * m.s11) / d,
-		(m.s00 * m.s22 - m.s02 * m.s02) / d,
-		(m.s02 * m.s01 - m.s00 * m.s12) / d,
-		(m.s00 * m.s11 - m.s01 * m.s01) / d,
-	};
+	real const invd = real(1) / d;
+	return real3s3(
+		(m.s11 * m.s22 - m.s12 * m.s12) * invd,
+		(m.s02 * m.s12 - m.s01 * m.s22) * invd,
+		(m.s01 * m.s12 - m.s02 * m.s11) * invd,
+		(m.s00 * m.s22 - m.s02 * m.s02) * invd,
+		(m.s02 * m.s01 - m.s00 * m.s12) * invd,
+		(m.s00 * m.s11 - m.s01 * m.s01) * invd
+	);
 }
 
 real4s4 real4s4_outer(real4 const & v) {
-	return real4s4{
+	return real4s4(
 <? for a=0,3 do
 	for b=a,3 do
-?>		v.s<?=a?> * v.s<?=b?>,
+?>		v.s<?=a?> * v.s<?=b?><?=(a < 3 or b < 3) and "," or ""?>
 <? 	end
 end
-?>	};
+?>	);
 }
 
 real3 real4s4_i0(real4s4 const & a) {
-	return real3{a.s01, a.s02, a.s03};
+	return real3(a.s01, a.s02, a.s03);
 }
 
 real3s3 real4s4_ij(real4s4 const & a) {
-	return real3s3{
+	return real3s3(
 <?
 for i=0,2 do
 	for j=i,2 do
-?>		a.s<?=i+1?><?=j+1?>,
+?>		a.s<?=i+1?><?=j+1?><?=(i < 2 or j < 2) and "," or ""?>
 <?	end
 end
-?>	};
+?>	);
 }
 
 real real4s4_det(real4s4 const & m) {
@@ -130,65 +131,44 @@ real real4s4_det(real4s4 const & m) {
 		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
 }
 
-real4s4 new_real4s4_Minkowski() {
-#if 1
-	return real4s4{
-<?
-for a=0,3 do
-	for b=a,3 do
-?>		<?=a==b and (a==0 and -1 or 1) or 0?>,
-<?	end
-end
-?>	};
-#else //doesn't work so well
-	int4 i = globalInt4();
-	real3 const x = getX(env, i);
-	return calc_gLL_from_gPrim(calc_gPrim_flat(x));
-#endif
-}
-
-constant real4s4 const real4s4_Minkowski = real4s4{
-<?
-for a=0,3 do
-	for b=a,3 do
-?>	<?=a==b and (a==0 and -1 or 1) or 0?>,
-<?	end
-end
-?>};
+constant real4s4 const real4s4_Minkowski = real4s4(
+	-1, 0, 0, 0,
+		1, 0, 0,
+			1, 0,
+				1
+);
 
 
 //a = b_ii
 real real4x4_tr(real4x4 const & a) {
-	return 0.<?
-for a=0,3 do
-?> + a.s<?=a?>.s<?=a?><?
-end ?>;
+	return a.s0.s0 + a.s1.s1 + a.s2.s2 + a.s3.s3;
 }
 
 real3 real4x4s4_i00(real4x4s4 const & a) {
-	return real3{a.s1.s00, a.s2.s00, a.s3.s00};
+	return real3(a.s1.s00, a.s2.s00, a.s3.s00);
 }
 
 //b_i = a^j_ji
 real4 real4x4s4_tr12(real4x4s4 const & a) {
-	return real4{
+	return real4(
 <? for i=0,3 do
 ?>		0.<?
 	for j=0,3 do
 ?> + a.s<?=j?>.s<?=sym(j,i)?><?
 	end
-?>,
+?><?=i < 3 and "," or ""?>
 <? end
-?>	};
+?>	);
 }
 
 //b^i = a^ij_j
 real4 real4x4x4_tr23(real4x4x4 const & a) {
-	return real4{
-<? for i=0,3 do
-?>		real4x4_tr(a.s<?=i?>),
-<? end
-?>	};
+	return real4(
+		real4x4_tr(a.s0),
+		real4x4_tr(a.s1),
+		real4x4_tr(a.s2),
+		real4x4_tr(a.s3)
+	);
 }
 
 //c^i_jk = a^il b_ljk
@@ -214,104 +194,92 @@ real4x4x4 real4x4s4_real4s4_mul21(
 	real4x4s4 const & a,
 	real4s4 const & b
 ) {
-	return real4x4x4{
-<? for i=0,3 do
-?>		b * a.s<?=i?>,
-<? end
-?>	};
+	return real4x4x4(
+		b * a.s0,
+		b * a.s1,
+		b * a.s2,
+		b * a.s3
+	);
 }
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
 	real4x4x4x4 const & a,
 	real4s4 const & b
 ) {
-	return real4x4x4x4{
+	return real4x4x4x4(
 <? for a=0,3 do
-?>		real4x4x4{
+?>		real4x4x4(
 <?	for b=0,3 do
-?>			real4x4{
+?>			real4x4(
 <?		for c=0,3 do
-?>				real4{
+?>				real4(
 <?			for d=0,3 do
 ?>					0.<?
 				for e=0,3 do
 ?> + a.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?> * b.s<?=sym(e,a)?><?
 				end
-?>					,
+?>					<?=d < 3 and "," or ""?>
 <?			end
-?>				},
+?>				)<?=c < 3 and "," or ""?>
 <?		end
-?>			},
+?>			)<?=b < 3 and "," or ""?>
 <? 	end
-?>		},
+?>		)<?=a < 3 and "," or ""?>
 <? end
-?>	};
+?>	);
 }
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(
 	real4x4x4x4 const & a,
 	real4s4 const & b
 ) {
-	return real4x4x4x4{
+	return real4x4x4x4(
 <? for a=0,3 do
-?>		real4x4x4{
+?>		real4x4x4(
 <?	for b=0,3 do
-?>			real4x4{
+?>			real4x4(
 <?		for c=0,3 do
-?>				real4{
+?>				real4(
 <?			for d=0,3 do
 ?>					0.<?
 				for e=0,3 do
 ?> + a.s<?=a?>.s<?=b?>.s<?=e?>.s<?=d?> * b.s<?=sym(e,c)?><?
 				end
-?>					,
+?>					<?=d < 3 and "," or ""?>
 <?			end
-?>				},
+?>				)<?=c < 3 and "," or ""?>
 <?		end
-?>			},
+?>			)<?=b < 3 and "," or ""?>
 <? 	end
-?>		},
+?>		)<?=a < 3 and "," or ""?>
 <? end
-?>	};
-
+?>	);
 }
 
 //b_ij = a^k_ikj
 // assuming b_ij = b_ji i.e. a_ijkl = a_klij
 real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a) {
-	return real4s4{
+	return real4s4(
 <? for a=0,3 do
 	for b=a,3 do
-?>		0. <?
+?>		real() <?
 		for c=0,3 do
 ?> + a.s<?=c?>.s<?=a?>.s<?=c?>.s<?=b?><?
-		end ?>,
+		end ?><?=(a < 3 or b < 3) and "," or ""?>
 <? 	end
 end
-?>	};
+?>	);
 }
-
-
-constant real3 const xmin = real3{<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>};
-constant real3 const xmax = real3{<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>};
-constant real3 const dx = real3{<?=
-	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
-	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
-	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>};
-
-constant real3 const inv_dx = real3{<?=
-	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
-	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
-	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>};
 
 real3 getX(
 	constant env_t const * const env,
 	int4 const i
 ) {
-	return real3{
+	return real3(
 		env->xmin.x + (real(i.x) + .5)/real(env->size.x) * (env->xmax.x - env->xmin.x),
 		env->xmin.y + (real(i.y) + .5)/real(env->size.y) * (env->xmax.y - env->xmin.y),
-		env->xmin.z + (real(i.z) + .5)/real(env->size.z) * (env->xmax.z - env->xmin.z)};
+		env->xmin.z + (real(i.z) + .5)/real(env->size.z) * (env->xmax.z - env->xmin.z)
+	);
 }
 
 constant int4 const int4_dirs[3] = {
@@ -379,15 +347,21 @@ real4s4 gLL_from_gPrims_at(
 	global gPrim_t const * const gPrims,
 	int4 const i
 ) {
+//works
+//return real4s4(1,2,3,4,5,6,7,8,9,10);
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= (int)env->size.x || (int)i.y >= env->size.y || (int)i.z >= env->size.z
 	) {
 		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
-		return calc_gLL_from_gPrim(gPrim);
+		real4s4 const gLL = calc_gLL_from_gPrim(gPrim);
+		return gLL;
 	} else {
 		int const index = indexForInt4(i);
-		gPrim_t const gPrim = gPrims[index];
-		//return calc_gLL_from_gPrim(gPrim);
+		gPrim_t const & gPrim = gPrims[index];
+#if 1	
+		real4s4 const gLL = calc_gLL_from_gPrim(gPrim);
+		return gLL;
+#endif	
 		//inline
 #if 0 //nans		
 		real const alphaSq = gPrim.alpha * gPrim.alpha;
@@ -402,10 +376,15 @@ real4s4 gLL_from_gPrims_at(
 			+ gPrim.betaU.s1 * gPrim.betaU.s1
 			+ gPrim.betaU.s2 * gPrim.betaU.s2;
 #endif
-#if 1	//
+#if 0	//nans ...
+		real const alphaSq = gPrim.alpha * gPrim.alpha;
+		real3 const betaL = {};
+		real const betaSq = real3_dot(betaL, gPrim.betaU);
+#endif
+#if 0	//works
 		real const alphaSq = 1;
 		real3 const betaL = {};
-		real const betaSq = real3_dot(betaL, gPrim.betaU);;
+		real const betaSq = real3_dot(betaL, gPrim.betaU);
 #endif
 #if 0	//works
 		real const alphaSq = 1;
@@ -413,8 +392,8 @@ real4s4 gLL_from_gPrims_at(
 		real const betaSq = 0;
 #endif
 
-#if 1	//nans
-		return real4s4{
+#if 0	//nans
+		return real4s4(
 			//g_00
 			-alphaSq + betaSq,
 			//g_0i
@@ -422,10 +401,10 @@ real4s4 gLL_from_gPrims_at(
 			//g_ij
 			gPrim.gammaLL.s00, gPrim.gammaLL.s01, gPrim.gammaLL.s02,
 			gPrim.gammaLL.s11, gPrim.gammaLL.s12, gPrim.gammaLL.s22
-		};
+		);
 #endif
 #if 0 // constant values... works
-		return real4s4{
+		return real4s4(
 			//g_00
 			-1,
 			//g_0i
@@ -433,7 +412,7 @@ real4s4 gLL_from_gPrims_at(
 			//g_ij
 			1,0,0,
 			1,0,1
-		};
+		);
 #endif	
 	}
 }
@@ -606,7 +585,7 @@ real4s4 calc_8piTLL(
 	real4s4 const gLL,
 	<?=TPrim_t?> const TPrim
 ) {
-	real4s4 _8piTLL = real4s4{};
+	real4s4 _8piTLL;
 
 <?
 if solver.body.useEM then
@@ -649,10 +628,10 @@ if solver.body.useMatter then
 	real4 const vL = real4s4_real4_mul(gLL, vU);
 	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = real4{W, W * vU.s1, W * vU.s2, W * vU.s3};
+	real4 const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
 	real4 const uL = real4s4_real4_mul(gLL, uU);
 	<? else ?>//otherwise uL = gLL.s0
-	real4 const uL = real4{gLL.s00, gLL.s01, gLL.s02, gLL.s03};
+	real4 const uL = real4(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
 <?
 	end
 ?>
@@ -846,11 +825,11 @@ gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
 	//metricPrims.alpha = 1./sqrt(1. + 2*H);
 	gPrim.alpha = sqrt(1. - 2*H/(1+2*H) );
 
-	real3 const l = real3{
+	real3 const l = real3(
 		(r*x.x + a*x.y)/(r*r + a*a),
 		(r*x.y - a*x.x)/(r*r + a*a),
 		x.z/r 
-	};
+	);
 <?
 for i=0,sDim-1 do
 ?>	gPrim.betaU.s<?=i?> = 2. * H * l.s<?=i?> / (1. + 2. * H);
@@ -866,14 +845,47 @@ end
 real4s4 calc_gLL_from_gPrim(
 	gPrim_t const & gPrim
 ) {
+#if 0	//works
+return real4s4(1,2,3,4,5,6,7,8,9,10);
+#endif
+
 	real const alpha = gPrim.alpha;
-	real3 const betaU = gPrim.betaU;
-	real3s3 const gammaLL = gPrim.gammaLL;
+	real3 const & betaU = gPrim.betaU;
+	real3s3 const & gammaLL = gPrim.gammaLL;
 
 	real const alphaSq = alpha * alpha;
 	real3 const betaL = gammaLL * betaU;
 	real const betaSq = real3_dot(betaL, betaU);
 
+#if 1	//works
+	return real4s4(
+		-alphaSq,
+		0,
+		1,
+		2,
+		0,
+		1,
+		2,
+		11,
+		12,
+		22
+	);
+#endif
+#if 0 //works
+	return real4s4(
+		1,
+		2,
+		3,
+		4,
+		5,
+		6,
+		7,
+		8,
+		9,
+		10
+	);
+#endif
+#if 0	//nans
 	real4s4 gLL;
 	gLL.s00 = -alphaSq + betaSq;
 	for (int i = 0; i < sDim; ++i) {
@@ -883,6 +895,21 @@ real4s4 calc_gLL_from_gPrim(
 		}
 	}
 	return gLL;
+#endif
+#if 0	//nans
+	return real4s4(
+		-alphaSq + betaSq,
+		betaL.s0,
+		betaL.s1,
+		betaL.s2,
+		gammaLL.s00,
+		gammaLL.s01,
+		gammaLL.s02,
+		gammaLL.s11,
+		gammaLL.s12,
+		gammaLL.s22
+	);
+#endif
 }
 
 real4s4 calc_gUU_from_gPrim(
@@ -890,12 +917,13 @@ real4s4 calc_gUU_from_gPrim(
 ) {
 	real const alpha = gPrim.alpha;
 	real const invAlphaSq = 1. / (alpha * alpha);
-	real3 const betaU = gPrim.betaU;
+	real3 const & betaU = gPrim.betaU;
 
 	real3s3 const gammaLL = gPrim.gammaLL;
 	real const det_gammaLL = real3s3_det(gammaLL);
 	real3s3 const gammaUU = real3s3_inv(gammaLL, det_gammaLL);
 
+#if 0
 	real4s4 gUU;
 	gUU.s00 = -invAlphaSq;
 	for (int i = 0; i < sDim; ++i) {
@@ -905,6 +933,21 @@ real4s4 calc_gUU_from_gPrim(
 		}
 	}
 	return gUU;
+#endif
+#if 1
+	return real4s4(
+		-invAlphaSq,
+		betaU.s0 * invAlphaSq,
+		betaU.s1 * invAlphaSq,
+		betaU.s2 * invAlphaSq,
+		gammaUU.s00 - betaU.s0 * betaU.s0 * invAlphaSq,
+		gammaUU.s01 - betaU.s0 * betaU.s1 * invAlphaSq,
+		gammaUU.s02 - betaU.s0 * betaU.s2 * invAlphaSq,
+		gammaUU.s11 - betaU.s1 * betaU.s1 * invAlphaSq,
+		gammaUU.s12 - betaU.s1 * betaU.s2 * invAlphaSq,
+		gammaUU.s22 - betaU.s2 * betaU.s2 * invAlphaSq
+	);
+#endif
 }
 
 // gradient descent , but I'm moving everything into this file so the display shader can see it...
@@ -914,7 +957,7 @@ real4s4x4s4 calc_partial_gLL_of_8piTLL(
 	real4s4 const & gLL,
 	real4s4 const & gUU
 ) {
-	real4s4x4s4 partial_gLL_of_8piTLL = real4s4x4s4{};
+	real4s4x4s4 partial_gLL_of_8piTLL;
 <?
 if solver.body.useEM then ?>
 	real4 const EU = real3_to_real4(TPrim.E);
@@ -967,12 +1010,12 @@ if solver.body.useMatter then
 	real4 const vL = gLL * vU;
 	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = real4{W, W * vU.s1, W * vU.s2, W * vU.s3};
+	real4 const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
 	real4 const uL = gLL * uU;
 <?
 	else -- otherwise uL = gLL.s0
 ?>
-	real4 const uL = real4{gLL.s00, gLL.s01, gLL.s02, gLL.s03};
+	real4 const uL = real4(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
 <?
 	end
 ?>
@@ -1007,7 +1050,7 @@ real4s4 EFE_LL_minus_half_trace_at(
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
-		return real4s4{};	//TODO ... consider boundary conditions
+		return real4s4();	//TODO ... consider boundary conditions
 	}
 
 	int const index = indexForInt4(i);
@@ -1033,7 +1076,7 @@ real4x4s4 GammaULL_at(
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
-		return real4x4s4{};
+		return real4x4s4();
 	}
 
 	int const index = indexForInt4(i);
@@ -1050,7 +1093,7 @@ real4x4x4 GammaUUL_at(
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
-		return real4x4x4{};
+		return real4x4x4();
 	}
 	int const index = indexForInt4(i);
 
@@ -1256,17 +1299,17 @@ real4s4 calc_partial_gLL_of_Phi(
 					*/
 					int const a = dim+1;
 					for (int b = 0; b < stDim; ++b) {
-						sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[pq] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[p][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[p].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[pq] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[p][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[q].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[p].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
 						for (int c = 0; c < stDim; ++c) {
-							sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_from_gPrims_at(env, gPrims, iofs).s[pq] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+							sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_from_gPrims_at(env, gPrims, iofs).s[pq] * d1coeff_for_offset(offset) * env->invdx.s[dim];
 						}
-						sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[a][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[b].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[a][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[q].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[a].s[b] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+						sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[a][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[b].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[a][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[q].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[a].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
 						for (int c = 0; c < stDim; ++c) {
-							sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[p].s[sym4[c][b]] * gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[a][q]] * d1coeff_for_offset(offset) * inv_dx.s[dim];
+							sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[p].s[sym4[c][b]] * gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[a][q]] * d1coeff_for_offset(offset) * env->invdx.s[dim];
 						}
 					}
 				}
@@ -1286,7 +1329,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								int const d = u;
 								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][q]]
 									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[p][d]]
-									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
+									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d2coeff_cv)
 								// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d2coeff_cv) |x'=x + dx^v=dx^c
@@ -1294,7 +1337,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								int const c = v;
 								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[p][v]]
 									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][q]]
-									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
+									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d2coeff_cd)
 								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d2coeff_cd) |x'=x + dx^c=dx^d
@@ -1302,7 +1345,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								int const d = c;
 								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[pq]
 									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][d]]
-									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
+									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d2coeff_uv)
 								// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d2coeff_uv) |x'=x + dx^u=dx^v
@@ -1310,7 +1353,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								int const v = u;
 								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][v]]
 									* gUU_from_gPrims_at(env, gPrims, iofs).s[pq]
-									* (d2coeffs[abs(offset)] * inv_dx.s[dim1]);
+									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
 							}
 						}
 					} else {
@@ -1328,7 +1371,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_d = offset2;
 									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][q]]
 										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[p][d]]
-										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_d) * inv_dx.s[dim1] * inv_dx.s[dim2]);
+										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_d) * env->invdx.s[dim1] * env->invdx.s[dim2]);
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d1coeff_c d1coeff_v)
 									// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d1coeff_c d1coeff_v) |x'=x + dx^v + dx^c
@@ -1338,7 +1381,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_c = offset2;
 									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[p][v]]
 										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][q]]
-										* (d1coeff_for_offset(offset_v) * d1coeff_for_offset(offset_c) * inv_dx.s[dim1] * inv_dx.s[dim2]);
+										* (d1coeff_for_offset(offset_v) * d1coeff_for_offset(offset_c) * env->invdx.s[dim1] * env->invdx.s[dim2]);
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d1coeff_c d1coeff_d)
 									// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d1coeff_c d1coeff_d) |x'=x + dx^c + dx^d
@@ -1348,7 +1391,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_d = offset2;
 									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[pq]
 										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][d]]
-										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * inv_dx.s[dim1] * inv_dx.s[dim2]);
+										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * env->invdx.s[dim1] * env->invdx.s[dim2]);
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d1coeff_u d1coeff_v)
 									// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d1coeff_u d1coeff_v) |x'=x + dx^u + dx^v
@@ -1358,7 +1401,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_v = offset2;
 									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][v]]
 										* gUU_from_gPrims_at(env, gPrims, iofs).s[pq]
-										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * inv_dx.s[dim1] * inv_dx.s[dim2]);
+										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * env->invdx.s[dim1] * env->invdx.s[dim2]);
 								}
 							}
 						}

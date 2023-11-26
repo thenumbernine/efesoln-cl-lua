@@ -3,11 +3,17 @@
 #include "autogen.h"	//vec3sz_t
 #include "math.hpp"	//real3
 
+
+//NOTICE this has to match in luajit
+// maybe I should autogen it?
+// but POD vs class...
 struct env_t {
 	vec3sz_t size = {};
 	vec3sz_t stepsize = {};
 	real3 xmin = {};
 	real3 xmax = {};
+	real3 dx = {};
+	real3 invdx = {};
 	int dim = {};
 };
 
@@ -16,8 +22,8 @@ struct gPrim_t {
 		real s[10];
 		struct {
 			real __attribute__((packed)) alpha = 1;
-			real3 __attribute__((packed)) betaU = real3{0,0,0};
-			real3s3 __attribute__((packed)) gammaLL = real3s3{1,0,0,1,0,1};
+			real3 __attribute__((packed)) betaU = real3(0,0,0);
+			real3s3 __attribute__((packed)) gammaLL = real3s3(1,0,0,1,0,1);
 		};
 	};
 
@@ -62,11 +68,11 @@ local function makeOpsHeader(ctype, fieldtype, fields)
 	for _,op in ipairs{"+", "-"} do
 ?>
 inline <?=ctype?> operator<?=op?>(<?=ctype?> const & a, <?=ctype?> const & b) {
-	return <?=ctype?>{
-<?		for _,field in ipairs(fields) do
-?>		a.<?=field?> <?=op?> b.<?=field?>,
+	return <?=ctype?>(
+<?		for i,field in ipairs(fields) do
+?>		a.<?=field?> <?=op?> b.<?=field?><?=i < #fields and "," or ""?>
 <?		end
-?>	};
+?>	);
 }
 inline <?=ctype?> & operator<?=op?>=(<?=ctype?> & a, <?=ctype?> const & b) {
 	return a = a <?=op?> b;
@@ -76,11 +82,11 @@ inline <?=ctype?> & operator<?=op?>=(<?=ctype?> & a, <?=ctype?> const & b) {
 	for _,op in ipairs{"*", "/"} do
 ?>
 inline <?=ctype?> operator<?=op?>(<?=ctype?> const & a, real const b) {
-	return <?=ctype?>{
-<?		for _,field in ipairs(fields) do
-?>		a.<?=field?> <?=op?> b,
+	return <?=ctype?>(
+<?		for i,field in ipairs(fields) do
+?>		a.<?=field?> <?=op?> b<?=i < #fields and "," or ""?>
 <?		end
-?>	};
+?>	);
 }
 inline <?=ctype?> & operator<?=op?>=(<?=ctype?> & a, real const b) {
 	return a = a <?=op?> b;
@@ -90,11 +96,11 @@ inline <?=ctype?> & operator<?=op?>=(<?=ctype?> & a, real const b) {
 ?>
 
 inline <?=ctype?> operator*(real const a, <?=ctype?> const & b) {
-	return <?=ctype?>{
-<?		for _,field in ipairs(fields) do
-?>		a * b.<?=field?>,
+	return <?=ctype?>(
+<?		for i,field in ipairs(fields) do
+?>		a * b.<?=field?><?=i < #fields and "," or ""?>
 <?		end
-?>	};
+?>	);
 }
 
 <?
@@ -129,21 +135,21 @@ real3 real4_to_real3(real4 const & a);
 real4 real3_to_real4(real3 const & a);
 <?makeOpsHeader("real4", "real", {"s0", "s1", "s2", "s3"})?>
 
-#define real3s3_ident (real3s3{1,0,0,1,0,1})
+#define real3s3_ident (real3s3(1,0,0,1,0,1))
 
 real real3s3_det(real3s3 const & m);
 <?makeOpsHeader("real3s3", "real", {"s00", "s01", "s02", "s11", "s12", "s22"})?>
-real3s3 real3s3_inv(real3s3 const & m, real const d);
+real3s3 real3s3_inv(real3s3 const & m, real const det);
 
 inline real3 operator*(
 	real3s3 const & m,
 	real3 const & v
 ) {
-	return real3{
+	return real3(
 		m.s00 * v.s0 + m.s01 * v.s1 + m.s02 * v.s2,
 		m.s01 * v.s1 + m.s11 * v.s1 + m.s12 * v.s2,
-		m.s02 * v.s2 + m.s12 * v.s1 + m.s22 * v.s2,
-	};
+		m.s02 * v.s2 + m.s12 * v.s1 + m.s22 * v.s2
+	);
 }
 
 
@@ -236,10 +242,6 @@ real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a);
 //I don't trust constant int const ...
 #define stDim		<?=stDim?>
 #define sDim		<?=sDim?>
-extern constant real3 const xmin;
-extern constant real3 const xmax;
-extern constant real3 const dx;
-extern constant real3 const inv_dx;
 
 real3 getX(
 	constant env_t const * const env,
