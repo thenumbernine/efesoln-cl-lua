@@ -103,12 +103,12 @@ function EMRing:init(args)
 
 	real3 const x = getX(env, i);
 
-	real const polar_rSq = x.x*x.x + x.y*x.y;
+	real const polar_rSq = x.s[0]*x.s[0] + x.s[1]*x.s[1];
 	real const polar_r = sqrt(polar_rSq);		//r in polar coordinates
 	real const dr = polar_r - radius;			//difference from polar radius to torus big radius
 	real const r = sqrt(x.z*x.z + dr*dr);		//r in torus radial coordinates
-	real const theta = atan2(x.z, dr);		//angle around the small radius
-	real const phi = atan2(x.x, x.y);			//angle around the big radius
+	real const theta = atan2(x.s[2], dr);		//angle around the small radius
+	real const phi = atan2(x.s[0], x.s[1]);			//angle around the big radius
 
 	//F^uv_;v = -4 π J^u
 	// means that the divergence of the EM is the 4-current
@@ -129,8 +129,8 @@ function EMRing:init(args)
 		r * sin(theta)
 	*/
 
-	TPrim->E.x = -x.y / polar_rSq;
-	TPrim->E.y = x.x / polar_rSq;
+	TPrim->E.x = -x.s[1] / polar_rSq;
+	TPrim->E.y = x.s[0] / polar_rSq;
 	TPrim->E.z = 0;
 
 	TPrim->B.x = cos(theta) / r * cos(phi);
@@ -202,21 +202,21 @@ function EMLine:init(args)
 
 	real3 const x = getX(env, i);
 
-	real const r2Sq = x.x*x.x + x.y*x.y;
+	real const r2Sq = x.s[0]*x.s[0] + x.s[1]*x.s[1];
 	real const r2 = sqrt(r2Sq);		//r in polar coordinates
 
 	real const Er = <?=clnumber(rEr)?> / r2;
 	real const Ez = <?=clnumber(Ez)?>;
 
-	TPrim->E.x = x.x/r2 * Er;
-	TPrim->E.y = x.y/r2 * Er;
+	TPrim->E.x = x.s[0]/r2 * Er;
+	TPrim->E.y = x.s[1]/r2 * Er;
 	TPrim->E.z = Ez;
 
 	real const Bt = <?=clnumber(rBt)?> / r2;
 	real const Bz = <?=clnumber(Bz)?>;
 
-	TPrim->B.x = -x.y/r2 * Bt;
-	TPrim->B.y = x.x/r2 * Bt;
+	TPrim->B.x = -x.s[1]/r2 * Bt;
+	TPrim->B.y = x.s[0]/r2 * Bt;
 	TPrim->B.z = Bz;
 
 ]], {
@@ -335,7 +335,7 @@ end
 -- derivCoeffs[1] have [0]=0, so they start at 1, and have implied antisymmetry (for d[-i], use -d[i])
 local d1coeffs = assert(derivCoeffs[1][order])
 ?>	<?=dstType?> <?=resultName?>;
-	<?=resultName?>.s0 = real<?=srcType?>();
+	<?=resultName?>.s[0] = real<?=srcType?>();
 <?
 for i=0,sDim-1 do
 ?>	<?=resultName?> = 
@@ -357,7 +357,7 @@ for i=0,sDim-1 do
 <?			else
 ?>				((i.s<?=i?> + <?=offset_i?> >= env->size.s<?=i?>) ? <?=bc?> : <?=val?>)
 <?			end
-?>				* (<?=coeff?> * env->invdx.s<?=i?>)
+?>				* (<?=coeff?> * env->invdx.s[<?=i?>])
 			)
 			+ (
 <?
@@ -373,9 +373,9 @@ for i=0,sDim-1 do
 			if bc == val then
 ?>				(<?=val?>)
 <?			else
-?>				((i.s<?=i?> - <?=offset_i?> < 0) ? <?=bc?> : <?=val?>)
+?>				((i.s[<?=i?>] - <?=offset_i?> < 0) ? <?=bc?> : <?=val?>)
 <?			end
-?>				* (<?=-coeff?> * env->invdx.s<?=i?>)
+?>				* (<?=-coeff?> * env->invdx.s[<?=i?>])
 			)
 <?	end
 ?>		;
@@ -392,7 +392,7 @@ end
 
 -- 2nd deriv
 function EFESolver:finiteDifference2(args)
-	return template([[<?
+	return template([=[<?
 local range = require 'ext.range'
 local table = require 'ext.table'
 local srcType = args.srcType
@@ -429,7 +429,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					..")"
 				args.index = "index + env->stepsize.s"..i.." * "..k
 ?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-				<?=resultName?>.s<?=i+1?><?=j+1?> += (yR + yL) * (<?=coeff?> * env->invdx.s<?=i?> * env->invdx.s<?=j?>);
+				<?=resultName?>.s[sym4[<?=i+1?>][<?=j+1?>]] += (yR + yL) * (<?=coeff?> * env->invdx.s[<?=i?>] * env->invdx.s[<?=j?>]);
 			}<? end ?>
 
 <? else	-- two 1st-deriv kernels
@@ -474,16 +474,16 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					args.index = "index + env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?> || i.s<?=j?> + <?=l?> >= env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 
-					<?=resultName?>.s<?=i+1?><?=j+1?> += 
+					<?=resultName?>.s[sym4[<?=i+1?>][<?=j+1?>]] += 
 						(yRR + yLL - yLR - yRL)
-						* (<?=coeff_k * coeff_l?> * env->invdx.s<?=i?> * env->invdx.s<?=j?>);
+						* (<?=coeff_k * coeff_l?> * env->invdx.s[<?=i?>] * env->invdx.s[<?=j?>]);
 				}<? end ?>
 			}<? end ?>
 <? end ?>
 		}<? end ?>
 	}<? end ?>
 <?
-]], {
+]=], {
 		args = args,
 		derivCoeffs = derivCoeffs,
 		sDim = self.sDim,
@@ -886,7 +886,7 @@ local oldHeader = autogenCode
 		{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
 		{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
 		{['norm|EFE_ab|'] = 'texCLBuf[index] = real4s4_norm(EFEs[index]);'},
-		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
+		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s[sym4[0][0]] / (8. * M_PI) * c * c / G;'},
 		{['|EFE_ti|*c'] = [[texCLBuf[index] = real3_len(real4s4_i0(EFEs[index])) * c;]]},
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
@@ -894,10 +894,10 @@ local oldHeader = autogenCode
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 texCLBuf[index] = real4s4_norm(EinsteinLL);
 ]]},
-		{['Einstein_tt (kg/m^3)'] = [[
+		{['Einstein_tt (kg/m^3)'] = [=[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
-texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
-]]},
+texCLBuf[index] = EinsteinLL.s[sym4[0][0]] / (8. * M_PI) * c * c / G;
+]=]},
 		{['|Einstein_ti|*c'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
@@ -996,9 +996,9 @@ real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
 real const dm_dr = 0;
 real const analyticalMagn = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
 real3 const analytical = real3(
-	analyticalMagn * x.x / r,
-	analyticalMagn * x.y / r,
-	analyticalMagn * x.z / r
+	analyticalMagn * x.s[0] / r,
+	analyticalMagn * x.s[1] / r,
+	analyticalMagn * x.s[2] / r
 );
 real3 const numerical = real4x4s4_i00(GammaULLs[index]) * (c * c);
 texCLBuf[index] = real3_len(numerical - analytical) / analyticalMagn - 1.;

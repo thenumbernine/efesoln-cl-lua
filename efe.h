@@ -128,17 +128,17 @@ inline real <?=ctype?>_len(<?=ctype?> const & a) {
 end
 ?>
 
-<?makeOpsHeader("real3", "real", {"s0", "s1", "s2"})?>
+<?makeOpsHeader("real3", "real", {"s[0]", "s[1]", "s[2]"})?>
 real3 real3_cross(real3 const & a, real3 const & b);
 
 real3 real4_to_real3(real4 const & a);
 real4 real3_to_real4(real3 const & a);
-<?makeOpsHeader("real4", "real", {"s0", "s1", "s2", "s3"})?>
+<?makeOpsHeader("real4", "real", {"s[0]", "s[1]", "s[2]", "s[3]"})?>
 
 #define real3s3_ident (real3s3(1,0,0,1,0,1))
 
 real real3s3_det(real3s3 const & m);
-<?makeOpsHeader("real3s3", "real", {"s00", "s01", "s02", "s11", "s12", "s22"})?>
+<?makeOpsHeader("real3s3", "real", {"s[0]", "s[1]", "s[2]", "s[3]", "s[4]", "s[5]"})?>
 real3s3 real3s3_inv(real3s3 const & m, real const det);
 
 inline real3 operator*(
@@ -146,16 +146,16 @@ inline real3 operator*(
 	real3 const & v
 ) {
 	return real3(
-		m.s00 * v.s0 + m.s01 * v.s1 + m.s02 * v.s2,
-		m.s01 * v.s1 + m.s11 * v.s1 + m.s12 * v.s2,
-		m.s02 * v.s2 + m.s12 * v.s1 + m.s22 * v.s2
+		m.s[0] * v.s[0] + m.s[1] * v.s[1] + m.s[2] * v.s[2],
+		m.s[1] * v.s[1] + m.s[3] * v.s[1] + m.s[4] * v.s[2],
+		m.s[2] * v.s[2] + m.s[4] * v.s[1] + m.s[5] * v.s[2]
 	);
 }
 
 
 
-<?makeOpsHeader("real4x4", "real4", {"s0", "s1", "s2", "s3"})?>
-<?makeOpsHeader("real4s4", "real", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
+<?makeOpsHeader("real4x4", "real4", {"s[0]", "s[1]", "s[2]", "s[3]"})?>
+<?makeOpsHeader("real4s4", "real", {"s[0]", "s[1]", "s[2]", "s[3]", "s[4]", "s[5]", "s[6]", "s[7]", "s[8]", "s[9]"})?>
 real4s4 real4s4_outer(real4 const & v);
 
 //a_i = b_ij c_j
@@ -219,9 +219,9 @@ inline real4s4 real4x4_real4s4_to_real4s4_mul(
 
 real real4x4_tr(real4x4 const & a);
 
-<?makeOpsHeader("real4x4x4", "real4x4", {"s0", "s1", "s2", "s3"})?>
+<?makeOpsHeader("real4x4x4", "real4x4", {"s[0]", "s[1]", "s[2]", "s[3]"})?>
 
-<?makeOpsHeader("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
+<?makeOpsHeader("real4x4s4", "real4s4", {"s[0]", "s[1]", "s[2]", "s[3]"})?>
 
 real3 real4x4s4_i00(real4x4s4 const & a);
 real4 real4x4s4_tr12(real4x4s4 const & a);
@@ -229,15 +229,15 @@ real4 real4x4x4_tr23(real4x4x4 const & a);
 real4x4s4 real4s4_real4x4s4_mul(real4s4 const & a, real4x4s4 const & b);
 real4x4x4 real4x4s4_real4s4_mul21(real4x4s4 const & a, real4s4 const & b);
 
-<?makeOpsHeader("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
+<?makeOpsHeader("real4s4x4s4", "real4s4", {"s[0]", "s[1]", "s[2]", "s[3]", "s[4]", "s[5]", "s[6]", "s[7]", "s[8]", "s[9]"})?>
 
-<?makeOpsHeader("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
+<?makeOpsHeader("real4x4x4x4", "real4x4x4", {"s[0]", "s[1]", "s[2]", "s[3]"})?>
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(real4x4x4x4 const & a, real4s4 const & b);
 real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(real4x4x4x4 const & a, real4s4 const & b);
 real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a);
 
-<?makeOpsHeader("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
+<?makeOpsHeader("real4x4x4s4", "real4x4s4", {"s[0]", "s[1]", "s[2]", "s[3]"})?>
 
 //I don't trust constant int const ...
 #define stDim		<?=stDim?>
