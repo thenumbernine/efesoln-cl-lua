@@ -1,3 +1,5 @@
+#include "autogen.h"
+#include "math.hpp"
 #include "efe.funcs.h"
 
 constant real const c = 299792458;			// m/s
@@ -30,9 +32,9 @@ end
 
 real d1coeff_for_offset(int offset) {
 	if (offset < 0) {
-		return -(real)offset * d1coeffs[-offset];
+		return -real(offset) * d1coeffs[-offset];
 	} else {
-		return (real)offset * d1coeffs[offset];
+		return real(offset) * d1coeffs[offset];
 	}
 }
 
@@ -49,59 +51,8 @@ end
 <?
 local function makeops(ctype, fieldtype, fields)
 ?>
-constant <?=ctype?> const <?=ctype?>_zero = new_<?=ctype?>_zero();
-<?
-	for _,op in ipairs{"add", "sub"} do
-?>
-<?=ctype?> <?=ctype?>_<?=op?>(<?=ctype?> const a, <?=ctype?> const b) {
-
-#if 0 // compiler producing buggy output
-	return (<?=ctype?>){
-<? 		for _,field in ipairs(fields) do
-?>	.<?=field?> = <?=fieldtype?>_<?=op?>(a.<?=field?>, b.<?=field?>),
-<? 		end
-?>	};
-#elif 0	// also errors
-	<?=ctype?> result;
-<? for _,field in ipairs(fields) do
-?>	result.<?=field?> = <?=fieldtype?>_<?=op?>(a.<?=field?>, b.<?=field?>);
-<? end
-?>	return result;
-#else	// seems to be working ...
-	<?=ctype?> result;
-	for (int i = 0; i < <?=#fields?>; ++i) {
-		result.s[i] = <?=fieldtype?>_<?=op?>(a.s[i], b.s[i]);
-	}
-	return result;
-#endif
-}
-<?	end
-	for _,op in ipairs{"mul", "div"} do
-?>
-<?=ctype?> <?=ctype?>_real_<?=op?>(<?=ctype?> const a, real const b) {
-#if 0	//might work, but the equivalent add/sub is failing, so ...
-	return (<?=ctype?>){
-<? 		for _,field in ipairs(fields) do
-?>	.<?=field?> = <?=fieldtype?>_real_<?=op?>(a.<?=field?>, b),
-<? 		end
-?>	};
-#else	//equivalent add/sub is working
-	<?=ctype?> result;
-	for (int i = 0; i < <?=#fields?>; ++i) {
-		result.s[i] = <?=fieldtype?>_real_<?=op?>(a.s[i], b);
-	}
-	return result;
-#endif
-}
-<?	end
-?>
-
-<?=ctype?> <?=ctype?>_mul_add(<?=ctype?> const a, <?=ctype?> const b, real const c) {
-	return <?=ctype?>_add(a, <?=ctype?>_real_mul(b, c));
-}
-
-real <?=ctype?>_dot(<?=ctype?> const a, <?=ctype?> const b) {
-	return real_zero
+real <?=ctype?>_dot(<?=ctype?> const & a, <?=ctype?> const & b) {
+	return real{}
 <?	for _,field in ipairs(fields) do
 ?>		+ <?=fieldtype?>_dot(a.<?=field?>, b.<?=field?>)
 <?	end
@@ -109,10 +60,10 @@ real <?=ctype?>_dot(<?=ctype?> const a, <?=ctype?> const b) {
 }
 
 // "length" name for vectors
-real <?=ctype?>_lenSq(<?=ctype?> const a) {
+real <?=ctype?>_lenSq(<?=ctype?> const & a) {
 	return <?=ctype?>_dot(a, a);
 }
-real <?=ctype?>_len(<?=ctype?> const a) {
+real <?=ctype?>_len(<?=ctype?> const & a) {
 	return sqrt(<?=ctype?>_lenSq(a));
 }
 
@@ -123,28 +74,29 @@ end
 <?makeops("real3", "real", {"x", "y", "z"})?>
 
 //ε_ijk a_j b_k
-real3 real3_cross(real3 const a, real3 const b) {
-	return _real3(
+real3 real3_cross(real3 const & a, real3 const & b) {
+	return real3{
 		a.y * b.z - a.z * b.y,
 		a.z * b.x - a.x * b.z,
-		a.x * b.y - a.y * b.x);
+		a.x * b.y - a.y * b.x
+	};
 }
 
 // ok weird convention ...
 // for spacetime vars, real3 is xyz, real4 is used such that .s0123 == txyz (time dimension first)
 // but for opencl vars (i, etc), real4 is named xyzw (time dimension last)
 // this is going to assume the former (spacetime vars)
-real3 real4_to_real3(real4 const a) {
-	return _real3(a.s1, a.s2, a.s3);
+real3 real4_to_real3(real4 const & a) {
+	return real3{a.s1, a.s2, a.s3};
 }
 
-real4 real3_to_real4(real3 const a) {
-	return (real4){.s0 = 0, .s1 = a.s0, .s2 = a.s1, .s3 = a.s2};
+real4 real3_to_real4(real3 const & a) {
+	return real4{0, a.s0, a.s1, a.s2};
 }
 
 <?makeops("real4", "real", {"s0", "s1", "s2", "s3"})?>
 
-real real3s3_det(real3s3 const m) {
+real real3s3_det(real3s3 const & m) {
 	return m.s00 * m.s11 * m.s22
 		+ m.s01 * m.s12 * m.s02
 		+ m.s02 * m.s01 * m.s12
@@ -155,22 +107,14 @@ real real3s3_det(real3s3 const m) {
 
 <?makeops("real3s3", "real", {"s00", "s01", "s02", "s11", "s12", "s22"})?>
 
-real3s3 real3s3_inv(real const d, real3s3 const m) {
-	return (real3s3){
-		.s00 = (m.s11 * m.s22 - m.s12 * m.s12) / d,
-		.s01 = (m.s02 * m.s12 - m.s01 * m.s22) / d,
-		.s02 = (m.s01 * m.s12 - m.s02 * m.s11) / d,
-		.s11 = (m.s00 * m.s22 - m.s02 * m.s02) / d,
-		.s12 = (m.s02 * m.s01 - m.s00 * m.s12) / d,
-		.s22 = (m.s00 * m.s11 - m.s01 * m.s01) / d,
-	};
-}
-
-real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
-	return (real3){
-		.s0 = m.s00 * v.s0 + m.s01 * v.s1 + m.s02 * v.s2,
-		.s1 = m.s01 * v.s1 + m.s11 * v.s1 + m.s12 * v.s2,
-		.s2 = m.s02 * v.s2 + m.s12 * v.s1 + m.s22 * v.s2,
+real3s3 real3s3_inv(real3s3 const & m, real const d) {
+	return real3s3{
+		(m.s11 * m.s22 - m.s12 * m.s12) / d,
+		(m.s02 * m.s12 - m.s01 * m.s22) / d,
+		(m.s01 * m.s12 - m.s02 * m.s11) / d,
+		(m.s00 * m.s22 - m.s02 * m.s02) / d,
+		(m.s02 * m.s01 - m.s00 * m.s12) / d,
+		(m.s00 * m.s11 - m.s01 * m.s01) / d,
 	};
 }
 
@@ -178,68 +122,32 @@ real3 real3s3_real3_mul(real3s3 const m, real3 const v) {
 
 <?makeops("real4s4", "real", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
 
-real4s4 real4s4_outer(real4 const v) {
-	return (real4s4){
+real4s4 real4s4_outer(real4 const & v) {
+	return real4s4{
 <? for a=0,3 do
 	for b=a,3 do
-?>		.s<?=a..b?> = v.s<?=a?> * v.s<?=b?>,
+?>		v.s<?=a?> * v.s<?=b?>,
 <? 	end
 end
 ?>	};
 }
 
-//a_i = b_ij c_j
-real4 real4s4_real4_mul(
-	real4s4 const m,
-	real4 const v
-) {
-	return (real4){
-<? for i=0,3 do
-?>		.s<?=i?> = 0. <?
-	for j=0,3 do
-?> + m.s<?=sym(i,j)?> * v.s<?=j?><?
-	end ?>,
-<? end
-?>	};
+real3 real4s4_i0(real4s4 const & a) {
+	return real3{a.s01, a.s02, a.s03};
 }
 
-//a_ij = b_ik c_kj
-real4x4 real4s4_real4s4_mul(
-	real4s4 const a,
-	real4s4 const b
-) {
-	return (real4x4){
-<? for a=0,3 do
-?>		.s<?=a?> = (real4){
-<?
-	for b=0,3 do
-?>			.s<?=b?> = 0.<?
-		for c=0,3 do
-?> + a.s<?=sym(a,c)?> * b.s<?=sym(c,b)?><?
-		end ?>,
-<?
-	end
-?>		},
-<? end
-?>	};
-}
-
-real3 real4s4_i0(real4s4 const a) {
-	return _real3(a.s01, a.s02, a.s03);
-}
-
-real3s3 real4s4_ij(real4s4 const a) {
-	return (real3s3){
+real3s3 real4s4_ij(real4s4 const & a) {
+	return real3s3{
 <?
 for i=0,2 do
 	for j=i,2 do
-?>		.s<?=i..j?> = a.s<?=i+1?><?=j+1?>,
+?>		a.s<?=i+1?><?=j+1?>,
 <?	end
 end
 ?>	};
 }
 
-real real4s4_det(real4s4 const m) {
+real real4s4_det(real4s4 const & m) {
 	return
 		m.s03 * m.s12 * m.s12 * m.s03 - m.s02 * m.s13 * m.s12 * m.s03 -
 		m.s03 * m.s11 * m.s22 * m.s03 + m.s01 * m.s13 * m.s22 * m.s03 +
@@ -257,11 +165,11 @@ real real4s4_det(real4s4 const m) {
 
 real4s4 new_real4s4_Minkowski() {
 #if 1
-	return (real4s4){
+	return real4s4{
 <?
 for a=0,3 do
 	for b=a,3 do
-?>		.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
+?>		<?=a==b and (a==0 and -1 or 1) or 0?>,
 <?	end
 end
 ?>	};
@@ -272,12 +180,11 @@ end
 #endif
 }
 
-// for _zero, the constant access is much faster than making a new struct in-place
-constant real4s4 const real4s4_Minkowski = (real4s4){
+constant real4s4 const real4s4_Minkowski = real4s4{
 <?
 for a=0,3 do
 	for b=a,3 do
-?>		.s<?=a..b?> = <?=a==b and (a==0 and -1 or 1) or 0?>,
+?>		<?=a==b and (a==0 and -1 or 1) or 0?>,
 <?	end
 end
 ?>	};
@@ -286,13 +193,13 @@ end
 
 //a_ij = b_ik c_kj
 real4s4 real4x4_real4s4_to_real4s4_mul(
-	real4x4 const a,
-	real4s4 const b
+	real4x4 const & a,
+	real4s4 const & b
 ) {
-	return (real4s4){
+	return real4s4{
 <? for a=0,3 do
 	for b=a,3 do
-?>		.s<?=a..b?> = 0.<?
+?>		0.<?
 		for c=0,3 do
 		?> + a.s<?=a?>.s<?=c?> * b.s<?=sym(c,b)?><?
 	end ?>,
@@ -302,7 +209,7 @@ end
 }
 
 //a = b_ii
-real real4x4_tr(real4x4 const a) {
+real real4x4_tr(real4x4 const & a) {
 	return 0.<?
 for a=0,3 do
 ?> + a.s<?=a?>.s<?=a?><?
@@ -313,15 +220,15 @@ end ?>;
 
 <?makeops("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
 
-real3 real4x4s4_i00(real4x4s4 const a) {
-	return _real3(a.s1.s00, a.s2.s00, a.s3.s00);
+real3 real4x4s4_i00(real4x4s4 const & a) {
+	return real3{a.s1.s00, a.s2.s00, a.s3.s00};
 }
 
 //b_i = a^j_ji
-real4 real4x4s4_tr12(real4x4s4 const a) {
-	return (real4){
+real4 real4x4s4_tr12(real4x4s4 const & a) {
+	return real4{
 <? for i=0,3 do
-?>		.s<?=i?> = 0.<?
+?>		0.<?
 	for j=0,3 do
 ?> + a.s<?=j?>.s<?=sym(j,i)?><?
 	end
@@ -331,44 +238,40 @@ real4 real4x4s4_tr12(real4x4s4 const a) {
 }
 
 //b^i = a^ij_j
-real4 real4x4x4_tr23(real4x4x4 const a) {
-	return (real4){
+real4 real4x4x4_tr23(real4x4x4 const & a) {
+	return real4{
 <? for i=0,3 do
-?>		.s<?=i?> = real4x4_tr(a.s<?=i?>),
+?>		real4x4_tr(a.s<?=i?>),
 <? end
 ?>	};
 }
 
 //c^i_jk = a^il b_ljk
 real4x4s4 real4s4_real4x4s4_mul(
-	real4s4 const a,
-	real4x4s4 const b
+	real4s4 const & a,
+	real4x4s4 const & b
 ) {
-	return (real4x4s4){
-<? for i=0,3 do
-?>		.s<?=i?> = (real4s4){
-<?	for j=0,3 do
-		for k=j,3 do
-?>			.s<?=sym(j,k)?> = 0.<?
-			for l=0,3 do
-?> + a.s<?=sym(i,l)?> * b.s<?=l?>.s<?=j..k?><?
-			end
-?>,
-<?		end
-	end
-?>		},
-<? end
-?>	};
+	real4x4s4 result;
+	for (int i = 0; i < 4; ++i) {
+		for (int jk = 0; jk < 10; ++jk) {
+			real sum = {};
+			for (int l = 0; l < 4; ++l) {
+				sum += a.s[sym4[i][l]] * b.s[l].s[jk];
+			}
+			result.s[i].s[jk] = sum;
+		}
+	}
+	return result;
 }
 
 //c^ij_k = a^i_mk b^mj
 real4x4x4 real4x4s4_real4s4_mul21(
-	real4x4s4 const a,
-	real4s4 const b
+	real4x4s4 const & a,
+	real4s4 const & b
 ) {
-	return (real4x4x4){
+	return real4x4x4{
 <? for i=0,3 do
-?>		.s<?=i?> = real4s4_real4s4_mul(b, a.s<?=i?>),
+?>		b * a.s<?=i?>,
 <? end
 ?>	};
 }
@@ -378,18 +281,18 @@ real4x4x4 real4x4s4_real4s4_mul21(
 <?makeops("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
-	real4x4x4x4 const a,
-	real4s4 const b
+	real4x4x4x4 const & a,
+	real4s4 const & b
 ) {
-	return (real4x4x4x4){
+	return real4x4x4x4{
 <? for a=0,3 do
-?>		.s<?=a?> = (real4x4x4){
+?>		real4x4x4{
 <?	for b=0,3 do
-?>			.s<?=b?> = (real4x4){
+?>			real4x4{
 <?		for c=0,3 do
-?>				.s<?=c?> = (real4){
+?>				real4{
 <?			for d=0,3 do
-?>					.s<?=d?> = 0.<?
+?>					0.<?
 				for e=0,3 do
 ?> + a.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?> * b.s<?=sym(e,a)?><?
 				end
@@ -405,18 +308,18 @@ real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
 }
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(
-	real4x4x4x4 const a,
-	real4s4 const b
+	real4x4x4x4 const & a,
+	real4s4 const & b
 ) {
-	return (real4x4x4x4){
+	return real4x4x4x4{
 <? for a=0,3 do
-?>		.s<?=a?> = (real4x4x4){
+?>		real4x4x4{
 <?	for b=0,3 do
-?>			.s<?=b?> = (real4x4){
+?>			real4x4{
 <?		for c=0,3 do
-?>				.s<?=c?> = (real4){
+?>				real4{
 <?			for d=0,3 do
-?>					.s<?=d?> = 0.<?
+?>					0.<?
 				for e=0,3 do
 ?> + a.s<?=a?>.s<?=b?>.s<?=e?>.s<?=d?> * b.s<?=sym(e,c)?><?
 				end
@@ -434,11 +337,11 @@ real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(
 
 //b_ij = a^k_ikj
 // assuming b_ij = b_ji i.e. a_ijkl = a_klij
-real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const a) {
-	return (real4s4){
+real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a) {
+	return real4s4{
 <? for a=0,3 do
 	for b=a,3 do
-?>		.s<?=a..b?> = 0. <?
+?>		0. <?
 		for c=0,3 do
 ?> + a.s<?=c?>.s<?=a?>.s<?=c?>.s<?=b?><?
 		end ?>,
@@ -450,26 +353,26 @@ end
 <?makeops("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
 
 
-constant real3 const xmin = _real3(<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>);
-constant real3 const xmax = _real3(<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>);
-constant real3 const dx = _real3(<?=
+constant real3 const xmin = real3{<?=xmin.x?>, <?=xmin.y?>, <?=xmin.z?>};
+constant real3 const xmax = real3{<?=xmax.x?>, <?=xmax.y?>, <?=xmax.z?>};
+constant real3 const dx = real3{<?=
 	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
 	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>,<?=
-	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>);
+	tonumber(xmax.x - xmin.x) / tonumber(size.x)?>};
 
-constant real3 const inv_dx = _real3(<?=
+constant real3 const inv_dx = real3{<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
 	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>,<?=
-	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>);
+	tonumber(size.x) / tonumber(xmax.x - xmin.x)?>};
 
 real3 getX(
 	constant env_t const * const env,
 	int4 const i
 ) {
-	return _real3(
-		env->xmin.x + ((real)i.x + .5)/(real)env->size.x * (env->xmax.x - env->xmin.x),
-		env->xmin.y + ((real)i.y + .5)/(real)env->size.y * (env->xmax.y - env->xmin.y),
-		env->xmin.z + ((real)i.z + .5)/(real)env->size.z * (env->xmax.z - env->xmin.z));
+	return real3{
+		env->xmin.x + (real(i.x) + .5)/real(env->size.x) * (env->xmax.x - env->xmin.x),
+		env->xmin.y + (real(i.y) + .5)/real(env->size.y) * (env->xmax.y - env->xmin.y),
+		env->xmin.z + (real(i.z) + .5)/real(env->size.z) * (env->xmax.z - env->xmin.z)};
 }
 
 constant int4 const int4_dirs[3] = {
@@ -494,9 +397,9 @@ gPrim_t calc_gPrim_boundary(
 	return gPrim_flat;
 #endif
 #if 1	// boundary condition : fixed (constant zero first-derivatives)
-	i.x = clamp(i.x, 0, env->size.x-1);
-	i.y = clamp(i.y, 0, env->size.y-1);
-	i.z = clamp(i.z, 0, env->size.z-1);
+	i.x = clamp(i.x, 0, (int)env->size.x-1);
+	i.y = clamp(i.y, 0, (int)env->size.y-1);
+	i.z = clamp(i.z, 0, (int)env->size.z-1);
 	int const index = indexForInt4(i);
 	return gPrims[index];
 #endif
@@ -558,7 +461,7 @@ real4s4 gUU_from_gPrims_at(
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
 	) {
-		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i); 
+		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
 		return calc_gUU_from_gPrim(gPrim);
 	} else {
 		int const index = indexForInt4(i);
@@ -647,7 +550,7 @@ real4s4 calc_RicciLL(
 
 	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
-	real4x4x4x4 const RiemannULLL = real4x4x4x4_mul_add(GammaSq_asym_ULLL, gUU_times_partial_xU2_gLL_asym, .5);
+	real4x4x4x4 const RiemannULLL = GammaSq_asym_ULLL + .5 * gUU_times_partial_xU2_gLL_asym;
 
 	//RicciLL.ab := R_ab = R^c_acb
 	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
@@ -699,7 +602,7 @@ real4s4 calc_EinsteinLL(
 
 	//gLL.ab := g_ab
 	real4s4 gLL = calc_gLL_from_gPrim(gPrims[index]);
-	
+
 	//gUU.ab := g_ab
 	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
 
@@ -710,7 +613,7 @@ real4s4 calc_EinsteinLL(
 	real const Gaussian = real4s4_dot(RicciLL, gUU);
 
 	//G_uv = R_uv - 1/2 g_uv R
-	return real4s4_mul_add(RicciLL, gLL, -.5 * Gaussian);
+	return RicciLL - (.5 * Gaussian) * gLL;
 }
 
 //[1/m^2]
@@ -718,7 +621,7 @@ real4s4 calc_8piTLL(
 	real4s4 const gLL,
 	<?=TPrim_t?> const TPrim
 ) {
-	real4s4 _8piTLL = real4s4_zero;
+	real4s4 _8piTLL = real4s4{};
 
 <?
 if solver.body.useEM then
@@ -761,31 +664,25 @@ if solver.body.useMatter then
 	real4 const vL = real4s4_real4_mul(gLL, vU);
 	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	//real4 const uU = (real4){.s={W, W * vU.s1, W * vU.s2, W * vU.s3}};
-	real4 const uU = (real4){.s0 = W, .s1 = W * vU.s1, .s2 = W * vU.s2, .s3 = W * vU.s3}};
+	real4 const uU = real4{W, W * vU.s1, W * vU.s2, W * vU.s3};
 	real4 const uL = real4s4_real4_mul(gLL, uU);
 	<? else ?>//otherwise uL = gLL.s0
-	//real4 const uL = (real4){.s={gLL.s00, gLL.s01, gLL.s02, gLL.s03}};
-	//real4 const uL = (real4){.s={gLL.s[sym4[0][0]], gLL.s[sym4[0][1]], gLL.s[sym4[0][2]], gLL.s[sym4[0][3]]}};
-	real4 const uL = (real4){.s0 = gLL.s00, .s1 = gLL.s01, .s2 = gLL.s02, .s3 = gLL.s03};
+	real4 const uL = real4{gLL.s00, gLL.s01, gLL.s02, gLL.s03};
 <?
 	end
 ?>
 
 	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
 	//[1/m^2]
-	real4s4 const _8piT_matter_LL = real4s4_real_mul(
-		real4s4_add(
-			real4s4_real_mul(
-				real4s4_outer(uL),
-				TPrim.rho * (1. + TPrim.eInt) + TPrim.P
-			),
-			real4s4_real_mul(
-				gLL,
-				TPrim.P
+	real4s4 const _8piT_matter_LL = 
+		(
+			(
+				real4s4_outer(uL)
+				* (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
 			)
-		), 8. * M_PI);
-	_8piTLL = real4s4_add(_8piTLL, _8piT_matter_LL);
+			+ gLL * TPrim.P
+		) * (8. * M_PI);
+	_8piTLL += _8piT_matter_LL;
 <? end ?>
 
 	return _8piTLL;

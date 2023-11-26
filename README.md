@@ -68,3 +68,18 @@ TODO constrain it somehow.
 * reduce allocations for solvers that aren't being used
 * upon changing bodies, make sure the ffi.cdef code and headers are properly refreshing
 
+
+Ok shifting everything to opencl-cpp
+How to organize the files...
+- lua-ffi code
+- clcpp files
+	- efe kernels
+	- display kernel (which I'd like to regenerate live ... but that's 10 year old tech, the future is too retarded to do that quickly & efficiently anymore)
+	- code shared between the two
+- headers
+	- headers of the lua / pure C structs that pair with the opencl-cpp structs
+	- headers shared between lua-ffi and clcpp
+	- headers shared between clcpp files
+- build binarie:
+	- bc files
+	- spv files

@@ -1,7 +1,7 @@
 // here is the code used for updating weights based on the EFE
 
-_Static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
-_Static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
+#include "math.hpp"
+#include "efe.funcs.h"
 
 kernel void calc_partial_gPrim_of_Phis_kernel(
 	constant env_t const * const env,
@@ -15,11 +15,11 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 
 	partial_gPrim_of_Phis[index] = calc_partial_gPrim_of_Phi(
 		env,
-		i,
 		TPrims,
 		gPrims,
 		GammaULLs,
-		EFEs
+		EFEs,
+		i
 	);
 
 #if 0
@@ -29,8 +29,8 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 	//c^4/G * G_ab = 8 π T_ab
 	// but why not just do this in the lambda?
 	partial_gPrim_of_Phis[index].alpha *= c*c*c*c/G;
-	partial_gPrim_of_Phis[index].betaU = real3_real_mul(partial_gPrim_of_Phis[index].betaU, c*c*c*c/G);
-	partial_gPrim_of_Phis[index].gammaLL = real3s3_real_mul(partial_gPrim_of_Phis[index].gammaLL, c*c*c*c/G);
+	partial_gPrim_of_Phis[index].betaU = partial_gPrim_of_Phis[index].betaU * (c*c*c*c/G);
+	partial_gPrim_of_Phis[index].gammaLL = partial_gPrim_of_Phis[index].gammaLL * (c*c*c*c/G);
 #endif
 }
 

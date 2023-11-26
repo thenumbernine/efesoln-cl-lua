@@ -1,25 +1,24 @@
+#pragma once
+
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x);
 
-real4s4 calc_gLL_from_gPrim(gPrim_t const gPrim);
-void calc_gLL_from_gPrim_retptr___(real4s4 * result, gPrim_t const * const gPrim);
-void calc_gLL_from_gPrim_retptr_g_(global real4s4 * result, gPrim_t const * const gPrim);
-real4s4 calc_gUU_from_gPrim(gPrim_t const gPrim);
-void calc_gUU_from_gPrim_retptr__g(real4s4 * result, global gPrim_t const * const gPrim);
+real4s4 calc_gLL_from_gPrim(gPrim_t const & gPrim);
+real4s4 calc_gUU_from_gPrim(gPrim_t const & gPrim);
 
 real4s4 calc_partial_gLL_of_Phi(
 	constant env_t const * const env,
-	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
-	global real4s4 const * const EFEs
+	global real4s4 const * const EFEs,
+	int4 const i
 );
 
 gPrim_t calc_partial_gPrim_of_Phi(
 	constant env_t const * const env,
-	int4 const i,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
-	global real4s4 const * const EFEs
+	global real4s4 const * const EFEs,
+	int4 const i
 );

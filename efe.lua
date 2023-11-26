@@ -8,7 +8,7 @@ local table = require 'ext.table'
 local path = require 'ext.path'
 local template = require 'template'
 local struct = require 'struct'
-local vec3i = require 'vec-ffi.vec3i'
+local vec3sz = require 'vec-ffi.vec3sz'
 local vec3f = require 'vec-ffi.vec3f'
 local vec3d = require 'vec-ffi.vec3d'
 local gl = require 'gl'
@@ -18,6 +18,31 @@ local clnumber = require 'cl.obj.number'
 local writeChanged = require 'make.writechanged'
 
 local useSpirvToolchain = true
+
+local exec = require 'make.exec'
+local CLProgram = require 'cl.obj.program'
+function CLProgram:clangCompile(dst, src, buildOptions)
+	exec(table{
+		'clang',
+		buildOptions or '',
+		'-v',
+		--'-cc1',
+		'-Xclang -finclude-default-header',
+		'--target=spirv64-unknown-unknown',
+		--'-cl-std=CL2.0',
+		'-emit-llvm',
+		'-c',
+		--'-O0',
+		--'-O3',
+		'-I inc',
+		'-I ../../cpp/Tensor/include',
+		'-I ../../cpp/Common/include',
+		'-o', ('%q'):format(path(dst):fixpathsep()),
+		('%q'):format(path(src):fixpathsep()),
+	}:concat' ')
+end
+
+
 
 -- helper for indexing symmetric matrices
 local function sym(i,j)
@@ -233,8 +258,8 @@ local bodies = {
 		useEM = true,
 		radius = 2,
 		init = [[
-	TPrim->E = _real3(1,0,0);
-	TPrim->B = _real3(0,1,0);
+	TPrim->E = real3{1,0,0};
+	TPrim->B = real3{0,1,0};
 ]],
 	},
 }
@@ -305,18 +330,18 @@ end
 local dstType = srcType == "" and "real4" or "real4x"..srcType
 local resultName = args.resultName
 local getBoundary = args.getBoundary or function(args)
-	return "real"..srcType.."_zero"
+	return "real"..srcType.."{}"
 end
 -- derivCoeffs[1] have [0]=0, so they start at 1, and have implied antisymmetry (for d[-i], use -d[i])
 local d1coeffs = assert(derivCoeffs[1][order])
 ?>	<?=dstType?> const <?=resultName?> = (<?=dstType?>){
-		.s0 = real<?=srcType?>_zero,
+		.s0 = real<?=srcType?>{},
 <?
 for i=0,sDim-1 do
-?>		.s<?=i+1?> = real<?=srcType?>_add<?=#d1coeffs*2?>(
+?>		.s<?=i+1?> = real<?=srcType?>{}
 <?	for offset_i,coeff in ipairs(d1coeffs) do
-?>			real<?=srcType?>_real_mul(
-<?			
+?>			+ (
+<?
 			-- setup rhs index
 			args.is = table{"i.x", "i.y", "i.z"}
 			args.is[i+1] = args.is[i+1].." + "..offset_i
@@ -327,14 +352,14 @@ for i=0,sDim-1 do
 			local bc = getBoundary(args)
 			local val = getValue(args)
 			if bc == val then
-?>				<?=val?>,
+?>				(<?=val?>)
 <?			else
-?>				(i.s<?=i?> + <?=offset_i?> >= env->size.s<?=i?>) ? <?=bc?> : <?=val?>,
-<?			end				
-?>				<?=coeff?> * inv_dx.s<?=i?>
-			),
-			real<?=srcType?>_real_mul(
-<?			
+?>				((i.s<?=i?> + <?=offset_i?> >= env->size.s<?=i?>) ? <?=bc?> : <?=val?>)
+<?			end
+?>				* (<?=coeff?> * inv_dx.s<?=i?>)
+			)
+			+ (
+<?
 			-- setup lhs index
 			args.is = table{"i.x", "i.y", "i.z"}
 			args.is[i+1] = args.is[i+1].." - "..offset_i
@@ -345,14 +370,14 @@ for i=0,sDim-1 do
 			local bc = getBoundary(args)
 			local val = getValue(args)
 			if bc == val then
-?>				<?=val?>,
+?>				(<?=val?>)
 <?			else
-?>				(i.s<?=i?> - <?=offset_i?> < 0) ? <?=bc?> : <?=val?>,
+?>				((i.s<?=i?> - <?=offset_i?> < 0) ? <?=bc?> : <?=val?>)
 <?			end
-?>				<?=-coeff?> * inv_dx.s<?=i?>
-			)<?=offset_i == #d1coeffs and "" or ","?>
+?>				* (<?=-coeff?> * inv_dx.s<?=i?>)
+			)
 <?	end
-?>		),
+?>		,
 <?
 end
 ?>	};
@@ -376,17 +401,17 @@ end
 local dstType = "real4s4x"..srcType
 local resultName = args.resultName
 local getBoundary = args.getBoundary or function(args)
-	return "real"..srcType.."_zero"
+	return "real"..srcType.."{}"
 end
 local d1coeffs = assert(derivCoeffs[1][order])
 local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for order "..order)
-?>	<?=dstType?> <?=resultName?> = <?=dstType?>_zero;
+?>	<?=dstType?> <?=resultName?> = <?=dstType?>{};
 	<? for i=0,sDim-1 do ?>{
 		<? for j=i,sDim-1 do ?>{
 <? if i == j then -- 2nd-deriv kernel
 ?>
 			<? for k,coeff in pairs(d2coeffs) do
-				
+
 				args.is = table{"i.x", "i.y", "i.z"}
 				args.is[i+1] = args.is[i+1].." - "..k
 				args.i = "i + (int4)("
@@ -395,7 +420,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 				args.index = "index - env->stepsize.s"..i.." * "..k
 			?>{
 				real<?=srcType?> const yL = (i.s<?=i?> - <?=k?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?				
+<?
 				args.is = table{"i.x", "i.y", "i.z"}
 				args.is[i+1] = args.is[i+1].." + "..k
 				args.i = "i + (int4)("
@@ -403,20 +428,14 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					..")"
 				args.index = "index + env->stepsize.s"..i.." * "..k
 ?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-				<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
-					<?=resultName?>.s<?=i+1?><?=j+1?>,
-					real<?=srcType?>_real_mul(
-						real<?=srcType?>_add(yR, yL),
-						<?=coeff?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>
-					)
-				);
+				<?=resultName?>.s<?=i+1?><?=j+1?> += (yR + yL) * (<?=coeff?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>);
 			}<? end ?>
 
 <? else	-- two 1st-deriv kernels
 ?>
 			<? for k,coeff_k in pairs(d1coeffs) do ?>{
 				<? for l,coeff_l in pairs(d1coeffs) do
-					
+
 					args.is = table{"i.x", "i.y", "i.z"}
 					args.is[i+1] = args.is[i+1].." - "..k
 					args.is[j+1] = args.is[j+1].." - "..l
@@ -426,7 +445,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					args.index = "index - env->stepsize.s"..i.." * "..k.." - env->stepsize.s"..j.." * "..l
 				?>{
 					real<?=srcType?> const yLL = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?					
+<?
 					args.is = table{"i.x", "i.y", "i.z"}
 					args.is[i+1] = args.is[i+1].." - "..k
 					args.is[j+1] = args.is[j+1].." + "..l
@@ -435,7 +454,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 						..")"
 					args.index = "index - env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?					
+<?
 					args.is = table{"i.x", "i.y", "i.z"}
 					args.is[i+1] = args.is[i+1].." + "..k
 					args.is[j+1] = args.is[j+1].." - "..l
@@ -444,7 +463,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 						..")"
 					args.index = "index + env->stepsize.s"..i.." * "..k.." - env->stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?> || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-<?					
+<?
 					args.is = table{"i.x", "i.y", "i.z"}
 					args.is[i+1] = args.is[i+1].." + "..k
 					args.is[j+1] = args.is[j+1].." + "..l
@@ -453,17 +472,10 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 						..")"
 					args.index = "index + env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?> || i.s<?=j?> + <?=l?> >= env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
-					
-					<?=resultName?>.s<?=i+1?><?=j+1?> = real<?=srcType?>_add(
-						<?=resultName?>.s<?=i+1?><?=j+1?>,
-						real<?=srcType?>_real_mul(
-							real<?=srcType?>_sub(
-								real<?=srcType?>_add(yRR, yLL),
-								real<?=srcType?>_add(yLR, yRL)
-							),
-							<?=coeff_k * coeff_l?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>
-						)
-					);
+
+					<?=resultName?>.s<?=i+1?><?=j+1?> += 
+						(yRR + yLL - yLR - yRL)
+						* (<?=coeff_k * coeff_l?> * inv_dx.s<?=i?> * inv_dx.s<?=j?>);
 				}<? end ?>
 			}<? end ?>
 <? end ?>
@@ -494,6 +506,108 @@ end)
 
 EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes', 'JFNK'}
 
+
+-- similar to hydro-cl/hydro/solver/solverbase.lua
+-- but not exact, since hydro-cl has its own struct
+function EFESolver:checkStructSizes(typenames)
+	local struct = require 'struct'
+
+	local varcount = 0
+	for _,typename in ipairs(typenames) do
+		varcount = varcount + 1
+		if struct:isa(typename) then
+			local ctype = ffi.typeof(typename)
+			varcount = varcount + #ctype.fields
+		end
+	end
+	local cmd = self.cmds
+	local _1x1_domain = self:domain{size={1}, dim=1}
+	local resultPtr = ffi.new('size_t[?]', varcount)
+	ffi.fill(resultPtr, 0)
+	local resultBuf = self:buffer{name='result', type='size_t', count=varcount, data=resultPtr}
+
+	local code = template([[
+#define offsetof __builtin_offsetof
+
+kernel void checkStructSizes(
+	global size_t * const result
+) {
+
+<?
+local index = 0
+for i,typename in ipairs(typenames) do
+	local ctype = ffi.typeof(typename)
+	if not struct:isa(ctype) then
+?>	result[<?=index?>] = sizeof(<?=typename?>);
+<?
+		index = index + 1
+	else
+?>	result[<?=index?>] = sizeof(<?=ctype.name?>);
+<?
+		index = index + 1
+		for _,field in ipairs(ctype.fields) do
+			local fieldname, fieldtype = next(field)
+?>	result[<?=index?>] = offsetof(<?=typename?>, <?=fieldname?>);
+<?
+			index = index + 1
+		end
+	end
+end
+?>
+}
+]], {
+		struct = struct,
+		ffi = ffi,
+		typenames = typenames,
+	})
+--print(code)
+	
+	local program = self:program{
+		spirvToolchainFile = 'cache/checkStructSizes',
+		spirvToolchainFileCL = 'cache/checkStructSizes.clcpp',
+		code = code,
+		showCodeOnError = true,
+	}
+	program:compile{
+		verbose = true,
+	}
+	local kernel = program:kernel{
+		domain = self:domain{size={1}, dim=1},
+		name = 'checkStructSizes',
+		setArgs = {resultBuf},
+	}
+	kernel()
+	resultBuf:toCPU(resultPtr)
+	local index = 0
+	for i,typename in ipairs(typenames) do
+		local ctype = ffi.typeof(typename)
+		if not struct:isa(ctype) then
+			local clsize = tostring(resultPtr[index]):match'^(%d+)ULL$'
+			index = index + 1
+			local ffisize = tostring(ffi.sizeof(typename))
+			print('sizeof('..typename..'): OpenCL='..clsize..', ffi='..ffisize..(clsize == ffisize and '' or ' -- !!!DANGER!!!'))
+		else
+			local clsize = tostring(resultPtr[index]):match'^(%d+)ULL$'
+			index = index + 1
+			local ffisize = tostring(ffi.sizeof(ctype.name))
+			print('sizeof('..ctype.name..'): OpenCL='..clsize..', ffi='..ffisize..(clsize == ffisize and '' or ' -- !!!DANGER!!!'))
+
+			for _,field in ipairs(ctype.fields) do
+				local fieldname, fieldtype = next(field)
+				local cloffset = tostring(resultPtr[index]):match'^(%d+)ULL$'
+				index = index + 1
+				local ffioffset = tostring(ffi.offsetof(ctype.name, fieldname))
+				print('offsetof('..ctype.name..', '..fieldname..'): OpenCL='..cloffset..', ffi='..ffioffset..(cloffset == ffioffset and '' or ' -- !!!DANGER!!!'))
+			end
+		end
+	end
+	print('done')
+end
+
+
+
+
+
 function EFESolver:init(args)
 	self.app = args.app
 	local config = args.config
@@ -505,7 +619,6 @@ function EFESolver:init(args)
 	self.body = bodies[config.body]
 
 	-- CLEnv:init calls CLEnv:getTypeCode()
-	-- which (in EFESolver:getTypeCode) includes efe.h
 	-- which depends on the body
 	-- so if the body is changed.
 	--  the ffi.cdef needs to be updated
@@ -517,8 +630,17 @@ function EFESolver:init(args)
 		verbose = true,
 	})
 
+	local math_luajit_h = self:template(path'math.luajit.h':read())
+	ffi.cdef(math_luajit_h)
+	writeChanged('inc/math.luajit.h', math_luajit_h)
+	path'inc':mkdir()
+	writeChanged('inc/math.hpp', self:template(path'math.hpp':read()))
+
+
+
 	-- don't use that fixed-size code constants ...
-	self.code = table{
+	local autogenCode = table{
+		'#pragma once',
 		self:getTypeCode(),
 		[[
 //macro for the index
@@ -535,16 +657,16 @@ function EFESolver:init(args)
 #define indexForInt4(i)	indexForInt4ForSize(i, env->size.x, env->size.y, env->size.z)
 #define initKernel()	initKernelForSize(env->size.x, env->size.y, env->size.z)
 ]],
-		vec3i.typeCode,
+		vec3sz.typeCode,
 	}:concat'\n'
 
 	-- [[ I would put this in the type code, but it requires the type code to already be cdef'd
-	-- that means it has to be inserted into the kernels' codes, or appended to the self.code
+	-- that means it has to be inserted into the kernels' codes, or appended to the autogenCode
 	do
 		-- ffi.cdef already has stdint.h's uint8_t etc defined
 		-- but OpenCL doesn't
 		-- so ...
-		self.code = self.code .. [[
+		autogenCode = autogenCode .. [[
 typedef uchar uint8_t;
 typedef char int8_t;
 ]]
@@ -564,15 +686,11 @@ typedef char int8_t;
 		}
 		--]]
 
--- TODO put the type code and macros (self.code) in its own regenerated file
--- and include it in all cl files
--- that way it isn't pasted everywhere, and it can be used in headers.
-
 		local env_mt, env_code = struct{
 			name = 'env_t',
 			fields = {
-				{size = 'vec3i_t'},
-				{stepsize = 'vec3i_t'},
+				{size = 'vec3sz_t'},
+				{stepsize = 'vec3sz_t'},
 				{xmin = 'real3'},
 				{xmax = 'real3'},
 				{dim = 'int'},
@@ -580,10 +698,10 @@ typedef char int8_t;
 			-- TODO packed=false
 			dontMakeExtraUnion = true,	-- TODO make this default behavior
 		}
-print(env_code)
-		self.code = self.code..'\n'..env_code
+		-- this is luajit-only
+		--autogenCode = autogenCode..'\n'..env_code
 
-		self.gPrim_mt, self.gPrim_code = struct{
+		local gPrim_mt, gPrim_code = struct{
 			name = 'gPrim_t',
 			fields = {
 				{alpha = 'real'},
@@ -594,8 +712,9 @@ print(env_code)
 			unionType = 'real',
 			unionField = 's',
 		}
---print(self.gPrim_code)
-		self.code = self.code..'\n'..self.gPrim_code
+		-- don't add gPrim_t 
+		-- instead use this for luajit ffi access, and just assert its size and fields all match
+		-- autogenCode = autogenCode..'\n'..gPrim_code
 
 		local TPrim_fields = table()
 		--source terms:
@@ -643,7 +762,7 @@ print(env_code)
 			unionField = 's',
 		}
 --print(self.TPrim_code)
-		self.code = self.code..'\n'..self.TPrim_code
+		autogenCode = autogenCode..'\n'..self.TPrim_code
 	end
 	--]]
 
@@ -683,6 +802,15 @@ print(env_code)
 		__concat = string.concat,
 	})
 
+
+
+local oldHeader = autogenCode
+	writeChanged('inc/autogen.h', autogenCode)
+	-- update this every time body changes
+	writeChanged('inc/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
+	writeChanged('inc/calcVars.h', self:template(assert(path'calcVars.h':read())))
+	self.code = includeHeader
+
 	--[[
 	self:checkStructSizes{
 		'real3',
@@ -698,13 +826,6 @@ print(env_code)
 	os.exit()
 	--]]
 
-local oldHeader = self.code
-	path'cache':mkdir()
-	path'cache/autogen.h':write(self.code)
-	local includeHeader = '#include "autogen.h"'
-	self.code = includeHeader 
-
-
 	-- parameters:
 
 	self.xmin = vec3d(-1,-1,-1) * self.body.radius * config.bodyRadii
@@ -717,7 +838,7 @@ local oldHeader = self.code
 	end) or 1
 
 	-- what do we want to converge
-	-- upon changing these, regenerate the gradientDescent.cl kernels
+	-- upon changing these, regenerate the gradientDescent.clcpp kernels
 	self.convergeAlpha = true
 	self.convergeBeta = false
 	self.convergeGamma = false	-- TODO option for converging a scalar gamma vs a matrix gamma
@@ -797,19 +918,19 @@ real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 texCLBuf[index] = real4s4_dot(RicciLL, gUU);
 ]]},
 		{['partial_gLL_of_Phi'] = [[
-real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
+real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
 texCLBuf[index] = real4s4_normSq(partial_gLL_of_Phi);
 ]]},
 		{['partial_gPrim_of_Phi.alpha'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
 texCLBuf[index] = partial_gPrim_of_Phi.alpha;
 ]]},
 		{['norm|partial_gPrim_of_Phi.beta|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
 texCLBuf[index] = real3_norm(partial_gPrim_of_Phi.betaU);
 ]]},
 		{['norm|partial_gPrim_of_Phi.gamma|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, i, TPrims, gPrims, GammaULLs, EFEs);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
 texCLBuf[index] = real3s3_norm(partial_gPrim_of_Phi.gammaLL);
 ]]},
 --[=[
@@ -865,7 +986,7 @@ texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
 		{['analytical gravity'] = [[
 real3 const x = getX(env, i);
 real const r = real3_len(x);
-real const matterRadius = min(r, (real)<?=solver.body.radius?>);
+real const matterRadius = min(r, real(<?=solver.body.radius?>));
 real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
 real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
 real const dm_dr = 0;
@@ -875,15 +996,16 @@ texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r
 		{['num vs ana rel err'] = [[
 real3 const x = getX(env, i);
 real const r = real3_len(x);
-real const matterRadius = min(r, (real)<?=solver.body.radius?>);
+real const matterRadius = min(r, real(<?=solver.body.radius?>));
 real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
 real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
 real const dm_dr = 0;
 real const analyticalMagn = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r) * c * c;	//+9 at earth surface, without matter derivatives
-real3 const analytical = _real3(
+real3 const analytical = real3{
 	analyticalMagn * x.x / r,
 	analyticalMagn * x.y / r,
-	analyticalMagn * x.z / r);
+	analyticalMagn * x.z / r
+};
 real3 const numerical = real3_real_mul(real4x4s4_i00(GammaULLs[index]), c * c);
 texCLBuf[index] = real3_len(real3_sub(numerical, analytical)) / analyticalMagn - 1.;
 ]]},
@@ -1102,7 +1224,7 @@ assert(type(name)=='string')
 	}
 
 	-- and for display. .. back to the future
-	self.code = includeHeader 
+	self.code = includeHeader
 
 
 	self:resetState()
@@ -1121,18 +1243,6 @@ Luckily all those are in TPrim_t
 so I'll just template out the name.
 --]]
 function EFESolver:getTypeCode()
-	-- update this every time body changes
-	local efe_h = template(path'efe.h':read(), {
-		solver = self,
-	})
-
---[=[ ok super defines real2 real4 real8
--- but turns out OpenCL's float2 float4 float8 don't have [] operator ...
--- and I need that so ...
-	return EFESolver.super.getTypeCode(self)..'\n'
-		..efe_h
---]=]
--- [=[ ... so just setup the 16/64 extensions and skip the real2/4/8
 	return template([[
 <? if real == 'double' then ?>
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -1142,8 +1252,7 @@ function EFESolver:getTypeCode()
 typedef <?=real?> real;
 ]],	{
 		real = self.real,
-	})..efe_h
---]=]
+	})
 end
 
 function EFESolver:initBuffers()
@@ -1162,7 +1271,10 @@ function EFESolver:initBuffers()
 	self.envPtr[0].xmax.y = self.xmax.y
 	self.envPtr[0].xmax.z = self.xmax.z
 	self.envPtr[0].dim = self.base.dim
+print('env before writing to GPU:', self.envPtr[0])
 	self.envBuf = self:buffer{name='env', type='env_t', count=1, data=self.envPtr}
+local tmp = self.envBuf:toCPU()
+print('verify reading env back from GPU:', tmp[0])
 
 	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
@@ -1231,25 +1343,21 @@ function EFESolver:refreshKernels()
 	-- create code
 	print'preprocessing code...'
 
-	-- append efe.cl to the environment code
+	-- append efe.clcpp to the environment code
 	self.efeCode = self:template(table{
-			path'efe.cl':read(),
-			path'calcVars.cl':read(),
-			path'gradientDescent.cl':read(),
+			path'efe.clcpp':read(),
+			path'calcVars.clcpp':read(),
+			path'gradientDescent.clcpp':read(),
 		}:concat'\n')
-
-	path'cache':mkdir()
-
-	writeChanged('cache/efe.funcs.h', self:template(assert(path'efe.funcs.h':read())))
-	writeChanged('cache/calcVars.h', self:template(assert(path'calcVars.h':read())))
 
 	if useSpirvToolchain then
 		-- compile using clang & llvm-spirv ...
 		self.efeProgram = self:program{
 			spirvToolchainFile = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
+			spirvToolchainFileCL = 'cache/efe.clcpp',	-- use .clcpp with clang for c++ file 
 			code = self.efeCode,
 		}
-		-- builds efe.cl, efe.bc, efe.spv
+		-- builds efe.clcpp, efe.bc, efe.spv
 		-- why does clCreateProgramWithIL take 45 seconds, while clCreateProgramWithSource takes 10 ... and clCreateProgramWithBinary takes no time at all.
 		timer('compiling code...', function()
 			self.efeProgram:compile()
@@ -1265,8 +1373,8 @@ function EFESolver:refreshKernels()
 			-- hmm cl api, clCreateProgramWithSource doesn't provide for build options, i.e. no -I flags ...
 			-- even when I do use separate build/link so I can pass build flags, -I doesn't have precedence over cwd,
 			-- so ...
-			-- just change cwd to 'cache' ... hmm 
-			-- but won't this make cache/cache/filenames for the binary cache? 
+			-- just change cwd to 'cache' ... hmm
+			-- but won't this make cache/cache/filenames for the binary cache?
 			-- bleh what a mess
 			self.efeProgram:compile{
 				verbose = true,
@@ -1367,7 +1475,7 @@ print(require 'ext.tolua'(self.efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 	self.init_gPrims = self.efeProgram:kernel{
 		name = 'init_gPrims',
 		setArgs = {
-			self.envBuf,
+			assert(self.envBuf),
 			self.gPrims,
 			{type='int'},
 		},
@@ -1413,11 +1521,12 @@ kernel void display(
 ?>	}
 }
 ]]
-			local displayProgram 
+			local displayProgram
 			if useSpirvToolchain then
 				local displayProgramLib = self:program{
 					-- TODO can I use cl/obj/kernel.lua's codegen + link to other cl programs?
 					spirvToolchainFile = 'cache/display',
+					spirvToolchainFileCL = 'cache/display.clcpp',
 					code = displayCode,
 				}
 				displayProgramLib:compile{
@@ -1476,21 +1585,23 @@ end
 
 function EFESolver:refreshDisplayVar()
 	local displayVar = self.displayVars[self.displayVarIndex]
-	-- update the displayCode for the gui, 
+	-- update the displayCode for the gui,
 	--  but don't rebuild , intead just change the displayVarIndex
 	--  only rebuild when changing custom code
 	self.displayCode = displayVar.body
-	
-	local displayVarIndex = ffi.new('int[1]') 
-	displayVarIndex[0] = self.displayVarIndex
-	self.displayKernel.obj:setArg(2, displayVarIndex)
+
+	local int = ffi.new('int[1]')
+	int[0] = self.displayVarIndex
+	self.displayKernel.obj:setArg(2, int)
 	self:updateTex()
 end
 
 function EFESolver:resetState()
 print'init_gPrims'
-	local initCondIndex = ffi.new('int[1]') 
+	local initCondIndex = ffi.new('int[1]')
 	initCondIndex[0] = self.initCond
+self.init_gPrims.obj:setArg(0, self.envBuf.obj)
+self.init_gPrims.obj:setArg(1, self.gPrims.obj)
 	self.init_gPrims.obj:setArg(2, initCondIndex)
 	self.init_gPrims()	-- initialize gPrims
 self:printbuf'gPrims'
