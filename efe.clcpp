@@ -857,7 +857,171 @@ return real4s4(1,2,3,4,5,6,7,8,9,10);
 	real3 const betaL = gammaLL * betaU;
 	real const betaSq = real3_dot(betaL, betaU);
 
-#if 1	//works
+#if 0	//fails ... returns  {0, 0, 0, 0, 0, 0, 0, 0, 0, 22}
+	return real4s4(
+		-alphaSq + betaSq,
+		betaL.s0,
+		betaL.s1,
+		betaL.s2,
+		0,
+		1,
+		2,
+		11,
+		12,
+		22
+	);
+#endif
+#if 0	// fails ... returns {0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	real const betaU0 = betaU.s0;
+	real const betaU1 = betaU.s1;
+	real const betaU2 = betaU.s2;
+	real const gammaLL00 = gammaLL.s00;
+	real const gammaLL01 = gammaLL.s01;
+	real const gammaLL02 = gammaLL.s02;
+	real const gammaLL11 = gammaLL.s11;
+	real const gammaLL12 = gammaLL.s12;
+	real const gammaLL22 = gammaLL.s22;
+	real const betaL0 = gammaLL00 * betaU0 + gammaLL01 * betaU1 + gammaLL02 * betaU2;
+	real const betaL1 = gammaLL01 * betaU0 + gammaLL11 * betaU1 + gammaLL12 * betaU2;
+	real const betaL2 = gammaLL02 * betaU0 + gammaLL12 * betaU1 + gammaLL22 * betaU2;
+	real const betaSq2 = betaU0 * betaL0 + betaU1 * betaL1 + betaU2 * betaL2;
+	return real4s4(
+		-alphaSq + betaSq2,
+		betaL0,
+		betaL1,
+		betaL2,
+		gammaLL00,
+		gammaLL01,
+		gammaLL02,
+		gammaLL11,
+		gammaLL12,
+		gammaLL22
+	);
+#endif
+#if 0	// fails ... returns {0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	real const betaU0 = betaU.s0;
+	real const betaU1 = betaU.s1;
+	real const betaU2 = betaU.s2;
+	real const gammaLL00 = gammaLL.s00;
+	real const gammaLL01 = gammaLL.s01;
+	real const gammaLL02 = gammaLL.s02;
+	real const gammaLL11 = gammaLL.s11;
+	real const gammaLL12 = gammaLL.s12;
+	real const gammaLL22 = gammaLL.s22;
+	real const betaL0 = gammaLL00 * betaU0 + gammaLL01 * betaU1 + gammaLL02 * betaU2;
+	real const betaL1 = gammaLL01 * betaU0 + gammaLL11 * betaU1 + gammaLL12 * betaU2;
+	real const betaL2 = gammaLL02 * betaU0 + gammaLL12 * betaU1 + gammaLL22 * betaU2;
+	real const betaSq2 = 0;
+	return real4s4(
+		-alphaSq + betaSq2,
+		betaL0,
+		betaL1,
+		betaL2,
+		gammaLL00,
+		gammaLL01,
+		gammaLL02,
+		gammaLL11,
+		gammaLL12,
+		gammaLL22
+	);
+#endif
+#if 1 //works
+	real const betaU0 = betaU.s0;
+	real const betaU1 = betaU.s1;
+	real const betaU2 = betaU.s2;
+	real const gammaLL00 = gammaLL.s00;
+	real const gammaLL01 = gammaLL.s01;
+	real const gammaLL02 = gammaLL.s02;
+	real const gammaLL11 = gammaLL.s11;
+	real const gammaLL12 = gammaLL.s12;
+	real const gammaLL22 = gammaLL.s22;
+	real const betaL0 = betaU0;
+	real const betaL1 = betaU1;
+	real const betaL2 = betaU2;
+	real const betaSq2 = betaU0 * betaL0 + betaU1 * betaL1 + betaU2 * betaL2;
+	return real4s4(
+		-alphaSq + betaSq2,
+		betaL0,
+		betaL1,
+		betaL2,
+		gammaLL00,
+		gammaLL01,
+		gammaLL02,
+		gammaLL11,
+		gammaLL12,
+		gammaLL22
+	);
+#endif
+#if 0	//works...
+	real const betaU0 = betaU.s0;
+	real const betaU1 = betaU.s1;
+	real const betaU2 = betaU.s2;
+	real const gammaLL00 = gammaLL.s00;
+	real const gammaLL01 = gammaLL.s01;
+	real const gammaLL02 = gammaLL.s02;
+	real const gammaLL11 = gammaLL.s11;
+	real const gammaLL12 = gammaLL.s12;
+	real const gammaLL22 = gammaLL.s22;
+	real const betaL0 = betaU0;
+	real const betaL1 = betaU1;
+	real const betaL2 = betaU2;
+	real const betaSq2 = 0;
+	return real4s4(
+		-alphaSq + betaSq2,
+		betaL0,
+		betaL1,
+		betaL2,
+		gammaLL00,
+		gammaLL01,
+		gammaLL02,
+		gammaLL11,
+		gammaLL12,
+		gammaLL22
+	);
+#endif
+#if 0	//works ...
+	real const betaU0 = betaU.s0;
+	real const betaU1 = betaU.s1;
+	real const betaU2 = betaU.s2;
+	real const gammaLL00 = gammaLL.s00;
+	real const gammaLL01 = gammaLL.s01;
+	real const gammaLL02 = gammaLL.s02;
+	real const gammaLL11 = gammaLL.s11;
+	real const gammaLL12 = gammaLL.s12;
+	real const gammaLL22 = gammaLL.s22;
+	real const betaSq2 = 0;
+	return real4s4(
+		-alphaSq + betaSq2,
+		betaU0,
+		betaU1,
+		betaU2,
+		gammaLL00,
+		gammaLL01,
+		gammaLL02,
+		gammaLL11,
+		gammaLL12,
+		gammaLL22
+	);
+#endif
+#if 0	//worked ...
+	real const betaUx = betaU.s0;
+	real const betaUy = betaU.s1;
+	real const betaUz = betaU.s2;
+	real const betaSq2 = 0;
+	return real4s4(
+		-alphaSq + betaSq2,
+		betaUx,
+		betaUy,
+		betaUz,
+		0,
+		1,
+		2,
+		11,
+		12,
+		22
+	);
+#endif
+#if 0	//works
 	return real4s4(
 		-alphaSq,
 		0,
