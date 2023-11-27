@@ -17,12 +17,16 @@ using real4 = Tensor::vec<real, 4>;
 
 struct real3 {
 	//union {
-		real s[3] = { real(0) };
+		real s[3];
 	//	struct { real s0, s1, s2; };
 	//	struct { real x, y, z; };
 	//};
 
-	real3() {}
+	real3() {
+		for (int i = 0; i < 3; ++i) {
+			s[i] = real(0);
+		}
+	}
 
 	real3(
 		real const s0_,
@@ -37,12 +41,16 @@ struct real3 {
 
 struct real4 {
 	//union {
-		real s[4] = { real(0) };
+	real s[4];
 	//	struct { real s0, s1, s2, s3; };
 	//	struct { real t, x, y, z; };
 	//};
 
-	real4() {}
+	real4() {
+		for (int i = 0; i < 4; ++i) {
+			s[i] = real(0);
+		}
+	}
 
 	real4(
 		real const s0_,
@@ -59,12 +67,16 @@ struct real4 {
 
 struct real3s3 {
 	//union {
-		real s[6] = { real(0) };
+	real s[6];
 	//	struct { real s00, s01, s02, s11, s12, s22; };	//useful for templated code
 	//	struct { real xx, xy, xz, yy, yz, zz; };
 	//};
 
-	real3s3() {}
+	real3s3() {
+		for (int i = 0; i < 6; ++i) {
+			s[i] = real(0);
+		}
+	}
 
 	real3s3(
 		real const s0_,
@@ -85,12 +97,16 @@ struct real3s3 {
 
 struct real4s4 {
 	//union {
-		real s[10] = { real(0) };
+	real s[10];
 	//	struct { real s00, s01, s02, s03, s11, s12, s13, s22, s23, s33; };	//useful for templated code
 	//	struct { real tt, tx, ty, tz, xx, xy, xz, yy, yz, zz; };
 	//};
 	
-	real4s4() {}
+	real4s4() {
+		for (int i = 0; i < 10; ++i) {
+			s[i] = real(0);
+		}
+	}
 
 	real4s4(
 		real const s0_,
@@ -119,12 +135,16 @@ struct real4s4 {
 
 struct real4x4 {
 	//union {
-		real4 s[4] = { real4() };
+	real4 s[4];
 	//	struct { real4 s0, s1, s2, s3; };
 	//	struct { real4 t, x, y, z; };
 	//};
 
-	real4x4() {}
+	real4x4() {
+		for (int i = 0; i < 4; ++i) {
+			s[i] = real4();
+		}
+	}
 
 	real4x4(
 		real4 const & s0_,
@@ -141,12 +161,16 @@ struct real4x4 {
 
 struct real4x4s4 {
 	//union {
-		real4s4 s[4] = { real4s4() };
+	real4s4 s[4];
 	//	struct { real4s4 s0, s1, s2, s3; };
 	//	struct { real4s4 t, x, y, z; };
 	//};
 
-	real4x4s4() {}
+	real4x4s4() {
+		for (int i = 0; i < 4; ++i) {
+			s[i] = real4s4();
+		}
+	}
 
 	real4x4s4(
 		real4s4 const & s0_,
@@ -163,12 +187,16 @@ struct real4x4s4 {
 
 struct real4x4x4 {
 	//union {
-		real4x4 s[4] = { real4x4() };
+	real4x4 s[4];
 	//	struct { real4x4 s0, s1, s2, s3; };
 	//	struct { real4x4 t, x, y, z; };
 	//};
 
-	real4x4x4() {}
+	real4x4x4() {
+		for (int i = 0; i < 4; ++i) {
+			s[i] = real4x4();
+		}
+	}
 
 	real4x4x4(
 		real4x4 const & s0_,
@@ -185,12 +213,16 @@ struct real4x4x4 {
 
 struct real4x4x4s4 {
 	//union {
-		real4x4s4 s[4] = { real4x4s4() };
+	real4x4s4 s[4];
 	//	struct { real4x4s4 s0, s1, s2, s3; };
 	//	struct { real4x4s4 t, x, y, z; };
 	//};
 
-	real4x4x4s4() {}
+	real4x4x4s4() {
+		for (int i = 0; i < 4; ++i) {
+			s[i] = real4x4s4();
+		}
+	}
 
 	real4x4x4s4(
 		real4x4s4 const & s0_,
@@ -207,12 +239,16 @@ struct real4x4x4s4 {
 
 struct real4s4x4s4 {
 	//union {
-		real4s4 s[10] = { real4s4() };
+	real4s4 s[10];
 	//	struct { real4s4 s00, s01, s02, s03, s11, s12, s13, s22, s23, s33; };
 	//	struct { real4s4 tt, tx, ty, tz, xx, xy, xz, yy, yz, zz; };
 	//};
 
-	real4s4x4s4() {}
+	real4s4x4s4() {
+		for (int i = 0; i < 10; ++i) {
+			s[i] = real4s4();
+		}
+	}
 
 	real4s4x4s4(
 		real4s4 const & s0_,
@@ -241,12 +277,16 @@ struct real4s4x4s4 {
 
 struct real4x4x4x4 {
 	//union {
-		real4x4x4 s[4] = { real4x4x4() };
+	real4x4x4 s[4];
 	//	struct { real4x4x4 s0, s1, s2, s3; };
 	//	struct { real4x4x4 t, x, y, z; };
 	//};
 	
-	real4x4x4x4() {}
+	real4x4x4x4() {
+		for (int i = 0; i < 4; ++i) {
+			s[i] = real4x4x4();
+		}
+	}
 
 	real4x4x4x4(
 		real4x4x4 const & s0_,

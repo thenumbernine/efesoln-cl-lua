@@ -610,6 +610,9 @@ end
 
 
 function EFESolver:init(args)
+
+args.precision = 'float'
+
 	self.app = args.app
 	local config = args.config
 
