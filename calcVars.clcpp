@@ -77,7 +77,7 @@ kernel void calc_GammaULLs(
 	initKernel();
 
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
-#if 0 //debugging nans
+#if 1 //debugging nans
 <?=solver:finiteDifference{
 	srcType = "4s4",
 	resultName = "partial_xU_of_gLL",
@@ -149,7 +149,7 @@ kernel void calc_GammaULLs(
 	//Γ^a_bc = g^ad Γ_dbc
 	//real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
-#if 0
+#if 1
 	GammaULLs[index] = real4s4_real4x4s4_mul(gUU, GammaLLL);
 #else
 	for (int a = 0; a < stDim; ++a) {

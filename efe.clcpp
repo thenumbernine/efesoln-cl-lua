@@ -92,12 +92,20 @@ real3s3 real3s3_inv(real3s3 const & m, real const d) {
 
 real4s4 real4s4_outer(real4 const & v) {
 	return real4s4(
-<? for a=0,3 do
-	for b=a,3 do
-?>		v.s<?=a?> * v.s<?=b?><?=(a < 3 or b < 3) and "," or ""?>
-<? 	end
-end
-?>	);
+		v.s0 * v.s0,
+		v.s0 * v.s1,
+		v.s0 * v.s2,
+		v.s0 * v.s3,
+
+		v.s1 * v.s1,
+		v.s1 * v.s2,
+		v.s1 * v.s3,
+
+		v.s2 * v.s2,
+		v.s2 * v.s3,
+
+		v.s3 * v.s3
+	);
 }
 
 real3 real4s4_i0(real4s4 const & a) {
@@ -106,13 +114,15 @@ real3 real4s4_i0(real4s4 const & a) {
 
 real3s3 real4s4_ij(real4s4 const & a) {
 	return real3s3(
-<?
-for i=0,2 do
-	for j=i,2 do
-?>		a.s<?=i+1?><?=j+1?><?=(i < 2 or j < 2) and "," or ""?>
-<?	end
-end
-?>	);
+		v.s1 * v.s1,
+		v.s1 * v.s2,
+		v.s1 * v.s3,
+
+		v.s2 * v.s2,
+		v.s2 * v.s3,
+
+		v.s3 * v.s3
+	);
 }
 
 real real4s4_det(real4s4 const & m) {
@@ -150,15 +160,15 @@ real3 real4x4s4_i00(real4x4s4 const & a) {
 
 //b_i = a^j_ji
 real4 real4x4s4_tr12(real4x4s4 const & a) {
-	return real4(
-<? for i=0,3 do
-?>		0.<?
-	for j=0,3 do
-?> + a.s<?=j?>.s<?=sym(j,i)?><?
-	end
-?><?=i < 3 and "," or ""?>
-<? end
-?>	);
+	real4 result;
+	for (int i = 0; i < 4; ++i) {
+		real sum = real(0);
+		for (int j = 0; j < 4; ++j) {
+			sum += a.s[j].s[sym4[j][i]];
+		}
+		result.s[i] = sum;
+	}
+	return result;
 }
 
 //b^i = a^ij_j
@@ -206,69 +216,59 @@ real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
 	real4x4x4x4 const & a,
 	real4s4 const & b
 ) {
-	return real4x4x4x4(
-<? for a=0,3 do
-?>		real4x4x4(
-<?	for b=0,3 do
-?>			real4x4(
-<?		for c=0,3 do
-?>				real4(
-<?			for d=0,3 do
-?>					0.<?
-				for e=0,3 do
-?> + a.s<?=e?>.s<?=b?>.s<?=c?>.s<?=d?> * b.s<?=sym(e,a)?><?
-				end
-?>					<?=d < 3 and "," or ""?>
-<?			end
-?>				)<?=c < 3 and "," or ""?>
-<?		end
-?>			)<?=b < 3 and "," or ""?>
-<? 	end
-?>		)<?=a < 3 and "," or ""?>
-<? end
-?>	);
+	real4x4x4x4 result;
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			for (int k = 0; k < 4; ++k) {
+				for (int l = 0; l < 4; ++l) {
+					real sum = real(0);
+					for (int m = 0; m < 4; ++m) {
+						sum += a.s[m].s[j].s[k].s[l] * b.s[sym4[m][i]];
+					}
+					result.s[i].s[j].s[k].s[l] = sum;
+				}
+			}
+		}
+	}
+	return result;
 }
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(
 	real4x4x4x4 const & a,
 	real4s4 const & b
 ) {
-	return real4x4x4x4(
-<? for a=0,3 do
-?>		real4x4x4(
-<?	for b=0,3 do
-?>			real4x4(
-<?		for c=0,3 do
-?>				real4(
-<?			for d=0,3 do
-?>					0.<?
-				for e=0,3 do
-?> + a.s<?=a?>.s<?=b?>.s<?=e?>.s<?=d?> * b.s<?=sym(e,c)?><?
-				end
-?>					<?=d < 3 and "," or ""?>
-<?			end
-?>				)<?=c < 3 and "," or ""?>
-<?		end
-?>			)<?=b < 3 and "," or ""?>
-<? 	end
-?>		)<?=a < 3 and "," or ""?>
-<? end
-?>	);
+	real4x4x4x4 result;
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			for (int k = 0; k < 4; ++k) {
+				for (int l = 0; l < 4; ++l) {
+					real sum = real(0);
+					for (int m = 0; m < 4; ++m) {
+						sum += a.s[i].s[j].s[m].s[l] * b.s[sym4[m][k]];
+					}
+					result.s[i].s[j].s[k].s[l] = sum;
+				}
+			}
+		}
+	}
+	return result;
 }
 
 //b_ij = a^k_ikj
 // assuming b_ij = b_ji i.e. a_ijkl = a_klij
 real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a) {
-	return real4s4(
-<? for a=0,3 do
-	for b=a,3 do
-?>		real() <?
-		for c=0,3 do
-?> + a.s<?=c?>.s<?=a?>.s<?=c?>.s<?=b?><?
-		end ?><?=(a < 3 or b < 3) and "," or ""?>
-<? 	end
-end
-?>	);
+	real4s4 result;
+	for (int i = 0; i < 4; ++i) {
+		for (int j = i; j < 4; ++j) {
+			int const ij = sym4[i][j];
+			real sum = real(0);
+			for (int k = 0; k < 4; ++k) {
+				sum += a.s[k].s[i].s[k].s[j];
+			}
+			result.s[ij] = sum;
+		}
+	}
+	return result;
 }
 
 real3 getX(
@@ -358,12 +358,12 @@ real4s4 gLL_from_gPrims_at(
 	} else {
 		int const index = indexForInt4(i);
 		gPrim_t const & gPrim = gPrims[index];
-#if 1	
+#if 1
 		real4s4 const gLL = calc_gLL_from_gPrim(gPrim);
 		return gLL;
-#endif	
+#endif
 		//inline
-#if 0 //nans		
+#if 0 //nans
 		real const alphaSq = gPrim.alpha * gPrim.alpha;
 		real3 const betaL = gPrim.gammaLL * gPrim.betaU;
 		real const betaSq = real3_dot(betaL, gPrim.betaU);
@@ -371,7 +371,7 @@ real4s4 gLL_from_gPrims_at(
 #if 0	//nans ...
 		real const alphaSq = gPrim.alpha * gPrim.alpha;
 		real3 const betaL = gPrim.betaU;
-		real const betaSq = 
+		real const betaSq =
 			  gPrim.betaU.s0 * gPrim.betaU.s0
 			+ gPrim.betaU.s1 * gPrim.betaU.s1
 			+ gPrim.betaU.s2 * gPrim.betaU.s2;
@@ -413,7 +413,7 @@ real4s4 gLL_from_gPrims_at(
 			1,0,0,
 			1,0,1
 		);
-#endif	
+#endif
 	}
 }
 
@@ -638,7 +638,7 @@ if solver.body.useMatter then
 
 	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
 	//[1/m^2]
-	real4s4 const _8piT_matter_LL = 
+	real4s4 const _8piT_matter_LL =
 		(
 			(
 				real4s4_outer(uL)
@@ -828,7 +828,7 @@ gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
 	real3 const l = real3(
 		(r*x.x + a*x.y)/(r*r + a*a),
 		(r*x.y - a*x.x)/(r*r + a*a),
-		x.z/r 
+		x.z/r
 	);
 <?
 for i=0,sDim-1 do
@@ -857,7 +857,7 @@ return real4s4(1,2,3,4,5,6,7,8,9,10);
 	real3 const betaL = gammaLL * betaU;
 	real const betaSq = real3_dot(betaL, betaU);
 
-#if 1	//works
+#if 0	//works
 	return real4s4(
 		-alphaSq,
 		0,
@@ -885,7 +885,7 @@ return real4s4(1,2,3,4,5,6,7,8,9,10);
 		10
 	);
 #endif
-#if 0	//nans
+#if 1	//nans
 	real4s4 gLL;
 	gLL.s00 = -alphaSq + betaSq;
 	for (int i = 0; i < sDim; ++i) {
@@ -896,18 +896,18 @@ return real4s4(1,2,3,4,5,6,7,8,9,10);
 	}
 	return gLL;
 #endif
-#if 0	//nans
+#if 0	//nans ... or bad values
 	return real4s4(
-		-alphaSq + betaSq,
-		betaL.s0,
-		betaL.s1,
-		betaL.s2,
-		gammaLL.s00,
-		gammaLL.s01,
-		gammaLL.s02,
-		gammaLL.s11,
-		gammaLL.s12,
-		gammaLL.s22
+		10 - alphaSq + betaSq,
+		1 + betaL.s0,
+		2 + betaL.s1,
+		3 + betaL.s2,
+		4 + gammaLL.s00,
+		5 + gammaLL.s01,
+		6 + gammaLL.s02,
+		7 + gammaLL.s11,
+		8 + gammaLL.s12,
+		9 + gammaLL.s22		// only this is written ... the rest are zeroes no matter what expression is there.
 	);
 #endif
 }

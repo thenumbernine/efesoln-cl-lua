@@ -17,7 +17,13 @@ local clnumber = require 'cl.obj.number'
 
 local writeChanged = require 'make.writechanged'
 
-local useSpirvToolchain = true
+-- ok I switched my code over to .clcpp, which will only work with spirv-toolchain...
+-- however, both intel opencl and clang spirv seem to be unusably buggy when dealing with large structures
+-- I worked around this in my hydro-cl project by writing my own cl-cpu wrapper (since all the "official" cpu-backends are also too buggy to use)
+-- however at the moment my cl-cpu only works with compile-by-source (which it then forwards on to gcc/clang/wherever)
+-- ... which is basically the same process as useSpirvToolchain==true 
+--local useSpirvToolchain = true
+local useSpirvToolchain = false
 
 local exec = require 'make.exec'
 local CLProgram = require 'cl.obj.program'
@@ -34,7 +40,7 @@ function CLProgram:clangCompile(dst, src, buildOptions)
 		'-c',
 		--'-O0',
 		--'-O3',
-		'-I inc',
+		'-I include',
 		'-I ../../cpp/Tensor/include',
 		'-I ../../cpp/Common/include',
 		'-o', ('%q'):format(path(dst):fixpathsep()),
@@ -631,12 +637,18 @@ function EFESolver:init(args)
 		verbose = true,
 	})
 
-	local math_luajit_h = self:template(path'math.luajit.h':read())
+	local math_luajit_h = self:template(assert(path'math.luajit.h':read()))
 	ffi.cdef(math_luajit_h)
-	path'inc':mkdir()
-	writeChanged('inc/math.luajit.h', math_luajit_h)
-	writeChanged('inc/math.hpp', self:template(path'math.hpp':read()))
-
+	-- NOTICE of a cheap hack: my lua-make has a default -Iinclude, so I'm just using that here too, cuz i'm lazy
+	-- tho if my build for cl-cpu/ffi-c is in /tmp then I'll probably have to add the absolute path to this include folder anyways...
+	-- for spirv
+	path'include':mkdir()
+	writeChanged('include/math.luajit.h', math_luajit_h)
+	writeChanged('include/math.hpp', self:template(assert(path'math.hpp':read())))
+	-- for old cl compiler
+	path'cache':mkdir()
+	writeChanged('cache/math.luajit.h', math_luajit_h)
+	writeChanged('cache/math.hpp', self:template(assert(path'math.hpp':read())))
 
 
 	-- don't use that fixed-size code constants ...
@@ -800,9 +812,11 @@ function EFESolver:init(args)
 
 
 local oldHeader = autogenCode
-	writeChanged('inc/autogen.h', autogenCode)
+	writeChanged('include/autogen.h', autogenCode)	-- spirv uses -Iinc to look in include for autogen.h
+	writeChanged('cache/autogen.h', autogenCode)	-- non-spirv just goes by cwd, which is cache/
 	-- update this every time body changes
-	writeChanged('inc/efe.h', self:template(assert(path'efe.h':read())))
+	writeChanged('include/efe.h', self:template(assert(path'efe.h':read())))
+	writeChanged('cache/efe.h', self:template(assert(path'efe.h':read())))
 	self.code = includeHeader
 
 	--[[
@@ -1343,9 +1357,9 @@ function EFESolver:refreshKernels()
 	-- create code
 	print'preprocessing code...'
 
-	local efeCode = self:template(path'efe.clcpp':read())							-- common with display
-	local calcVarsCode = self:template(path'calcVars.clcpp':read())					-- kernels
-	local gradientDescentCode = self:template(path'gradientDescent.clcpp':read())	-- kernels for updateNewton
+	local efeCode = self:template(assert(path'efe.clcpp':read()))							-- common with display
+	local calcVarsCode = self:template(assert(path'calcVars.clcpp':read()))					-- kernels
+	local gradientDescentCode = self:template(assert(path'gradientDescent.clcpp':read()))	-- kernels for updateNewton
 
 	--self.efeObjProgram	-- shared with display
 	local calcVarsProgram
