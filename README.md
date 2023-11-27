@@ -63,6 +63,8 @@ There's a number of coordinates that represent the same geometry (with the same 
 That's probably why the metric tensor solved values are diverging.
 TODO constrain it somehow.
 
+To run this with my cl-cpu project, use: `path/to/cl-cpu/run.lua -cpp -I `pwd`/include ./run.lua`
+
 ### TODO:
 
 * reduce allocations for solvers that aren't being used
