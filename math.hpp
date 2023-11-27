@@ -7,14 +7,13 @@
 // stuck on:
 // ../../cpp/Common/include/Common/Variadic.h:6:10: fatal error: 'cstddef' file not found
 // how to get cstddef into clcpp ...
-#if 0
+#if 1
 #include "Tensor/Vector.h"
 using real3 = Tensor::vec<real, 3>;
 using real4 = Tensor::vec<real, 4>;
 #endif
 
-#if 1
-
+#if 0
 struct real3 {
 	union {
 		real s[3] = { real(0) };
