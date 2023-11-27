@@ -2,6 +2,12 @@
 #include "math.hpp"
 #include "efe.h"
 
+#ifdef CLCPU_ENABLED
+#define constant
+#define global
+#define local
+#endif
+
 // TODO maybe put the kernel in here
 // then use this + efe.cl for the solver
 // and use display + efe.cl for the display

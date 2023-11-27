@@ -2,6 +2,12 @@
 #include "math.hpp"
 #include "efe.h"
 
+#ifdef CLCPU_ENABLED
+#define constant
+#define global
+#define local
+#endif
+
 constant real const c = 299792458;			// m/s
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
 
@@ -114,14 +120,14 @@ real3 real4s4_i0(real4s4 const & a) {
 
 real3s3 real4s4_ij(real4s4 const & a) {
 	return real3s3(
-		v.s1 * v.s1,
-		v.s1 * v.s2,
-		v.s1 * v.s3,
+		a.s11,
+		a.s12,
+		a.s13,
 
-		v.s2 * v.s2,
-		v.s2 * v.s3,
+		a.s22,
+		a.s23,
 
-		v.s3 * v.s3
+		a.s33
 	);
 }
 
@@ -350,7 +356,7 @@ real4s4 gLL_from_gPrims_at(
 //works
 //return real4s4(1,2,3,4,5,6,7,8,9,10);
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= (int)env->size.x || (int)i.y >= env->size.y || (int)i.z >= env->size.z
+		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
 		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
 		real4s4 const gLL = calc_gLL_from_gPrim(gPrim);
@@ -423,7 +429,7 @@ real4s4 gUU_from_gPrims_at(
 	int4 const i
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
+		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
 		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
 		return calc_gUU_from_gPrim(gPrim);
@@ -1048,7 +1054,7 @@ real4s4 EFE_LL_minus_half_trace_at(
 	int4 const i
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
+		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
 		return real4s4();	//TODO ... consider boundary conditions
 	}
@@ -1074,7 +1080,7 @@ real4x4s4 GammaULL_at(
 	global real4x4s4 const * const GammaULLs
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
+		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
 		return real4x4s4();
 	}
@@ -1091,7 +1097,7 @@ real4x4x4 GammaUUL_at(
 	global real4x4s4 const * const GammaULLs
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
-		i.x >= env->size.x || i.y >= env->size.y || i.z >= env->size.z
+		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
 		return real4x4x4();
 	}

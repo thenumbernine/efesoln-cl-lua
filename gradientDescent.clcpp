@@ -4,6 +4,12 @@
 #include "math.hpp"
 #include "efe.h"
 
+#ifdef CLCPU_ENABLED
+#define constant
+#define global
+#define local
+#endif
+
 kernel void calc_partial_gPrim_of_Phis_kernel(
 	constant env_t const * const env,
 	global gPrim_t * const partial_gPrim_of_Phis,

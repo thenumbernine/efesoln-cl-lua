@@ -361,7 +361,7 @@ for i=0,sDim-1 do
 			if bc == val then
 ?>				(<?=val?>)
 <?			else
-?>				((i.s<?=i?> + <?=offset_i?> >= env->size.s<?=i?>) ? <?=bc?> : <?=val?>)
+?>				((i.s<?=i?> + <?=offset_i?> >= (int)env->size.s<?=i?>) ? <?=bc?> : <?=val?>)
 <?			end
 ?>				* (<?=coeff?> * env->invdx.s<?=i?>)
 			)
@@ -434,7 +434,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					..range(0,3):mapi(function(ii) return ii==i and k or 0 end):concat', '
 					..")"
 				args.index = "index + env->stepsize.s"..i.." * "..k
-?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+?>				real<?=srcType?> const yR = (i.s<?=i?> + <?=k?> >= (int)env->size.s<?=i?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 				<?=resultName?>.s<?=i+1?><?=j+1?> += (yR + yL) * (<?=coeff?> * env->invdx.s<?=i?> * env->invdx.s<?=j?>);
 			}<? end ?>
 
@@ -460,7 +460,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 						..range(0,3):mapi(function(ii) return ii==i and -k or (ii==j and l or 0) end):concat', '
 						..")"
 					args.index = "index - env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+?>					real<?=srcType?> const yLR = (i.s<?=i?> - <?=k?> < 0 || i.s<?=j?> + <?=l?> >= (int)env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?
 					args.is = table{"i.x", "i.y", "i.z"}
 					args.is[i+1] = args.is[i+1].." + "..k
@@ -469,7 +469,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 						..range(0,3):mapi(function(ii) return ii==i and k or (ii==j and -l or 0) end):concat', '
 						..")"
 					args.index = "index + env->stepsize.s"..i.." * "..k.." - env->stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?> || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+?>					real<?=srcType?> const yRL = (i.s<?=i?> + <?=k?> >= (int)env->size.s<?=i?> || i.s<?=j?> - <?=l?> < 0) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 <?
 					args.is = table{"i.x", "i.y", "i.z"}
 					args.is[i+1] = args.is[i+1].." + "..k
@@ -478,7 +478,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 						..range(0,3):mapi(function(ii) return ii==i and k or (ii==j and l or 0) end):concat', '
 						..")"
 					args.index = "index + env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
-?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= env->size.s<?=i?> || i.s<?=j?> + <?=l?> >= env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
+?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= (int)env->size.s<?=i?> || i.s<?=j?> + <?=l?> >= (int)env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 
 					<?=resultName?>.s<?=i+1?><?=j+1?> += 
 						(yRR + yLL - yLR - yRL)

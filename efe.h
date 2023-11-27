@@ -3,6 +3,11 @@
 #include "autogen.h"	//vec3sz_t
 #include "math.hpp"	//real3
 
+#ifdef CLCPU_ENABLED
+#define constant
+#define global
+#define local
+#endif
 
 //NOTICE this has to match in luajit
 // maybe I should autogen it?
@@ -18,25 +23,31 @@ struct env_t {
 };
 
 struct gPrim_t {
-	union {
-		real s[10];
-		struct {
-			real __attribute__((packed)) alpha = 1;
-			real3 __attribute__((packed)) betaU = real3(0,0,0);
-			real3s3 __attribute__((packed)) gammaLL = real3s3(1,0,0,1,0,1);
-		};
-	};
+// this works in Tensor/Vector.h, but why not here?
+//	union {
+//		struct {
+			real alpha;
+			real3 betaU;
+			real3s3 gammaLL;
+//		};
+//		std::array<real, 10> s = {};
+//	};
 
-	gPrim_t() {}
+	gPrim_t() {
+		alpha = 1;
+		betaU = real3(0,0,0);
+		gammaLL = real3s3(1,0,0,1,0,1);
+	}
 
 	gPrim_t(
 		real const alpha_,
 		real3 const & betaU_,
 		real3s3 const & gammaLL_
-	) : alpha(alpha_),
-		betaU(betaU_),
-		gammaLL(gammaLL_)
-	{}
+	) {
+		alpha = alpha_;
+		betaU = betaU_;
+		gammaLL = gammaLL_;
+	}
 };
 
 static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
@@ -307,3 +318,9 @@ gPrim_t calc_partial_gPrim_of_Phi(
 	global real4s4 const * const EFEs,
 	int4 const i
 );
+
+#ifdef CLCPU_ENABLED
+#undef constant
+#undef global
+#undef local
+#endif

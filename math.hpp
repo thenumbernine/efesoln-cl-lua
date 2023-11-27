@@ -8,9 +8,20 @@
 // ../../cpp/Common/include/Common/Variadic.h:6:10: fatal error: 'cstddef' file not found
 // how to get cstddef into clcpp ...
 #if 1
+
 #include "Tensor/Vector.h"
+
 using real3 = Tensor::vec<real, 3>;
 using real4 = Tensor::vec<real, 4>;
+using real3s3 = Tensor::sym<real, 3>;
+using real4s4 = Tensor::sym<real, 4>;
+using real4x4 = Tensor::mat<real, 4, 4>;
+using real4x4s4 = Tensor::tensorx<real, 4, -'s', 4>;
+using real4x4x4 = Tensor::tensorr<real, 4, 3>;
+using real4x4x4s4 = Tensor::tensorx<real, 4, 4, -'s', 4>;
+using real4s4x4s4 = Tensor::tensorx<real, -'s', 4, -'s', 4>;
+using real4x4x4x4 = Tensor::tensorr<real, 4, 4>;
+
 #endif
 
 #if 0
