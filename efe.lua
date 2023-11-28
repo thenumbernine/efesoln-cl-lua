@@ -21,7 +21,7 @@ local writeChanged = require 'make.writechanged'
 -- however, both intel opencl and clang spirv seem to be unusably buggy when dealing with large structures
 -- I worked around this in my hydro-cl project by writing my own cl-cpu wrapper (since all the "official" cpu-backends are also too buggy to use)
 -- however at the moment my cl-cpu only works with compile-by-source (which it then forwards on to gcc/clang/wherever)
--- ... which is basically the same process as useSpirvToolchain==true 
+-- ... which is basically the same process as useSpirvToolchain==true
 --local useSpirvToolchain = true
 local useSpirvToolchain = false
 
@@ -344,7 +344,7 @@ local d1coeffs = assert(derivCoeffs[1][order])
 	<?=resultName?>(0) = real<?=srcType?>();
 <?
 for i=0,sDim-1 do
-?>	<?=resultName?>(<?=i+1?>) = 
+?>	<?=resultName?>(<?=i+1?>) =
 <?
 	for offset_i,coeff in ipairs(d1coeffs) do
 ?>			<?=offset_i==1 and "" or "+"?> (
@@ -480,7 +480,7 @@ local d2coeffs = assert(derivCoeffs[2][order], "couldn't find d2 coeffs for orde
 					args.index = "index + env->stepsize.s"..i.." * "..k.." + env->stepsize.s"..j.." * "..l
 ?>					real<?=srcType?> const yRR = (i.s<?=i?> + <?=k?> >= (int)env->size.s<?=i?> || i.s<?=j?> + <?=l?> >= (int)env->size.s<?=j?>) ? <?=getBoundary(args)?> : <?=getValue(args)?>;
 
-					<?=resultName?>.s<?=i+1?><?=j+1?> += 
+					<?=resultName?>.s<?=i+1?><?=j+1?> +=
 						(yRR + yLL - yLR - yRL)
 						* (<?=coeff_k * coeff_l?> * env->invdx.s<?=i?> * env->invdx.s<?=j?>);
 				}<? end ?>
@@ -568,7 +568,7 @@ end
 		typenames = typenames,
 	})
 --print(code)
-	
+
 	local program = self:program{
 		spirvToolchainFile = 'cache/checkStructSizes',
 		spirvToolchainFileCL = 'cache/checkStructSizes.clcpp',
@@ -899,15 +899,15 @@ local oldHeader = autogenCode
 	:append{
 		{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
 		{['|beta|'] = 'texCLBuf[index] = gPrims[index].betaU.length();'},
-		{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
-		{['norm|EFE_ab|'] = 'texCLBuf[index] = real4s4_norm(EFEs[index]);'},
+		{['det|gamma|-1'] = 'texCLBuf[index] = gPrims[index].gammaLL.determinant() - 1.;'},
+		{['norm|EFE_ab|'] = 'texCLBuf[index] = EFEs[index].norm();'},
 		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
 		{['|EFE_ti|*c'] = [[texCLBuf[index] = real4s4_i0(EFEs[index]).length() * c;]]},
-		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
-		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
+		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real4s4_ij(EFEs[index]).determinant() / (8. * M_PI) * c * c * c * c / G;]]},
+		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real4s4_ij(EFEs[index]).norm() / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
-texCLBuf[index] = real4s4_norm(EinsteinLL);
+texCLBuf[index] = EinsteinLL.norm();
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
@@ -919,16 +919,16 @@ texCLBuf[index] = real4s4_i0(EinsteinLL).length() * c;
 ]]},
 		{['det|Einstein_ij| (kg/(m s^2))'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
-texCLBuf[index] = real3s3_det(real4s4_ij(EinsteinLL)) / (8. * M_PI) * c * c * c * c / G;
+texCLBuf[index] = real4s4_ij(EinsteinLL).determinant() / (8. * M_PI) * c * c * c * c / G;
 ]]},
 		{['Gaussian'] = [[
 real4s4 const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
 real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
-texCLBuf[index] = real4s4_dot(RicciLL, gUU);
+texCLBuf[index] = RicciLL.dot(gUU);
 ]]},
 		{['partial_gLL_of_Phi'] = [[
 real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
-texCLBuf[index] = real4s4_normSq(partial_gLL_of_Phi);
+texCLBuf[index] = partial_gLL_of_Phi.normSq();
 ]]},
 		{['partial_gPrim_of_Phi.alpha'] = [[
 gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
@@ -936,11 +936,11 @@ texCLBuf[index] = partial_gPrim_of_Phi.alpha;
 ]]},
 		{['norm|partial_gPrim_of_Phi.beta|'] = [[
 gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
-texCLBuf[index] = real3_norm(partial_gPrim_of_Phi.betaU);
+texCLBuf[index] = partial_gPrim_of_Phi.betaU.norm();
 ]]},
 		{['norm|partial_gPrim_of_Phi.gamma|'] = [[
 gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
-texCLBuf[index] = real3s3_norm(partial_gPrim_of_Phi.gammaLL);
+texCLBuf[index] = partial_gPrim_of_Phi.gammaLL.norm();
 ]]},
 --[=[
 --[[
@@ -1373,17 +1373,17 @@ function EFESolver:refreshKernels()
 			-- compile using clang & llvm-spirv ...
 			self.efeObjProgram = self:program{
 				spirvToolchainFile = 'cache/efe',	-- produces cache/efe.bc and cache/efe.spv
-				spirvToolchainFileCL = 'cache/efe.clcpp',	-- use .clcpp with clang for c++ file 
+				spirvToolchainFileCL = 'cache/efe.clcpp',	-- use .clcpp with clang for c++ file
 				code = efeCode,
 			}
 			calcVarsProgram = self:program{
 				spirvToolchainFile = 'cache/calcVars',	-- produces cache/efe.bc and cache/efe.spv
-				spirvToolchainFileCL = 'cache/calcVars.clcpp',	-- use .clcpp with clang for c++ file 
+				spirvToolchainFileCL = 'cache/calcVars.clcpp',	-- use .clcpp with clang for c++ file
 				code = calcVarsCode,
 			}
 			gradientDescentProgram = self:program{
 				spirvToolchainFile = 'cache/gradientDescent',	-- produces cache/efe.bc and cache/efe.spv
-				spirvToolchainFileCL = 'cache/gradientDescent.clcpp',	-- use .clcpp with clang for c++ file 
+				spirvToolchainFileCL = 'cache/gradientDescent.clcpp',	-- use .clcpp with clang for c++ file
 				code = gradientDescentCode,
 			}
 			self.efeObjProgram:compile{dontLink=true}
@@ -1409,11 +1409,11 @@ function EFESolver:refreshKernels()
 			calcVarsProgram = self:program{
 				cacheFile = 'cache/efe',
 				code = calcVarsCode,
-			}		
+			}
 			gradientDescentProgram = self:program{
 				cacheFile = 'cache/efe',
 				code = gradientDescentCode,
-			}		
+			}
 			-- hmm cl api, clCreateProgramWithSource doesn't provide for build options, i.e. no -I flags ...
 			-- even when I do use separate build/link so I can pass build flags, -I doesn't have precedence over cwd,
 			-- so ...
@@ -1430,7 +1430,7 @@ function EFESolver:refreshKernels()
 					calcVarsProgram,
 					gradientDescentProgram,
 				},
-			}		
+			}
 			path'..':cd()
 			--]]
 		end)
@@ -1552,6 +1552,12 @@ function EFESolver:refreshDisplayKernel()
 			local displayCode = self:template[[
 #include "efe.h"
 
+#if defined(CLCPU_ENABLED)
+#define constant
+#define global
+#define local
+#endif
+
 kernel void display(
 	constant env_t const * const env,
 	global float * const texCLBuf,
@@ -1626,6 +1632,10 @@ print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 					assert(self.EFEs),
 				},
 			}
+
+			local int = ffi.new('int[1]')
+			int[0] = self.displayVarIndex
+			self.displayKernel.obj:setArg(2, int)
 
 			self:updateTex()
 		end, function(err)
