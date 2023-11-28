@@ -78,17 +78,17 @@ function SphericalBody:init(args)
 
 	self.init = template([[
 	real3 const x = getX(env, i);						//[m]
-	real const r = real3_len(x);					//[m]
+	real const r = x.length();					//[m]
 
 	real const rho0 = <?=self.density?>;			//[1/m^2]
 	real const radius = <?=self.radius?>;			//[m]
 	real const radius3 = radius * radius * radius;	//[m^3]
 	real const mass = <?=self.mass?>;				//[m]
 	real const r2 = r * r;							//[m^2]
-	TPrim->rho = r < radius ? rho0 : 0;				//[1/m^2]
+	TPrim.rho = r < radius ? rho0 : 0;				//[1/m^2]
 
 	// equation of structure from 1973 MTW Gravitation, box 23.2 eqn 5...
-	TPrim->P = r < radius ? (rho0 * (
+	TPrim.P = r < radius ? (rho0 * (
 		(sqrt(1. - 2. * mass * r2 / radius3) - sqrt(1. - 2. * mass / radius))
 		/ (3. * sqrt(1. - 2. * mass / radius) - sqrt(1. - 2. * mass * r2 / radius3))
 	)) : 0;											//[1/m^2]
@@ -135,13 +135,13 @@ function EMRing:init(args)
 		r * sin(theta)
 	*/
 
-	TPrim->E.x = -x.y / polar_rSq;
-	TPrim->E.y = x.x / polar_rSq;
-	TPrim->E.z = 0;
+	TPrim.E.x = -x.y / polar_rSq;
+	TPrim.E.y = x.x / polar_rSq;
+	TPrim.E.z = 0;
 
-	TPrim->B.x = cos(theta) / r * cos(phi);
-	TPrim->B.y = cos(theta) / r * sin(phi);
-	TPrim->B.z = -sin(theta) / r;
+	TPrim.B.x = cos(theta) / r * cos(phi);
+	TPrim.B.y = cos(theta) / r * sin(phi);
+	TPrim.B.z = -sin(theta) / r;
 
 ]], {self=self})
 end
@@ -214,16 +214,16 @@ function EMLine:init(args)
 	real const Er = <?=clnumber(rEr)?> / r2;
 	real const Ez = <?=clnumber(Ez)?>;
 
-	TPrim->E.x = x.x/r2 * Er;
-	TPrim->E.y = x.y/r2 * Er;
-	TPrim->E.z = Ez;
+	TPrim.E.x = x.x/r2 * Er;
+	TPrim.E.y = x.y/r2 * Er;
+	TPrim.E.z = Ez;
 
 	real const Bt = <?=clnumber(rBt)?> / r2;
 	real const Bz = <?=clnumber(Bz)?>;
 
-	TPrim->B.x = -x.y/r2 * Bt;
-	TPrim->B.y = x.x/r2 * Bt;
-	TPrim->B.z = Bz;
+	TPrim.B.x = -x.y/r2 * Bt;
+	TPrim.B.y = x.x/r2 * Bt;
+	TPrim.B.z = Bz;
 
 ]], {
 		self = self,
@@ -264,8 +264,8 @@ local bodies = {
 		useEM = true,
 		radius = 2,
 		init = [[
-	TPrim->E = real3(1,0,0);
-	TPrim->B = real3(0,1,0);
+	TPrim.E = real3(1,0,0);
+	TPrim.B = real3(0,1,0);
 ]],
 	},
 }
@@ -341,10 +341,10 @@ end
 -- derivCoeffs[1] have [0]=0, so they start at 1, and have implied antisymmetry (for d[-i], use -d[i])
 local d1coeffs = assert(derivCoeffs[1][order])
 ?>	<?=dstType?> <?=resultName?>;
-	<?=resultName?>.s0 = real<?=srcType?>();
+	<?=resultName?>(0) = real<?=srcType?>();
 <?
 for i=0,sDim-1 do
-?>	<?=resultName?> = 
+?>	<?=resultName?>(<?=i+1?>) = 
 <?
 	for offset_i,coeff in ipairs(d1coeffs) do
 ?>			<?=offset_i==1 and "" or "+"?> (
@@ -657,7 +657,12 @@ function EFESolver:init(args)
 		self:getTypeCode(),
 		[[
 //macro for the index
-#define globalInt4()	(int4)((int)get_global_id(0), (int)get_global_id(1), (int)get_global_id(2), 0)
+// this doesn't get grep'd by clcpu because it's in a .h, separate of the code passed into clcpu
+#if defined(CLCPU_ENABLED)
+#define globalInt4()	(int4((int)get_global_id(0), (int)get_global_id(1), (int)get_global_id(2), 0))
+#else
+#define globalInt4()	((int4)((int)get_global_id(0), (int)get_global_id(1), (int)get_global_id(2), 0))
+#endif
 
 //macros for arbitrary sizes
 #define indexForInt4ForSize(i, sx, sy, sz) ((i).x + (sx) * ((i).y + (sy) * (i).z))
@@ -691,6 +696,8 @@ function EFESolver:init(args)
 		}
 		--]]
 
+		-- don't add env_t and gPrim_t to the opencl header
+		-- instead use this for luajit ffi access, and just assert its size and fields all match
 		local env_mt, env_code = struct{
 			name = 'env_t',
 			fields = {
@@ -705,8 +712,6 @@ function EFESolver:init(args)
 			-- TODO packed=false
 			dontMakeExtraUnion = true,	-- TODO make this default behavior
 		}
-		-- this is luajit-only
-		--autogenCode = autogenCode..'\n'..env_code
 
 		local gPrim_mt, gPrim_code = struct{
 			name = 'gPrim_t',
@@ -719,9 +724,6 @@ function EFESolver:init(args)
 			unionType = 'real',
 			unionField = 's',
 		}
-		-- don't add gPrim_t 
-		-- instead use this for luajit ffi access, and just assert its size and fields all match
-		-- autogenCode = autogenCode..'\n'..gPrim_code
 
 		local TPrim_fields = table()
 		--source terms:
@@ -755,6 +757,7 @@ function EFESolver:init(args)
 			end
 		end
 
+		-- same, for now this is separately in efe.h
 		self.TPrim_t = 'TPrim_'..tostring(self.body.useMatter)
 			..'_'..tostring(self.body.useVel)
 			..'_'..tostring(self.body.useEM)
@@ -768,8 +771,6 @@ function EFESolver:init(args)
 			unionType = 'real',
 			unionField = 's',
 		}
---print(self.TPrim_code)
-		autogenCode = autogenCode..'\n'..self.TPrim_code
 	end
 	--]]
 
@@ -897,11 +898,11 @@ local oldHeader = autogenCode
 	self.displayVars = table()
 	:append{
 		{['alpha-1'] = 'texCLBuf[index] = gPrims[index].alpha - 1.;'},
-		{['|beta|'] = 'texCLBuf[index] = real3_len(gPrims[index].betaU);'},
+		{['|beta|'] = 'texCLBuf[index] = gPrims[index].betaU.length();'},
 		{['det|gamma|-1'] = 'texCLBuf[index] = real3s3_det(gPrims[index].gammaLL) - 1.;'},
 		{['norm|EFE_ab|'] = 'texCLBuf[index] = real4s4_norm(EFEs[index]);'},
 		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
-		{['|EFE_ti|*c'] = [[texCLBuf[index] = real3_len(real4s4_i0(EFEs[index])) * c;]]},
+		{['|EFE_ti|*c'] = [[texCLBuf[index] = real4s4_i0(EFEs[index]).length() * c;]]},
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_det(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real3s3_norm(real4s4_ij(EFEs[index])) / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
@@ -914,7 +915,7 @@ texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
-texCLBuf[index] = real3_len(real4s4_i0(EinsteinLL)) * c;
+texCLBuf[index] = real4s4_i0(EinsteinLL).length() * c;
 ]]},
 		{['det|Einstein_ij| (kg/(m s^2))'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
@@ -949,31 +950,31 @@ dPhi(x)/dx^i = x^i
 --]]
 		{['test f(x)'] = [[
 real3 const x = getX(env, i);
-texCLBuf[index] = .5 * real3_lenSq(x);
+texCLBuf[index] = .5 * x.lenSq();
 ]]},
 		{['test |∇f(x)|'] = [[
 real3 const x = getX(env, i);
-texCLBuf[index] = real3_len(x);
+texCLBuf[index] = x.length();
 ]]},
 		{['test |D[f(x)]|'] = [[
 real3 const x = getX(env, i);
 <?=solver:finiteDifference{
-	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
-	getBoundary = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
+	getValue = function(args) return ".5 * getX("..args.i..").lenSq()" end,
+	getBoundary = function(args) return ".5 * getX("..args.i..").lenSq()" end,
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
-texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx));
+texCLBuf[index] = real4_to_real3(dPhi_dx).length();
 ]]},
 		{['test |D[f(x)] - ∇f(x)|'] = [[
 real3 const x = getX(env, i);
 <?=solver:finiteDifference{
-	getValue = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
-	getBoundary = function(args) return ".5 * real3_lenSq(getX("..args.i.."))" end,
+	getValue = function(args) return ".5 * getX("..args.i..").lenSq()" end,
+	getBoundary = function(args) return ".5 * getX("..args.i..").lenSq()" end,
 	srcType = "",
 	resultName = "dPhi_dx",
 }?>
-texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx) - getX(env, i)));
+texCLBuf[index] = (real4_to_real3(dPhi_dx) - getX(env, i)).length();
 ]]},
 --]=]
 	-- u'^i = -Γ^i_ab u^a u^b
@@ -982,18 +983,18 @@ texCLBuf[index] = real3_len(real4_to_real3(dPhi_dx) - getX(env, i)));
 	-- a^i = c^2 u'^i = -c^2 Γ^i_tt
 	-- |a^i| = c^2 |Γ^i_tt|
 		{['|Gamma^i_tt|'] = [[
-texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index]));
+texCLBuf[index] = real4x4s4_i00(GammaULLs[index]).length();
 ]]},
 		{['numerical gravity'] = [[
 // TODO dot it with the radial vector? ... like it was before?
-texCLBuf[index] = real3_len(real4x4s4_i00(GammaULLs[index])) * c * c;
+texCLBuf[index] = real4x4s4_i00(GammaULLs[index]).length() * c * c;
 ]]},
 	}
 	-- body-specific:
 	:append(self.body.density and {
 		{['analytical gravity'] = [[
 real3 const x = getX(env, i);
-real const r = real3_len(x);
+real const r = x.length();
 real const matterRadius = min(r, real(<?=solver.body.radius?>));
 real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
 real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
@@ -1003,7 +1004,7 @@ texCLBuf[index] = (2*m * (r - 2*m) + 2 * dm_dr * r * (2*m - r)) / (2 * r * r * r
 		-- TODO FIXME
 		{['num vs ana rel err'] = [[
 real3 const x = getX(env, i);
-real const r = real3_len(x);
+real const r = x.length();
 real const matterRadius = min(r, real(<?=solver.body.radius?>));
 real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
 real const m = <?=solver.body.density?> * volumeOfMatterRadius;	// m^3
@@ -1015,7 +1016,7 @@ real3 const analytical = real3(
 	analyticalMagn * x.z / r
 );
 real3 const numerical = real4x4s4_i00(GammaULLs[index]) * (c * c);
-texCLBuf[index] = real3_len(numerical - analytical) / analyticalMagn - 1.;
+texCLBuf[index] = (numerical - analytical).length() / analyticalMagn - 1.;
 ]]},
 	} or nil)
 	:append(self.body.useMatter and {
@@ -1030,9 +1031,9 @@ texCLBuf[index] = real3_len(numerical - analytical) / analyticalMagn - 1.;
 		{['v (m/s)'] = 'texCLBuf[index] = TPrims[index].v * c;'},
 	} or nil)
 	:append(self.body.useEM and {
-		{['|E|'] = 'texCLBuf[index] = real3_len(TPrims[index].E);'},
+		{['|E|'] = 'texCLBuf[index] = TPrims[index].E.length();'},
 		{['div E'] = makeDiv'E'},
-		{['|B|'] = 'texCLBuf[index] = real3_len(TPrims[index].B);'},
+		{['|B|'] = 'texCLBuf[index] = TPrims[index].B.length();'},
 		{['div B'] = makeDiv'B'},
 	} or nil)
 	:mapi(function(kv)

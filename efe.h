@@ -3,7 +3,7 @@
 #include "autogen.h"	//vec3sz_t
 #include "math.hpp"	//real3
 
-#ifdef CLCPU_ENABLED
+#if defined(CLCPU_ENABLED)
 #define constant
 #define global
 #define local
@@ -50,6 +50,27 @@ struct gPrim_t {
 	}
 };
 
+//TODO I could give struct-lua an option for generating cpp classes instead of C typedef structs ...
+struct <?=TPrim_t?> {
+<?	if solver.body.useMatter then ?>
+	real rho;
+	real P;
+	real eInt;
+<?		if solver.body.useVel then ?>
+<?		end ?>
+	real3 v;
+<?	end ?>
+<?	if solver.body.useEM then ?>
+<?		if self.useFourPotential then ?>
+	real4 JL;
+	real4 AL;
+<?		else ?>
+	real3 E;
+	real3 B;
+<?		end ?>
+<?	end ?>
+};
+
 static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
 static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
 
@@ -58,8 +79,6 @@ static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
 
 extern constant real const c;
 extern constant real const G;
-extern constant int const sym3[3][3];
-extern constant int const sym4[4][4];
 
 <?
 local d1coeffs = derivCoeffs[1][solver.diffOrder]
@@ -72,136 +91,10 @@ local d2coeffs = derivCoeffs[2][solver.diffOrder]
 ?>
 extern constant real const d2coeffs[<?=#d2coeffs+1?>];
 
-#define real_dot(a, b) ((a) * (b))
-
-<?
-local function makeOpsHeader(ctype, fieldtype, fields)
-	for _,op in ipairs{"+", "-"} do
-?>
-inline <?=ctype?> operator<?=op?>(<?=ctype?> const & a, <?=ctype?> const & b) {
-	return <?=ctype?>(
-<?		for i,field in ipairs(fields) do
-?>		a.<?=field?> <?=op?> b.<?=field?><?=i < #fields and "," or ""?>
-<?		end
-?>	);
-}
-inline <?=ctype?> & operator<?=op?>=(<?=ctype?> & a, <?=ctype?> const & b) {
-	return a = a <?=op?> b;
-}
-<?
-	end
-	for _,op in ipairs{"*", "/"} do
-?>
-inline <?=ctype?> operator<?=op?>(<?=ctype?> const & a, real const b) {
-	return <?=ctype?>(
-<?		for i,field in ipairs(fields) do
-?>		a.<?=field?> <?=op?> b<?=i < #fields and "," or ""?>
-<?		end
-?>	);
-}
-inline <?=ctype?> & operator<?=op?>=(<?=ctype?> & a, real const b) {
-	return a = a <?=op?> b;
-}
-<?
-	end
-?>
-
-inline <?=ctype?> operator*(real const a, <?=ctype?> const & b) {
-	return <?=ctype?>(
-<?		for i,field in ipairs(fields) do
-?>		a * b.<?=field?><?=i < #fields and "," or ""?>
-<?		end
-?>	);
-}
-
-<?
-local table = require "ext.table"
-?>
-inline real <?=ctype?>_dot(<?=ctype?> const & a, <?=ctype?> const & b) {
-	return <?=table(fields):mapi(function(field)
-	return fieldtype.."_dot(a."..field..", b."..field..")"
-end):concat" + "?>;
-}
-
-inline real <?=ctype?>_lenSq(<?=ctype?> const & a) {
-	return <?=ctype?>_dot(a, a);
-}
-
-inline real <?=ctype?>_len(<?=ctype?> const & a) {
-	return sqrt(<?=ctype?>_lenSq(a));
-}
-
-// "norm" name for vectors and tensors
-#define <?=ctype?>_normSq <?=ctype?>_lenSq
-#define <?=ctype?>_norm <?=ctype?>_len
-
-<?
-end
-?>
-
-<?makeOpsHeader("real3", "real", {"s0", "s1", "s2"})?>
-real3 real3_cross(real3 const & a, real3 const & b);
-
 real3 real4_to_real3(real4 const & a);
 real4 real3_to_real4(real3 const & a);
-<?makeOpsHeader("real4", "real", {"s0", "s1", "s2", "s3"})?>
 
 #define real3s3_ident (real3s3(1,0,0,1,0,1))
-
-real real3s3_det(real3s3 const & m);
-<?makeOpsHeader("real3s3", "real", {"s00", "s01", "s02", "s11", "s12", "s22"})?>
-real3s3 real3s3_inv(real3s3 const & m, real const det);
-
-inline real3 operator*(
-	real3s3 const & m,
-	real3 const & v
-) {
-	return real3(
-		m.s00 * v.s0 + m.s01 * v.s1 + m.s02 * v.s2,
-		m.s01 * v.s1 + m.s11 * v.s1 + m.s12 * v.s2,
-		m.s02 * v.s2 + m.s12 * v.s1 + m.s22 * v.s2
-	);
-}
-
-
-
-<?makeOpsHeader("real4x4", "real4", {"s0", "s1", "s2", "s3"})?>
-<?makeOpsHeader("real4s4", "real", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
-real4s4 real4s4_outer(real4 const & v);
-
-//a_i = b_ij c_j
-inline real4 operator*(
-	real4s4 const & m,
-	real4 const & v
-) {
-	real4 result = {};
-	for (int i = 0; i < 4; ++i) {
-		real sum = {};
-		for (int j = 0; j < 4; ++j) {
-			sum += m.s[sym4[i][j]] * v.s[j];
-		}
-		result.s[i] = sum;
-	}
-	return result;
-}
-
-//a_ij = b_ik c_kj
-inline real4x4 operator*(
-	real4s4 const & a,
-	real4s4 const & b
-) {
-	real4x4 result = {};
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			real sum = {};
-			for (int k = 0; k < 4; ++k) {
-				sum += a.s[sym4[i][k]] * b.s[sym4[k][j]];
-			}
-			result.s[i].s[j] = sum;
-		}
-	}
-	return result;
-}
 
 real3 real4s4_i0(real4s4 const & a);
 real3s3 real4s4_ij(real4s4 const & a);
@@ -219,20 +112,14 @@ inline real4s4 real4x4_real4s4_to_real4s4_mul(
 		for (int j = i; j < 4; ++j) {
 			real sum = {};
 			for (int k = 0; k < 4; ++k) {
-				sum += a.s[i].s[k] * b.s[sym4[k][j]];
+				sum += a(i, k) * b(k, j);
 			}
-			result.s[sym4[i][j]] = sum;
+			result(i, j) = sum;
 		}
 	}
 	return result;
 }
 
-
-real real4x4_tr(real4x4 const & a);
-
-<?makeOpsHeader("real4x4x4", "real4x4", {"s0", "s1", "s2", "s3"})?>
-
-<?makeOpsHeader("real4x4s4", "real4s4", {"s0", "s1", "s2", "s3"})?>
 
 real3 real4x4s4_i00(real4x4s4 const & a);
 real4 real4x4s4_tr12(real4x4s4 const & a);
@@ -240,15 +127,9 @@ real4 real4x4x4_tr23(real4x4x4 const & a);
 real4x4s4 real4s4_real4x4s4_mul(real4s4 const & a, real4x4s4 const & b);
 real4x4x4 real4x4s4_real4s4_mul21(real4x4s4 const & a, real4s4 const & b);
 
-<?makeOpsHeader("real4s4x4s4", "real4s4", {"s00", "s01", "s02", "s03", "s11", "s12", "s13", "s22", "s23", "s33"})?>
-
-<?makeOpsHeader("real4x4x4x4", "real4x4x4", {"s0", "s1", "s2", "s3"})?>
-
 real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(real4x4x4x4 const & a, real4s4 const & b);
 real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(real4x4x4x4 const & a, real4s4 const & b);
 real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a);
-
-<?makeOpsHeader("real4x4x4s4", "real4x4s4", {"s0", "s1", "s2", "s3"})?>
 
 //I don't trust constant int const ...
 #define stDim		<?=stDim?>
@@ -319,7 +200,7 @@ gPrim_t calc_partial_gPrim_of_Phi(
 	int4 const i
 );
 
-#ifdef CLCPU_ENABLED
+#if defined(CLCPU_ENABLED)
 #undef constant
 #undef global
 #undef local

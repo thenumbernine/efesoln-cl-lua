@@ -2,7 +2,7 @@
 #include "math.hpp"
 #include "efe.h"
 
-#ifdef CLCPU_ENABLED
+#if defined(CLCPU_ENABLED)
 #define constant
 #define global
 #define local
@@ -10,20 +10,6 @@
 
 constant real const c = 299792458;			// m/s
 constant real const G = 6.67384e-11;		// m^3 / (kg s^2)
-
-constant int const sym3[3][3] = {
-	{0, 1, 2},
-	{1, 3, 4},
-	{2, 4, 5},
-};
-
-
-constant int const sym4[4][4] = {
-	{0, 1, 2, 3},
-	{1, 4, 5, 6},
-	{2, 5, 7, 8},
-	{3, 6, 8, 9},
-};
 
 constant real const d1coeffs[] = {
 	0,
@@ -170,9 +156,9 @@ real4 real4x4s4_tr12(real4x4s4 const & a) {
 	for (int i = 0; i < 4; ++i) {
 		real sum = real(0);
 		for (int j = 0; j < 4; ++j) {
-			sum += a.s[j].s[sym4[j][i]];
+			sum += a(j, j, i);
 		}
-		result.s[i] = sum;
+		result(i) = sum;
 	}
 	return result;
 }
@@ -192,17 +178,7 @@ real4x4s4 real4s4_real4x4s4_mul(
 	real4s4 const & a,
 	real4x4s4 const & b
 ) {
-	real4x4s4 result;
-	for (int i = 0; i < 4; ++i) {
-		for (int jk = 0; jk < 10; ++jk) {
-			real sum = {};
-			for (int l = 0; l < 4; ++l) {
-				sum += a.s[sym4[i][l]] * b.s[l].s[jk];
-			}
-			result.s[i].s[jk] = sum;
-		}
-	}
-	return result;
+	return a * b;
 }
 
 //c^ij_k = a^i_mk b^mj
@@ -211,10 +187,10 @@ real4x4x4 real4x4s4_real4s4_mul21(
 	real4s4 const & b
 ) {
 	return real4x4x4(
-		b * a.s0,
-		b * a.s1,
-		b * a.s2,
-		b * a.s3
+		b * a(0),
+		b * a(1),
+		b * a(2),
+		b * a(3)
 	);
 }
 
@@ -229,9 +205,9 @@ real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
 				for (int l = 0; l < 4; ++l) {
 					real sum = real(0);
 					for (int m = 0; m < 4; ++m) {
-						sum += a.s[m].s[j].s[k].s[l] * b.s[sym4[m][i]];
+						sum += a(m, j, k, l) * b(m, i);
 					}
-					result.s[i].s[j].s[k].s[l] = sum;
+					result(i, j, k, l) = sum;
 				}
 			}
 		}
@@ -250,9 +226,9 @@ real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(
 				for (int l = 0; l < 4; ++l) {
 					real sum = real(0);
 					for (int m = 0; m < 4; ++m) {
-						sum += a.s[i].s[j].s[m].s[l] * b.s[sym4[m][k]];
+						sum += a(i, j, m, l) * b(m, k);
 					}
-					result.s[i].s[j].s[k].s[l] = sum;
+					result(i, j, k, l) = sum;
 				}
 			}
 		}
@@ -266,12 +242,11 @@ real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a) {
 	real4s4 result;
 	for (int i = 0; i < 4; ++i) {
 		for (int j = i; j < 4; ++j) {
-			int const ij = sym4[i][j];
 			real sum = real(0);
 			for (int k = 0; k < 4; ++k) {
-				sum += a.s[k].s[i].s[k].s[j];
+				sum += a(k, i, k, j);
 			}
-			result.s[ij] = sum;
+			result(i, j) = sum;
 		}
 	}
 	return result;
@@ -319,107 +294,18 @@ gPrim_t calc_gPrim_boundary(
 #endif
 }
 
-/*
-use this for all finite-difference access
-TODO
-this is producing bad data
-is it a matter of argument order?
-YES SURE ENOUGH
-put the pointer 1st and int4 2nd and it works
-put the pointer 2nd and int4 1st and it fails
-wait,
-STILL THERE
-it did work when I made a *copy* and switched the arg order.
-but upon modifying the original, it still fails.
-ok next test of a working copy:
-expand the int arg ...
-STILL THERE
-honestly I copied this code identiclaly over to another function with only a dif name
-the other functin behaved correctly.
-this one failed.
-STILL THERE
-removed the prototype?
-STILL THERE
-moved the function in the code, next to the working copy?
-STILL THERE
-renamed
-STILL THERE
-*/
-//inlining the gLL_from_gPrims_at function made the error go away so ....
-//what about calling it is so bad ....
-// yup this works, whereas the other one fails
 real4s4 gLL_from_gPrims_at(
 	constant env_t const * const env,
 	global gPrim_t const * const gPrims,
 	int4 const i
 ) {
-//works
-//return real4s4(1,2,3,4,5,6,7,8,9,10);
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
-		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
-		real4s4 const gLL = calc_gLL_from_gPrim(gPrim);
-		return gLL;
+		return calc_gLL_from_gPrim(calc_gPrim_boundary(env, gPrims, i));
 	} else {
 		int const index = indexForInt4(i);
-		gPrim_t const & gPrim = gPrims[index];
-#if 1
-		real4s4 const gLL = calc_gLL_from_gPrim(gPrim);
-		return gLL;
-#endif
-		//inline
-#if 0 //nans
-		real const alphaSq = gPrim.alpha * gPrim.alpha;
-		real3 const betaL = gPrim.gammaLL * gPrim.betaU;
-		real const betaSq = real3_dot(betaL, gPrim.betaU);
-#endif
-#if 0	//nans ...
-		real const alphaSq = gPrim.alpha * gPrim.alpha;
-		real3 const betaL = gPrim.betaU;
-		real const betaSq =
-			  gPrim.betaU.s0 * gPrim.betaU.s0
-			+ gPrim.betaU.s1 * gPrim.betaU.s1
-			+ gPrim.betaU.s2 * gPrim.betaU.s2;
-#endif
-#if 0	//nans ...
-		real const alphaSq = gPrim.alpha * gPrim.alpha;
-		real3 const betaL = {};
-		real const betaSq = real3_dot(betaL, gPrim.betaU);
-#endif
-#if 0	//works
-		real const alphaSq = 1;
-		real3 const betaL = {};
-		real const betaSq = real3_dot(betaL, gPrim.betaU);
-#endif
-#if 0	//works
-		real const alphaSq = 1;
-		real3 const betaL = {};
-		real const betaSq = 0;
-#endif
-
-#if 0	//nans
-		return real4s4(
-			//g_00
-			-alphaSq + betaSq,
-			//g_0i
-			betaL.s0, betaL.s1, betaL.s2,
-			//g_ij
-			gPrim.gammaLL.s00, gPrim.gammaLL.s01, gPrim.gammaLL.s02,
-			gPrim.gammaLL.s11, gPrim.gammaLL.s12, gPrim.gammaLL.s22
-		);
-#endif
-#if 0 // constant values... works
-		return real4s4(
-			//g_00
-			-1,
-			//g_0i
-			0,0,0,
-			//g_ij
-			1,0,0,
-			1,0,1
-		);
-#endif
+		return calc_gLL_from_gPrim(gPrims[index]);
 	}
 }
 
@@ -486,11 +372,11 @@ real4s4 calc_RicciLL(
 		for (int b = 0; b < stDim; ++b) {
 			for (int c = 0; c < stDim; ++c) {
 				for (int d = 0; d < stDim; ++d) {
-					partial_xU2_of_gLL_asym.s[a].s[b].s[c].s[d] =
-						  partial_xU2_of_gLL.s[sym4[a][d]].s[sym4[b][c]]
-						+ partial_xU2_of_gLL.s[sym4[b][c]].s[sym4[a][d]]
-						- partial_xU2_of_gLL.s[sym4[b][d]].s[sym4[a][c]]
-						- partial_xU2_of_gLL.s[sym4[a][c]].s[sym4[b][d]];
+					partial_xU2_of_gLL_asym(a, b, c, d) =
+						  partial_xU2_of_gLL(a, d, b, c)
+						+ partial_xU2_of_gLL(b, c, a, d)
+						- partial_xU2_of_gLL(b, d, a, c)
+						- partial_xU2_of_gLL(a, c, b, d);
 				}
 			}
 		}
@@ -506,10 +392,10 @@ real4s4 calc_RicciLL(
 					real sum = 0;
 					for (int e = 0; e < stDim; ++e) {
 						sum +=
-							  GammaULL.s[e].s[sym4[a][d]] * GammaLLL.s[e].s[sym4[b][c]]
-							- GammaULL.s[e].s[sym4[a][c]] * GammaLLL.s[e].s[sym4[b][d]];
+							  GammaULL(e, a, d) * GammaLLL(e, b, c)
+							- GammaULL(e, a, c) * GammaLLL(e, b, d);
 					}
-					GammaSq_asym_LLLL.s[a].s[b].s[c].s[d] = sum;
+					GammaSq_asym_LLLL(a, b, c, d) = sum;
 				}
 			}
 		}
@@ -535,24 +421,20 @@ real4s4 calc_RicciLL(
 	real4s4 RicciLL;
 	for (int a = 0; a < stDim; ++a) {
 		for (int b = a; b < stDim; ++b) {
-			int const ab = sym4[a][b];
 			real sum = 0;
 			for (int u = 0; u < stDim; ++u) {
-				int const au = sym4[a][u];
 				for (int v = 0; v < stDim; ++v) {
-					int const uv = sym4[u][v];
-					int const bv = sym4[b][v];
-					sum += .5 * gUU.s[uv] * (
-							  partial_xU2_of_gLL.s[au].s[bv]
-							+ partial_xU2_of_gLL.s[bv].s[au]
-							- partial_xU2_of_gLL.s[ab].s[uv]
-							- partial_xU2_of_gLL.s[uv].s[ab]
+					sum += .5 * gUU(u, v) * (
+							  partial_xU2_of_gLL(a, u, b, v)
+							+ partial_xU2_of_gLL(b, v, a, u)
+							- partial_xU2_of_gLL(a, b, u, v)
+							- partial_xU2_of_gLL(u, v, a, b)
 						)
-						+ GammaUUL.s[u].s[v].s[a] * GammaLLL.s[u].s[bv];
+						+ GammaUUL(u, v, a) * GammaLLL(u, b, v);
 				}
-				sum -= Gamma23U.s[u] * GammaLLL.s[u].s[ab];
+				sum -= Gamma23U(u) * GammaLLL(u, a, b);
 			}
-			RicciLL.s[ab] = sum;
+			RicciLL(a, b) = sum;
 		}
 	}
 
@@ -580,7 +462,7 @@ real4s4 calc_EinsteinLL(
 	real4s4 const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
 
 	//Gaussian := R = R_ab g^ab
-	real const Gaussian = real4s4_dot(RicciLL, gUU);
+	real const Gaussian = RicciLL.dot(gUU);
 
 	//G_uv = R_uv - 1/2 g_uv R
 	return RicciLL - (.5 * Gaussian) * gLL;
@@ -604,11 +486,11 @@ if solver.body.useEM then
 
 	real4 const EU = real3_to_real4(TPrim.E);
 	real4 const EL = real4s4_real4_mul(gLL, EU);
-	real const ESq = real4_dot(EL, EU);
+	real const ESq = EL.dot(EU);
 
 	real4 const BU = real3_to_real4(TPrim.B);
 	real4 const BL = real4s4_real4_mul(gLL, BU);
-	real const BSq = real4_dot(BL, BU);
+	real const BSq = BL.dot(BU);
 
 	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
 	real3 const SL = real3_real_mul(
@@ -616,12 +498,12 @@ if solver.body.useEM then
 		sqrt_det_g
 	);
 
-	_8piTLL.s[sym4[0][0]] += ESq + BSq;
+	_8piTLL(0, 0) += ESq + BSq;
 	for (int i = 0; i < sDim; ++i) {
-		_8piTLL.s[sym4[0][i+1]] += -2. * SL.s[i];
+		_8piTLL(0, i+1) += -2. * SL(i);
 		for (int j = i; j < sDim; ++j) {
-			_8piTLL.s[sym4[i+1][j+1]] += gLL.s[sym4[i+1][j+1]] * (ESq + BSq)
-				- 2. * (EL.s[i+1] * EL.s[j+1] + BL.s[i+1] * BL.s[j+1]);
+			_8piTLL(i+1, j+1) += gLL(i+1, j+1) * (ESq + BSq)
+				- 2. * (EL(i+1) * EL(j+1) + BL(i+1) * BL(j+1));
 		}
 	}
 <?
@@ -632,7 +514,7 @@ if solver.body.useMatter then
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = real3_to_real4(TPrim.v);
 	real4 const vL = real4s4_real4_mul(gLL, vU);
-	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
+	real const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
 	real4 const uL = real4s4_real4_mul(gLL, uU);
@@ -672,7 +554,7 @@ gPrim_t calc_gPrim_flat(real3 const x) {
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
 	gPrim_t gPrim = calc_gPrim_flat(x);
 
-	real const r = real3_len(x);
+	real const r = x.length();
 	real const radius = <?=solver.body.radius?>;
 	real const mass = <?=solver.body.mass?>;
 	real const density = <?=solver.body.density?>;
@@ -698,9 +580,9 @@ gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
 		: (1.5 * sqrt(1 - 2*mass/radius) - .5 * sqrt(1 - 2*mass*r*r/(radius*radius*radius)));
 
 	for (int i = 0; i < sDim; ++i) {
-		gPrim.betaU.s[i] = 0;
+		gPrim.betaU(i) = 0;
 		for (int j = i; j < sDim; ++j) {
-			gPrim.gammaLL.s[sym3[i][j]] = (i == j ? 1. : 0.) + x.s[i]/r * x.s[j]/r * 2*m/(r - 2*m);
+			gPrim.gammaLL(i, j) = (i == j ? 1. : 0.) + x(i)/r * x(j)/r * 2*m/(r - 2*m);
 		}
 	}
 
@@ -804,7 +686,7 @@ gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
 
 	//real r is the solution of (x*x + y*y) / (r*r + a*a) + z*z / (r*r) = 1
 	// r^4 - (x^2 + y^2 + z^2 - a^2) r^2 - a^2 z^2 = 0
-	real const RSq_minus_aSq = real3_lenSq(x) - a*a;
+	real const RSq_minus_aSq = x.lenSq() - a*a;
 	//so we have two solutions ... which do we use?
 	//from gnuplot it looks like the two of these are the same ...
 	real const r = sqrt((RSq_minus_aSq + sqrt(RSq_minus_aSq * RSq_minus_aSq + 4.*a*a*x.z*x.z)) / 2.);	//use the positive root
@@ -813,7 +695,7 @@ gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
 	//well, if 'm' is the mass enclosed within the coordinate
 	// and that determines 'a', the angular momentum per mass within the coordinate (should it?)
 	// then we would have a circular definition
-	//real R = real3_len(x);
+	//real R = x.length();
 	real const matterRadius = min(r, radius);
 	real const volumeOfMatterRadius = 4./3.*M_PI*matterRadius*matterRadius*matterRadius;
 	real const m = density * volumeOfMatterRadius;	// m^3
@@ -851,71 +733,23 @@ end
 real4s4 calc_gLL_from_gPrim(
 	gPrim_t const & gPrim
 ) {
-#if 0	//works
-return real4s4(1,2,3,4,5,6,7,8,9,10);
-#endif
-
 	real const alpha = gPrim.alpha;
 	real3 const & betaU = gPrim.betaU;
 	real3s3 const & gammaLL = gPrim.gammaLL;
 
 	real const alphaSq = alpha * alpha;
 	real3 const betaL = gammaLL * betaU;
-	real const betaSq = real3_dot(betaL, betaU);
+	real const betaSq = betaL.dot(betaU);
 
-#if 0	//works
-	return real4s4(
-		-alphaSq,
-		0,
-		1,
-		2,
-		0,
-		1,
-		2,
-		11,
-		12,
-		22
-	);
-#endif
-#if 0 //works
-	return real4s4(
-		1,
-		2,
-		3,
-		4,
-		5,
-		6,
-		7,
-		8,
-		9,
-		10
-	);
-#endif
-#if 1	//nans
 	real4s4 gLL;
 	gLL.s00 = -alphaSq + betaSq;
 	for (int i = 0; i < sDim; ++i) {
-		gLL.s[sym4[0][i+1]] = betaL.s[i];
+		gLL(0, i+1) = betaL(i);
 		for (int j = i; j < sDim; ++j) {
-			gLL.s[sym4[i+1][j+1]] = gammaLL.s[sym3[i][j]];
+			gLL(i+1, j+1) = gammaLL(i, j);
 		}
 	}
 	return gLL;
-#endif
-#if 0	//nans ... or bad values
-	return real4s4(
-		10 - alphaSq + betaSq,
-		1 + betaL.s0,
-		2 + betaL.s1,
-		3 + betaL.s2,
-		4 + gammaLL.s00,
-		5 + gammaLL.s01,
-		6 + gammaLL.s02,
-		7 + gammaLL.s11,
-		8 + gammaLL.s12,
-		9 + gammaLL.s22		// only this is written ... the rest are zeroes no matter what expression is there.
-	);
-#endif
 }
 
 real4s4 calc_gUU_from_gPrim(
@@ -929,31 +763,15 @@ real4s4 calc_gUU_from_gPrim(
 	real const det_gammaLL = real3s3_det(gammaLL);
 	real3s3 const gammaUU = real3s3_inv(gammaLL, det_gammaLL);
 
-#if 0
 	real4s4 gUU;
 	gUU.s00 = -invAlphaSq;
 	for (int i = 0; i < sDim; ++i) {
-		gUU.s[sym4[0][i+1]] = betaU.s[i] * invAlphaSq;
+		gUU(0, i+1) = betaU(i) * invAlphaSq;
 		for (int j = i; j < sDim; ++j) {
-			gUU.s[sym4[i+1][j+1]] = gammaUU.s[sym3[i][j]] - betaU.s[i] * betaU.s[j] * invAlphaSq;
+			gUU(i+1, j+1) = gammaUU(i, j) - betaU(i) * betaU(j) * invAlphaSq;
 		}
 	}
 	return gUU;
-#endif
-#if 1
-	return real4s4(
-		-invAlphaSq,
-		betaU.s0 * invAlphaSq,
-		betaU.s1 * invAlphaSq,
-		betaU.s2 * invAlphaSq,
-		gammaUU.s00 - betaU.s0 * betaU.s0 * invAlphaSq,
-		gammaUU.s01 - betaU.s0 * betaU.s1 * invAlphaSq,
-		gammaUU.s02 - betaU.s0 * betaU.s2 * invAlphaSq,
-		gammaUU.s11 - betaU.s1 * betaU.s1 * invAlphaSq,
-		gammaUU.s12 - betaU.s1 * betaU.s2 * invAlphaSq,
-		gammaUU.s22 - betaU.s2 * betaU.s2 * invAlphaSq
-	);
-#endif
 }
 
 // gradient descent , but I'm moving everything into this file so the display shader can see it...
@@ -968,39 +786,38 @@ real4s4x4s4 calc_partial_gLL_of_8piTLL(
 if solver.body.useEM then ?>
 	real4 const EU = real3_to_real4(TPrim.E);
 	real4 const EL = gLL * EU;
-	real const ESq = real4_dot(EL, EU);
+	real const ESq = EL.dot(EU);
 
 	real4 const BU = real3_to_real4(TPrim.B);
 	real4 const BL = gLL * BU;
-	real const BSq = real4_dot(BL, BU);
+	real const BSq = BL.dot(BU);
 
 	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
 	real3 const SL = real3_cross(TPrim.E, TPrim.B) * sqrt_det_g;
 
 	for (int e = 0; e < stDim; ++e) {
 		for (int f = e; f < stDim; ++f) {
-			int const ef = sym4[e][f];
 			if (e > 0 && f > 0) {
-				partial_gLL_of_8piTLL.s[ef].s[sym4[0][0]] += TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1];
+				partial_gLL_of_8piTLL(e, f, 0, 0) += TPrim.E(e-1) * TPrim.E(f-1) + TPrim.B(e-1) * TPrim.B(f-1);
 			}
 			for (int i = 0; i < sDim; ++i) {
-				partial_gLL_of_8piTLL.s[ef].s[sym4[0][i+1]] -= SL.s[i] * gUU.s[ef];
+				partial_gLL_of_8piTLL(e, f, 0, i+1) -= SL(i) * gUU(e, f);
 				for (int j = i; j < sDim; ++j) {
 
 					real sum = 0;
 					if (e == i+1 && f == j+1) sum += ESq + BSq;
 
 					if (e > 0 && f > 0) {
-						sum += gLL.s[sym4[i+1][j+1]] * (TPrim.E.s[e-1] * TPrim.E.s[f-1] + TPrim.B.s[e-1] * TPrim.B.s[f-1]);
+						sum += gLL(i+1, j+1) * (TPrim.E(e-1) * TPrim.E(f-1) + TPrim.B(e-1) * TPrim.B(f-1));
 					}
 					if (e == i+1) {
-						sum -= 2. * (EU.s[f] * EL.s[j+1] + BU.s[f] * BL.s[j+1]);
+						sum -= 2. * (EU(f) * EL(j+1) + BU(f) * BL(j+1));
 					}
 					if (e == j+1) {
-						sum -= 2. * (EU.s[f] * EL.s[i+1] + BU.s[f] * BL.s[i+1]);
+						sum -= 2. * (EU(f) * EL(i+1) + BU(f) * BL(i+1));
 					}
 
-					partial_gLL_of_8piTLL.s[ef].s[sym4[i+1][j+1]] += sum;
+					partial_gLL_of_8piTLL(e, f, i+1, j+1) += sum;
 				}
 			}
 		}
@@ -1014,7 +831,7 @@ if solver.body.useMatter then
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = real3_to_real4(TPrim.v);
 	real4 const vL = gLL * vU;
-	real const vLenSq = real4_dot(vL, vU);	//vU.t = 0 so we'll neglect the vL.t component
+	real const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
 	real4 const uL = gLL * uU;
@@ -1027,16 +844,14 @@ if solver.body.useMatter then
 ?>
 	for (int e = 0; e < stDim; ++e) {
 		for (int f = e; f < stDim; ++f) {
-			int const ef = sym4[e][f];
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = a; b < stDim; ++b) {
-					int const ab = sym4[a][b];
 					real sum = 0;
-					if (e == a) sum += uL.s[b];
-					if (e == b) sum += uL.s[a];
-					sum *= uL.s[f] * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P);
-					if (ef == ab) sum += TPrim.P;
-					partial_gLL_of_8piTLL.s[ef].s[ab] += sum;
+					if (e == a) sum += uL(b);
+					if (e == b) sum += uL(a);
+					sum *= uL(f) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P);
+					if (e == a && f == b) sum += TPrim.P;
+					partial_gLL_of_8piTLL(e, f, a, b) += sum;
 				}
 			}
 		}
@@ -1066,7 +881,7 @@ real4s4 EFE_LL_minus_half_trace_at(
 
 	//lower times lower, but used for minimizing frobenius norm of EFE_ab
 	// Sum_ab (G_ab - 8 π T_ab) g_ab
-	real const EFE_LL_dot_gLL = real4s4_dot(EFE, gLL);
+	real const EFE_LL_dot_gLL = EFE.dot(gLL);
 
 	// common term in the gradient descent:
 	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
@@ -1141,11 +956,11 @@ real4s4 calc_partial_gLL_of_Phi(
 		for (int b = 0; b < stDim; ++b) {
 			for (int c = 0; c < stDim; ++c) {
 				for (int d = 0; d < stDim; ++d) {
-					partial_xU2_of_gLL_asym.s[a].s[b].s[c].s[d] =
-						partial_xU2_of_gLL.s[sym4[a][d]].s[sym4[b][c]]
-						+ partial_xU2_of_gLL.s[sym4[b][c]].s[sym4[a][d]]
-						- partial_xU2_of_gLL.s[sym4[b][d]].s[sym4[a][c]]
-						- partial_xU2_of_gLL.s[sym4[a][c]].s[sym4[b][d]];
+					partial_xU2_of_gLL_asym(a, b, c, d) =
+						partial_xU2_of_gLL(a, d, b, c)
+						+ partial_xU2_of_gLL(b, c, a, d)
+						- partial_xU2_of_gLL(b, d, a, c)
+						- partial_xU2_of_gLL(a, c, b, d);
 				}
 			}
 		}
@@ -1162,10 +977,10 @@ real4s4 calc_partial_gLL_of_Phi(
 				for (int d = 0; d < stDim; ++d) {
 					real sum = 0.;
 					for (int e = 0; e < stDim; ++e) {
-						sum += GammaULL.s[e].s[sym4[a][d]] * GammaLLL.s[e].s[sym4[b][c]]
-							- GammaULL.s[e].s[sym4[a][c]] * GammaLLL.s[e].s[sym4[b][d]];
+						sum += GammaULL(e, a, d) * GammaLLL(e, b, c)
+							- GammaULL(e, a, c) * GammaLLL(e, b, d);
 					}
-					GammaSq_asym_LLLL.s[a].s[b].s[c].s[d] = sum;
+					GammaSq_asym_LLLL(a, b, c, d) = sum;
 				}
 			}
 		}
@@ -1206,7 +1021,7 @@ real4s4 calc_partial_gLL_of_Phi(
 
 	//lower times lower, but used for minimizing frobenius norm of EFE_ab
 	// Sum_ab (G_ab - 8 π T_ab) g_ab
-	real const EFE_LL_dot_gLL = real4s4_dot(EFE, gLL);
+	real const EFE_LL_dot_gLL = EFE.dot(gLL);
 
 	// common term in the gradient descent:
 	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
@@ -1225,11 +1040,11 @@ real4s4 calc_partial_gLL_of_Phi(
 		for (int q = 0; q < stDim; ++q) {
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
-					real sum = - Gamma23U.s[p] * GammaULL.s[q].s[sym4[u][v]];
+					real sum = - Gamma23U(p) * GammaULL(q, u, v);
 					for (int c = 0; c < stDim; ++c) {
-						sum += GammaUUL.s[p].s[c].s[v] * GammaULL.s[q].s[sym4[c][u]];
+						sum += GammaUUL(p, c, v) * GammaULL(q, c, u);
 					}
-					GammaSq_tr_2_2.s[p].s[q].s[u].s[v] = sum;
+					GammaSq_tr_2_2(p, q, u, v) = sum;
 				}
 			}
 		}
@@ -1240,34 +1055,31 @@ real4s4 calc_partial_gLL_of_Phi(
 	// first calculate non-partial non ∂/∂g_pq terms:
 	for (int p = 0; p < stDim; ++p) {
 		for (int q = p; q < stDim; ++q) {
-			int const pq = sym4[p][q];
 			real sum = 0;
 #if 1
 			// -(G_pq - 8 π T_pq) R
-			sum -= EFE.s[pq] * Gaussian;
+			sum -= EFE(p, q) * Gaussian;
 #endif
 #if 1
 			// + Sum_ab EFE_ab 1/2 g_ab R^pq
-			sum += EFE_LL_dot_gLL * .5 * RicciUU.s[pq];
+			sum += EFE_LL_dot_gLL * .5 * RicciUU(p, q);
 #endif
 #if 1
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
-					int const ab = sym4[a][b];
 					// - Sum_ab EFE_ab 8 π dT_ab/dg_pq
-					sum -= EFE.s[ab] * partial_gLL_of_8piTLL.s[pq].s[ab];
+					sum -= EFE(a, b) * partial_gLL_of_8piTLL(p, q, a, b);
 				}
 			}
 #endif
 #if 1
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
-					int const uv = sym4[u][v];
-					sum -= EFE_LL_minus_half_trace.s[uv] * (
+					sum -= EFE_LL_minus_half_trace(u, v) * (
 					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) R^p_u^q_v
-						RiemannULUL.s[p].s[u].s[q].s[v]
+						RiemannULUL(p, u, q, v)
 					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) (Γ^pc_v Γ^q_cu - Γ^pc_c Γ^q_uv)
-						+ GammaSq_tr_2_2.s[p].s[q].s[u].s[v]
+						+ GammaSq_tr_2_2(p, q, u, v)
 					);
 				}
 			}
@@ -1305,17 +1117,17 @@ real4s4 calc_partial_gLL_of_Phi(
 					*/
 					int const a = dim+1;
 					for (int b = 0; b < stDim; ++b) {
-						sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[pq] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[b].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[p][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[q].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[a].s[p].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+						sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, b, b) * d1coeff_for_offset(offset) * env->invdx(dim);
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, q, b) * d1coeff_for_offset(offset) * env->invdx(dim);
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, p, b) * d1coeff_for_offset(offset) * env->invdx(dim);
 						for (int c = 0; c < stDim; ++c) {
-							sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[a].s[sym4[b][c]] * gUU_from_gPrims_at(env, gPrims, iofs).s[pq] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+							sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(a, b, c) * gUU_from_gPrims_at(env, gPrims, iofs)(p, q) * d1coeff_for_offset(offset) * env->invdx(dim);
 						}
-						sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[a][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[b].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[a][b]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[q].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][q]] * GammaUUL_at(env, iofs, gPrims, GammaULLs).s[p].s[a].s[b] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+						sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, b, b) * d1coeff_for_offset(offset) * env->invdx(dim);
+						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, q, b) * d1coeff_for_offset(offset) * env->invdx(dim);
+						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, a, b) * d1coeff_for_offset(offset) * env->invdx(dim);
 						for (int c = 0; c < stDim; ++c) {
-							sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[b][c]] * GammaULL_at(env, iofs, GammaULLs).s[p].s[sym4[c][b]] * gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[a][q]] * d1coeff_for_offset(offset) * env->invdx.s[dim];
+							sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(p, c, b) * gUU_from_gPrims_at(env, gPrims, iofs)(a, q) * d1coeff_for_offset(offset) * env->invdx(dim);
 						}
 					}
 				}
@@ -1333,33 +1145,33 @@ real4s4 calc_partial_gLL_of_Phi(
 								// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (d2coeff_ud) |x'=x + dx^u=dx^d
 								int const u = dim1+1;
 								int const d = u;
-								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][q]]
-									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[p][d]]
-									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
+								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, q)
+									* gUU_from_gPrims_at(env, gPrims, iofs)(p, d)
+									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d2coeff_cv)
 								// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d2coeff_cv) |x'=x + dx^v=dx^c
 								int const v = dim1+1;
 								int const c = v;
-								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[p][v]]
-									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][q]]
-									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
+								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, v)
+									* gUU_from_gPrims_at(env, gPrims, iofs)(c, q)
+									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d2coeff_cd)
 								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d2coeff_cd) |x'=x + dx^c=dx^d
 								int const c = dim1+1;
 								int const d = c;
-								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[pq]
-									* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][d]]
-									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
+								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q)
+									* gUU_from_gPrims_at(env, gPrims, iofs)(c, d)
+									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}{
 								// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d2coeff_uv)
 								// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d2coeff_uv) |x'=x + dx^u=dx^v
 								int const u = dim1+1;
 								int const v = u;
-								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][v]]
-									* gUU_from_gPrims_at(env, gPrims, iofs).s[pq]
-									* (d2coeffs[abs(offset)] * env->invdx.s[dim1]);
+								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, v)
+									* gUU_from_gPrims_at(env, gPrims, iofs)(p, q)
+									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}
 						}
 					} else {
@@ -1375,9 +1187,9 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const d = dim2+1;
 									int const offset_u = offset1;
 									int const offset_d = offset2;
-									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][q]]
-										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[p][d]]
-										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_d) * env->invdx.s[dim1] * env->invdx.s[dim2]);
+									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, q)
+										* gUU_from_gPrims_at(env, gPrims, iofs)(p, d)
+										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_d) * env->invdx(dim1) * env->invdx(dim2));
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d1coeff_c d1coeff_v)
 									// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d1coeff_c d1coeff_v) |x'=x + dx^v + dx^c
@@ -1385,9 +1197,9 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const c = dim2+1;
 									int const offset_v = offset1;
 									int const offset_c = offset2;
-									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[p][v]]
-										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][q]]
-										* (d1coeff_for_offset(offset_v) * d1coeff_for_offset(offset_c) * env->invdx.s[dim1] * env->invdx.s[dim2]);
+									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, v)
+										* gUU_from_gPrims_at(env, gPrims, iofs)(c, q)
+										* (d1coeff_for_offset(offset_v) * d1coeff_for_offset(offset_c) * env->invdx(dim1) * env->invdx(dim2));
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d1coeff_c d1coeff_d)
 									// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d1coeff_c d1coeff_d) |x'=x + dx^c + dx^d
@@ -1395,9 +1207,9 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const d = dim2+1;
 									int const offset_c = offset1;
 									int const offset_d = offset2;
-									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[pq]
-										* gUU_from_gPrims_at(env, gPrims, iofs).s[sym4[c][d]]
-										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * env->invdx.s[dim1] * env->invdx.s[dim2]);
+									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q)
+										* gUU_from_gPrims_at(env, gPrims, iofs)(c, d)
+										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * env->invdx(dim1) * env->invdx(dim2));
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d1coeff_u d1coeff_v)
 									// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d1coeff_u d1coeff_v) |x'=x + dx^u + dx^v
@@ -1405,9 +1217,9 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const v = dim2+1;
 									int const offset_u = offset1;
 									int const offset_v = offset2;
-									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs).s[sym4[u][v]]
-										* gUU_from_gPrims_at(env, gPrims, iofs).s[pq]
-										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * env->invdx.s[dim1] * env->invdx.s[dim2]);
+									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, v)
+										* gUU_from_gPrims_at(env, gPrims, iofs)(p, q)
+										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * env->invdx(dim1) * env->invdx(dim2));
 								}
 							}
 						}
@@ -1415,7 +1227,7 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
-			partial_gLL_of_Phi.s[pq] = sum;
+			partial_gLL_of_Phi(p, q) = sum;
 		}
 	}
 
@@ -1443,19 +1255,18 @@ gPrim_t calc_partial_gPrim_of_Phi(
 
 	partial_gPrim_of_Phi.alpha = -2. * gPrim.alpha * partial_gLL_of_Phi.s00;
 	for (int m = 0; m < sDim; ++m) {
-		partial_gPrim_of_Phi.betaU.s[m] = 2. * partial_gLL_of_Phi.s00 * betaL.s[m];
+		partial_gPrim_of_Phi.betaU(m) = 2. * partial_gLL_of_Phi.s00 * betaL(m);
 		for (int n = 0; n < sDim; ++n) {
-			partial_gPrim_of_Phi.betaU.s[m] += partial_gLL_of_Phi.s[sym4[0][n+1]] * gammaLL.s[sym3[n][m]];
+			partial_gPrim_of_Phi.betaU(m) += partial_gLL_of_Phi(0, n+1) * gammaLL(n, m);
 		}
 	}
 	for (int m = 0; m < sDim; ++m) {
 		for (int n = m; n < sDim; ++n) {
-			int const mn = sym3[m][n];
-			partial_gPrim_of_Phi.gammaLL.s[mn] =
-				partial_gLL_of_Phi.s[sym4[m+1][n+1]]
-				+ betaU.s[m] * (
-					  partial_gLL_of_Phi.s[sym4[0][0]] * betaU.s[n]
-					+ 2. * partial_gLL_of_Phi.s[sym4[0][n+1]]
+			partial_gPrim_of_Phi.gammaLL(m, n) =
+				partial_gLL_of_Phi(m+1, n+1)
+				+ betaU(m) * (
+					  partial_gLL_of_Phi(0, 0) * betaU(n)
+					+ 2. * partial_gLL_of_Phi(0, n+1)
 				);
 		}
 	}

@@ -2,7 +2,7 @@
 #include "math.hpp"
 #include "efe.h"
 
-#ifdef CLCPU_ENABLED
+#if defined(CLCPU_ENABLED)
 #define constant
 #define global
 #define local
@@ -49,27 +49,25 @@ kernel void init_TPrims(
 ) {
 	initKernel();
 
-	global <?=TPrim_t?> * const TPrim = TPrims + index;
+	<?=TPrim_t?> & TPrim = TPrims[index];
 
-	*TPrim = (<?=TPrim_t?>){
 <? if solver.body.useMatter then ?>
-		.rho = 0,
-		.eInt = 0,
-		.P = 0,
+	TPrim.rho = 0;
+	TPrim.eInt = 0;
+	TPrim.P = 0;
 <? 	if solver.body.useVel then ?>
-		.v = real3_zero,
+	TPrim.v = real3();
 <? 	end
 end
 if solver.body.useEM then ?>
-		.E = real3_zero,
-		.B = real3_zero,
+	TPrim.E = real3();
+	TPrim.B = real3();
 <? end ?>
-	};
 
 <?=solver.body.init and solver.body.init or ''?>
 
 <? if solver.useFourPotential then ?>
-	TPrim->AL = -TPrim->JU;
+	TPrim.AL = -TPrim.JU;
 <? end ?>
 }
 
@@ -83,57 +81,12 @@ kernel void calc_GammaULLs(
 	initKernel();
 
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
-#if 1 //debugging nans
 <?=solver:finiteDifference{
 	srcType = "4s4",
 	resultName = "partial_xU_of_gLL",
 	getValue = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
 	getBoundary = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
 }?>
-#else
-	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
-	real4x4s4 gLL_L;
-	//gLL_L.s0 = real4s4();
-	for (int a = 0; a < 10; ++a) {
-		gLL_L.s0.s[a] = 0;
-	}
-	gLL_L.s1 = gLL_from_gPrims_at(env, gPrims, i - (int4)(1, 0, 0, 0));
-	gLL_L.s2 = gLL_from_gPrims_at(env, gPrims, i - (int4)(0, 1, 0, 0));
-	gLL_L.s3 = gLL_from_gPrims_at(env, gPrims, i - (int4)(0, 0, 1, 0));
-	real4x4s4 gLL_R;
-	//gLL_R.s0 = real4s4();
-	for (int a = 0; a < 10; ++a) {
-		gLL_R.s0.s[a] = 0;
-	}
-	gLL_R.s1 = gLL_from_gPrims_at(env, gPrims, i + (int4)(1, 0, 0, 0));
-	gLL_R.s2 = gLL_from_gPrims_at(env, gPrims, i + (int4)(0, 1, 0, 0));
-	gLL_R.s3 = gLL_from_gPrims_at(env, gPrims, i + (int4)(0, 0, 1, 0));
-	real4x4s4 partial_xU_of_gLL;
-	for (int bc = 0; bc < 10; ++bc) {
-		partial_xU_of_gLL.s[0].s[bc] = 0;
-	}
-	for (int a = 1; a < stDim; ++a) {
-		for (int bc = 0; bc < 10; ++bc) {
-			partial_xU_of_gLL.s[a].s[bc] = (gLL_R.s[a].s[bc] - gLL_L.s[a].s[bc]) * .5 *  env->invdx.s[a-1];
-		}
-	}
-#endif
-
-#if 0 //debugging nans
-	// spirv target
-	// GammaULL calculation produces all nans
-	// writing g_ab,c instead just gives nans for the 2nd 3rd 4th entries tho
-	//GammaULLs[index] = partial_xU_of_gLL;
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 10; ++j) {
-			//same, nans
-			//GammaULLs[index].s[i].s[j] = partial_xU_of_gLL.s[i].s[j];
-			//works
-			GammaULLs[index].s[i].s[j] = i + j;
-		}
-	}
-	return;
-#endif
 
 	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
@@ -141,11 +94,10 @@ kernel void calc_GammaULLs(
 	for (int a = 0; a < stDim; ++a) {
 		for (int b = 0; b < stDim; ++b) {
 			for (int c = b; c < stDim; ++c) {
-				int const bc = sym4[b][c];
-				GammaLLL.s[a].s[bc] = .5 * (
-					  partial_xU_of_gLL.s[c].s[sym4[a][b]]
-					+ partial_xU_of_gLL.s[b].s[sym4[a][c]]
-					- partial_xU_of_gLL.s[a].s[bc]
+				GammaLLL(a, b, c) = .5 * (
+					  partial_xU_of_gLL(c, a, b)
+					+ partial_xU_of_gLL(b, a, c)
+					- partial_xU_of_gLL(a, b, c)
 				);
 			}
 		}
@@ -153,50 +105,8 @@ kernel void calc_GammaULLs(
 
 	//Γ^a_bc = GammaULL.a.bc
 	//Γ^a_bc = g^ad Γ_dbc
-	//real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
-#if 1
-	GammaULLs[index] = real4s4_real4x4s4_mul(gUU, GammaLLL);
-#else
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = b; c < stDim; ++c) {
-				int const bc = sym4[b][c];
-				real sum = 0;
-				for (int d = 0; d < stDim; ++d) {
-					sum += gUU.s[sym4[a][d]] * GammaLLL.s[d].s[bc];
-				}
-				GammaULLs[index].s[a].s[bc] = sum;
-#if 0 //works
-GammaULLs[index].s[a].s00 = gPrims[index].alpha;
-GammaULLs[index].s[a].s01 = gPrims[index].betaU.s0;
-GammaULLs[index].s[a].s02 = gPrims[index].betaU.s1;
-GammaULLs[index].s[a].s03 = gPrims[index].betaU.s2;
-GammaULLs[index].s[a].s11 = gPrims[index].gammaLL.s00;
-GammaULLs[index].s[a].s12 = gPrims[index].gammaLL.s01;
-GammaULLs[index].s[a].s13 = gPrims[index].gammaLL.s02;
-GammaULLs[index].s[a].s22 = gPrims[index].gammaLL.s11;
-GammaULLs[index].s[a].s23 = gPrims[index].gammaLL.s12;
-GammaULLs[index].s[a].s33 = gPrims[index].gammaLL.s22;
-#endif
-//works
-//GammaULLs[index].s[a] = real4s4(1,2,3,4,5,6,7,8,9,10);
-// nans ...
-//GammaULLs[index].s[a] = gLL_from_gPrims_at(env, gPrims, i - (int4)(1, 0, 0, 0));
-// 
-GammaULLs[index].s[a] = gLL_L.s1;	// {{0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
-//nans in the spatial derivatives
-//GammaULLs[index].s[a].s[bc] = partial_xU_of_gLL.s[a].s[bc];
-//nans
-//GammaULLs[index].s[a].s[bc] = GammaLLL.s[a].s[bc];
-//works:
-//GammaULLs[index].s[a].s[bc] = gUU.s[bc];
-// works:
-//GammaULLs[index].s[a].s[bc] = a + b + c;
-			}
-		}
-	}
-#endif
+	GammaULLs[index] = gUU * GammaLLL;
 }
 
 /*
@@ -282,9 +192,9 @@ kernel void solveAL(
 	for (int i = 0; i < sDim; ++i) {
 
 		<?=TPrim_t?> TPrim_prev;
-		if (i.s[i] > 0) {
+		if (i(i) > 0) {
 			int4 iL = i;
-			--iL.s[i];
+			--iL(i);
 			int const indexL = indexForInt4(iL);
 			TPrim_prev = TPrims[indexL];
 		} else {
@@ -293,9 +203,9 @@ kernel void solveAL(
 		}
 
 		<?=TPrim_t?> TPrim_next;
-		if (i.s[i] < size.s[i] - 1) {
+		if (i(i) < size(i) - 1) {
 			int4 iR = i;
-			++iR.s[i];
+			++iR(i);
 			int indexR = indexForInt4(iR);
 			TPrim_next = TPrims[indexR];
 		} else {
@@ -303,7 +213,7 @@ kernel void solveAL(
 			TPrim_next = TPrims[index];
 		}
 
-		skewSum += (TPrim_prev.JU + TPrim_next.JU) * (env->invdx.s[i] * env->invdx.s[i]);
+		skewSum += (TPrim_prev.JU + TPrim_next.JU) * (env->invdx(i) * env->invdx(i));
 	}
 
 	real const diag = -2. * (0.
@@ -312,9 +222,9 @@ kernel void solveAL(
 		+ 1. / (dx.s2 * dx.s2)
 	);
 
-	global <?=TPrim_t?> * const TPrim = TPrims + index;
+	<?=TPrim_t?> & TPrim = TPrims[index];
 
-	TPrim->AL = real4_sub(TPrim->AL, skewSum) / diag;
+	TPrim.AL = (TPrim.AL - skewSum) / diag;
 }
 <? end ?>
 
@@ -353,7 +263,7 @@ kernel void calc_EFEs(
 	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
-	<?=TPrim_t?> const TPrim = TPrims[index];
+	<?=TPrim_t?> const & TPrim = TPrims[index];
 	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);
 	real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
@@ -366,13 +276,13 @@ kernel void calc_EFEs(
 	/* no nans
 	for (int a = 0; a < stDim; ++a) {
 		for (int b = a; b < stDim; ++b) {
-			EFEs[index].s[sym4[a][b]] = EinsteinLL.s[sym4[a][b]] - _8piTLL.s[sym4[a][b]];
+			EFEs[index](a, b) = EinsteinLL(a, b) - _8piTLL(a, b);
 		}
 	}
 	*/
 	/* another try ... works
 	for (int ab = 0; ab < 10; ++ab) {
-		EFEs[index].s[ab] = real_sub(EinsteinLL.s[ab], _8piTLL.s[ab]);
+		EFEs[index](a, b) = real_sub(EinsteinLL(a, b), _8piTLL(a, b));
 	}
 	*/
 }
