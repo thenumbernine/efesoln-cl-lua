@@ -1424,7 +1424,7 @@ function EFESolver:refreshKernels()
 			calcVarsProgram:compile{dontLink=true, verbose=true}
 			gradientDescentProgram:compile{dontLink=true, verbose=true}
 			efeProgram = self:program{
-				spirvToolchainFile = 'cache/efe-out',
+				cacheFile = 'cache/efe-out',
 				programs = {
 					self.efeObjProgram,
 					calcVarsProgram,
