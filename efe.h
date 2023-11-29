@@ -57,8 +57,8 @@ struct <?=TPrim_t?> {
 	real P;
 	real eInt;
 <?		if solver.body.useVel then ?>
-<?		end ?>
 	real3 v;
+<?		end ?>
 <?	end ?>
 <?	if solver.body.useEM then ?>
 <?		if self.useFourPotential then ?>
