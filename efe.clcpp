@@ -57,125 +57,70 @@ real3 real4s4_i0(real4s4 const & a) {
 }
 
 real3s3 real4s4_ij(real4s4 const & a) {
-	return real3s3(
-		a.s11,
-		a.s12,
-		a.s22,
-		a.s13,
-		a.s23,
-		a.s33
-	);
+	return real3s3([&](int i, int j) { return a(i+1, j+1); });
 }
 
-constant real4s4 const real4s4_Minkowski = real4s4(
-	-1,
-	0, 1,
-	0, 0, 1,
-	0, 0, 0, 1
-);
+constant real4s4 const real4s4_Minkowski = real4s4([](int a, int b) -> real {
+	return (a == b) ? (a == 0 ? -1 : 1) : 0;
+});
 
-
-//a = b_ii
-real real4x4_tr(real4x4 const & a) {
-	return a.s0.s0 + a.s1.s1 + a.s2.s2 + a.s3.s3;
-}
 
 real3 real4x4s4_i00(real4x4s4 const & a) {
-	return real3(a.s1.s00, a.s2.s00, a.s3.s00);
+	return real3([&](int i) { return a(i+1, 0, 0); });
 }
 
 //b_i = a^j_ji
 real4 real4x4s4_tr12(real4x4s4 const & a) {
-	real4 result;
-	for (int i = 0; i < 4; ++i) {
-		real sum = real(0);
-		for (int j = 0; j < 4; ++j) {
-			sum += a(j, j, i);
-		}
-		result(i) = sum;
-	}
-	return result;
+	Tensor::Index<'i'> i;
+	Tensor::Index<'j'> j;
+	return a(j, j, i).assignI();
 }
 
 //b^i = a^ij_j
 real4 real4x4x4_tr23(real4x4x4 const & a) {
-	return real4(
-		real4x4_tr(a.s0),
-		real4x4_tr(a.s1),
-		real4x4_tr(a.s2),
-		real4x4_tr(a.s3)
-	);
+	Tensor::Index<'i'> i;
+	Tensor::Index<'j'> j;
+	return a(i, j, j).assignI();
 }
 
-//c^ij_k = a^i_mk b^mj
+//c^ij_k = a^i_lk b^lj
 real4x4x4 real4x4s4_real4s4_mul21(
 	real4x4s4 const & a,
 	real4s4 const & b
 ) {
-	return real4x4x4(
-		b * a(0),
-		b * a(1),
-		b * a(2),
-		b * a(3)
-	);
+	Tensor::Index<'i'> i;
+	Tensor::Index<'j'> j;
+	Tensor::Index<'k'> k;
+	Tensor::Index<'l'> l;
+	return (a(i, l, k) * b(l, j)).assign(i, j, k);
 }
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(
 	real4x4x4x4 const & a,
 	real4s4 const & b
 ) {
-	real4x4x4x4 result;
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			for (int k = 0; k < 4; ++k) {
-				for (int l = 0; l < 4; ++l) {
-					real sum = real(0);
-					for (int m = 0; m < 4; ++m) {
-						sum += a(m, j, k, l) * b(m, i);
-					}
-					result(i, j, k, l) = sum;
-				}
-			}
-		}
-	}
-	return result;
+	return b * a;
 }
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(
 	real4x4x4x4 const & a,
 	real4s4 const & b
 ) {
-	real4x4x4x4 result;
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			for (int k = 0; k < 4; ++k) {
-				for (int l = 0; l < 4; ++l) {
-					real sum = real(0);
-					for (int m = 0; m < 4; ++m) {
-						sum += a(i, j, m, l) * b(m, k);
-					}
-					result(i, j, k, l) = sum;
-				}
-			}
-		}
-	}
-	return result;
+	Tensor::Index<'i'> i;
+	Tensor::Index<'j'> j;
+	Tensor::Index<'k'> k;
+	Tensor::Index<'l'> l;
+	Tensor::Index<'m'> m;
+	return (a(i, j, m, l) * b(m, k)).assign(i, j, k, l);
 }
 
 //b_ij = a^k_ikj
 // assuming b_ij = b_ji i.e. a_ijkl = a_klij
 real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a) {
-	real4s4 result;
-	for (int i = 0; i < 4; ++i) {
-		for (int j = i; j < 4; ++j) {
-			real sum = real(0);
-			for (int k = 0; k < 4; ++k) {
-				sum += a(k, i, k, j);
-			}
-			result(i, j) = sum;
-		}
-	}
-	return result;
+	Tensor::Index<'i'> i;
+	Tensor::Index<'j'> j;
+	Tensor::Index<'k'> k;
+	return a(k, i, k, j).assignR<real4s4>(i, j);
 }
 
 real3 getX(
@@ -277,8 +222,7 @@ real4s4 gLL_from_gPrims_at(
 	) {
 		return calc_gLL_from_gPrim(calc_gPrim_boundary(env, gPrims, i));
 	} else {
-		int const index = indexForInt4(i);
-		return calc_gLL_from_gPrim(gPrims[index]);
+		return calc_gLL_from_gPrim(gPrims[indexForInt4(i)]);
 	}
 }
 
@@ -290,11 +234,9 @@ real4s4 gUU_from_gPrims_at(
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
-		gPrim_t const gPrim = calc_gPrim_boundary(env, gPrims, i);
-		return calc_gUU_from_gPrim(gPrim);
+		return calc_gUU_from_gPrim(calc_gPrim_boundary(env, gPrims, i));
 	} else {
-		int const index = indexForInt4(i);
-		return calc_gUU_from_gPrim(gPrims[index]);
+		return calc_gUU_from_gPrim(gPrims[indexForInt4(i)]);
 	}
 }
 
@@ -310,19 +252,19 @@ real4s4 calc_RicciLL(
 	// that one can extract RiemannULLL, which can be used for RicciLL calcs
 	// but this one doesn't need RiemannULLL, so we can contract one of the terms in RicciLL's calcs
 
-	real4x4s4 const GammaULL = GammaULLs[index];
+	auto const & GammaULL = GammaULLs[index];
 
-	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);
-	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
+	auto const gLL = calc_gLL_from_gPrim(gPrims[index]);
+	auto const gUU = calc_gUU_from_gPrim(gPrims[index]);
 
 	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
-	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
+	auto const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
 
 	//GammaLLL.a.bc := Γ_abc = g_ad Γ^d_bc
-	real4x4s4 const GammaLLL = gLL * GammaULL;
+	auto const GammaLLL = gLL * GammaULL;
 
 	//Gamma23U.a := Γ^a = Γ^au_u
-	real4 const Gamma23U = real4x4x4_tr23(GammaUUL);
+	auto const Gamma23U = real4x4x4_tr23(GammaUUL);
 
 	//partial_xU2_of_gLL.ab.cd := ∂_a ∂_b (g_cd)
 	// = ∂^2/(∂x^a ∂x^b) (g_cd)
@@ -340,49 +282,33 @@ real4s4 calc_RicciLL(
 	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
 	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab
-	real4x4x4x4 partial_xU2_of_gLL_asym;
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = 0; c < stDim; ++c) {
-				for (int d = 0; d < stDim; ++d) {
-					partial_xU2_of_gLL_asym(a, b, c, d) =
-						  partial_xU2_of_gLL(a, d, b, c)
-						+ partial_xU2_of_gLL(b, c, a, d)
-						- partial_xU2_of_gLL(b, d, a, c)
-						- partial_xU2_of_gLL(a, c, b, d);
-				}
-			}
-		}
-	}
+	auto const partial_xU2_of_gLL_asym = real4x4x4x4([&](int a, int b, int c, int d) {
+		return partial_xU2_of_gLL(a, d, b, c)
+			+ partial_xU2_of_gLL(b, c, a, d)
+			- partial_xU2_of_gLL(b, d, a, c)
+			- partial_xU2_of_gLL(a, c, b, d);
+	});
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// TODO antisymmetric storage
-	real4x4x4x4 GammaSq_asym_LLLL;
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = 0; c < stDim; ++c) {
-				for (int d = 0; d < stDim; ++d) {
-					real sum = 0;
-					for (int e = 0; e < stDim; ++e) {
-						sum +=
-							  GammaULL(e, a, d) * GammaLLL(e, b, c)
-							- GammaULL(e, a, c) * GammaLLL(e, b, d);
-					}
-					GammaSq_asym_LLLL(a, b, c, d) = sum;
-				}
-			}
+	auto const GammaSq_asym_LLLL = real4x4x4x4([&](int a, int b, int c, int d) {
+		real sum = 0.;
+		for (int e = 0; e < stDim; ++e) {
+			sum += GammaULL(e, a, d) * GammaLLL(e, b, c)
+				- GammaULL(e, a, c) * GammaLLL(e, b, d);
 		}
-	}
+		return sum;
+	});
 
-	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4x4x4x4_real4s4_mul_1_1(partial_xU2_of_gLL_asym, gUU);
-	real4x4x4x4 const GammaSq_asym_ULLL = real4x4x4x4_real4s4_mul_1_1(GammaSq_asym_LLLL, gUU);
+	auto const gUU_times_partial_xU2_gLL_asym = real4x4x4x4_real4s4_mul_1_1(partial_xU2_of_gLL_asym, gUU);
+	auto const GammaSq_asym_ULLL = real4x4x4x4_real4s4_mul_1_1(GammaSq_asym_LLLL, gUU);
 
 	//RiemannULLL.a.b.cd := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
-	real4x4x4x4 const RiemannULLL = GammaSq_asym_ULLL + .5 * gUU_times_partial_xU2_gLL_asym;
+	auto const RiemannULLL = GammaSq_asym_ULLL + .5 * gUU_times_partial_xU2_gLL_asym;
 
 	//RicciLL.ab := R_ab = R^c_acb
-	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
+	auto const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
 
 <? else  -- testing to make sure contraction of Riemann == Ricci ?>
 
@@ -391,25 +317,22 @@ real4s4 calc_RicciLL(
 	R^a_bcd = g^ae (1/2 (g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	RicciLL.ab := R_ab = 1/2 g^uv (g_au,bv + g_bv,au - g_ab,uv - g_uv,ab) + Γ^uv_a Γ_uvb - Γ^uv_v Γ_uab
 	*/
-	real4s4 RicciLL;
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = a; b < stDim; ++b) {
-			real sum = 0;
-			for (int u = 0; u < stDim; ++u) {
-				for (int v = 0; v < stDim; ++v) {
-					sum += .5 * gUU(u, v) * (
-							  partial_xU2_of_gLL(a, u, b, v)
-							+ partial_xU2_of_gLL(b, v, a, u)
-							- partial_xU2_of_gLL(a, b, u, v)
-							- partial_xU2_of_gLL(u, v, a, b)
-						)
-						+ GammaUUL(u, v, a) * GammaLLL(u, b, v);
-				}
-				sum -= Gamma23U(u) * GammaLLL(u, a, b);
+	auto const RicciLL = real4s4([&](int a, int b) {
+		real sum = 0;
+		for (int u = 0; u < stDim; ++u) {
+			for (int v = 0; v < stDim; ++v) {
+				sum += .5 * gUU(u, v) * (
+					  partial_xU2_of_gLL(a, u, b, v)
+					+ partial_xU2_of_gLL(b, v, a, u)
+					- partial_xU2_of_gLL(a, b, u, v)
+					- partial_xU2_of_gLL(u, v, a, b)
+				)
+				+ GammaUUL(u, v, a) * GammaLLL(u, b, v);
 			}
-			RicciLL(a, b) = sum;
+			sum -= Gamma23U(u) * GammaLLL(u, a, b);
 		}
-	}
+		return sum;
+	});
 
 <? end  -- testing to make sure contraction of Riemann == Ricci ?>
 
@@ -865,18 +788,33 @@ real4s4 calc_partial_gLL_of_Phi(
 	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
 	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab
-	auto partial_xU2_of_gLL_asym = real4x4x4x4([&](int a, int b, int c, int d) {
+#if 0
+	Tensor::Index<'a'> a;
+	Tensor::Index<'b'> b;
+	Tensor::Index<'c'> c;
+	Tensor::Index<'d'> d;
+	Tensor::Index<'e'> e;
+	auto const partial_xU2_of_gLL_asym = (
+		  partial_xU2_of_gLL(a, d, b, c)
+		+ partial_xU2_of_gLL(b, c, a, d)
+		- partial_xU2_of_gLL(b, d, a, c)
+		- partial_xU2_of_gLL(a, c, b, d)
+	).template assign(a,b,c,d);
+#endif
+#if 1
+	auto const partial_xU2_of_gLL_asym = real4x4x4x4([&](int a, int b, int c, int d) {
 		return partial_xU2_of_gLL(a, d, b, c)
 			+ partial_xU2_of_gLL(b, c, a, d)
 			- partial_xU2_of_gLL(b, d, a, c)
 			- partial_xU2_of_gLL(a, c, b, d);
 	});
+#endif
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// not the same as the popular 2 Γ^a_e[c Γ^e_d]b used for Riemann with 2 ∂/dx^[c Γ^a_d]b
 	// instead this is the one used with 2 g_[a[b,c]d]
 	// TODO antisymmetric storage
-	auto GammaSq_asym_LLLL = real4x4x4x4([&](int a, int b, int c, int d) {
+	auto const GammaSq_asym_LLLL = real4x4x4x4([&](int a, int b, int c, int d) {
 		real sum = 0.;
 		for (int e = 0; e < stDim; ++e) {
 			sum += GammaULL(e, a, d) * GammaLLL(e, b, c)

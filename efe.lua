@@ -1340,7 +1340,6 @@ end
 
 function EFESolver:initBuffers()
 	self.envPtr = ffi.new'env_t[1]'
-	-- TODO where is int4 defined again?
 	self.envPtr[0].size.x = self.base.size.x
 	self.envPtr[0].size.y = self.base.size.y
 	self.envPtr[0].size.z = self.base.size.z
@@ -1360,10 +1359,7 @@ function EFESolver:initBuffers()
 	self.envPtr[0].invdx.y = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
 	self.envPtr[0].invdx.z = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
 	self.envPtr[0].dim = self.base.dim
-print('env before writing to GPU:', self.envPtr[0])
 	self.envBuf = self:buffer{name='env', type='env_t', count=1, data=self.envPtr}
-local tmp = self.envBuf:toCPU()
-print('verify reading env back from GPU:', tmp[0])
 
 	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
