@@ -519,6 +519,14 @@ EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes', 'JFNK'}
 function EFESolver:checkStructSizes(typenames)
 	local struct = require 'struct'
 
+-- can I hack this in midway?
+local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+if clcpuPrivate then
+	-- needs to be 'true' because efe.h has our structs, and that includes math.hpp, which points to cstddef (and all the Tensor stuff)
+	clcpuPrivate.useCpp = true
+end
+
+
 	local varcount = 0
 	for _,typename in ipairs(typenames) do
 		varcount = varcount + 1
@@ -534,6 +542,16 @@ function EFESolver:checkStructSizes(typenames)
 	local resultBuf = self:buffer{name='result', type='size_t', count=varcount, data=resultPtr}
 
 	local code = template([[
+#include "efe.h"
+
+// needs to be here because I'm compiling this as cl-cpp code
+#if defined(CLCPU_ENABLED)
+#define constant
+#define global
+#define local
+#endif
+
+
 #define offsetof __builtin_offsetof
 
 kernel void checkStructSizes(
@@ -569,15 +587,26 @@ end
 	})
 --print(code)
 
-	local program = self:program{
-		spirvToolchainFile = 'cache/checkStructSizes',
-		spirvToolchainFileCL = 'cache/checkStructSizes.clcpp',
-		code = code,
-		showCodeOnError = true,
-	}
-	program:compile{
-		verbose = true,
-	}
+	local program
+	if useSpirvToolchain then
+		program = self:program{
+			spirvToolchainFile = 'cache/checkStructSizes',
+			spirvToolchainFileCL = 'cache/checkStructSizes.clcpp',
+			code = code,
+			showCodeOnError = true,
+		}
+		program:compile{
+			verbose = true,
+		}
+	else
+		program = self:program{
+			code = code,
+			showCodeOnError = true,
+		}
+		program:compile{
+			verbose = true,
+		}
+	end
 	local kernel = program:kernel{
 		domain = self:domain{size={1}, dim=1},
 		name = 'checkStructSizes',
@@ -624,6 +653,12 @@ function EFESolver:init(args)
 	self.diffOrder = config.diffOrder	-- finite-difference order
 
 	self.body = bodies[config.body]
+
+-- can I hack this in midway?
+local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+if clcpuPrivate then
+	clcpuPrivate.useCpp = true
+end
 
 	-- CLEnv:init calls CLEnv:getTypeCode()
 	-- which depends on the body
@@ -758,11 +793,16 @@ function EFESolver:init(args)
 		end
 
 		-- same, for now this is separately in efe.h
+		--[[ if I was going to recompile this upon changing body then I'd name this accordingly...
 		self.TPrim_t = 'TPrim_'..tostring(self.body.useMatter)
 			..'_'..tostring(self.body.useVel)
 			..'_'..tostring(self.body.useEM)
 			..'_'..tostring(self.useFourPotential)
 			..'_t'
+		--]]
+		-- [[ in the mean time ...
+		self.TPrim_t = 'TPrim_t'
+		--]]
 
 		self.TPrim_mt, self.TPrim_code = struct{
 			name = self.TPrim_t,
@@ -818,22 +858,22 @@ local oldHeader = autogenCode
 	-- update this every time body changes
 	writeChanged('include/efe.h', self:template(assert(path'efe.h':read())))
 	writeChanged('cache/efe.h', self:template(assert(path'efe.h':read())))
-	self.code = includeHeader
+	self.code = ''
 
-	--[[
-	self:checkStructSizes{
-		'real3',
-		'real3s3',
-		'real4s4',	-- if its aligned between cl and cpu ... then why does the .sij and .s[ij] access produce different values?
-		'real4x4s4',
-		'real4x4x4s4',
-		'real4s4x4s4',
-		'env_t',
-		'gPrim_t',
-		self.TPrim_t,
-	}
-	os.exit()
-	--]]
+	if cmdline.checkStructSizes then
+		self:checkStructSizes{
+			'real3',
+			'real3s3',
+			'real4s4',	-- if its aligned between cl and cpu ... then why does the .sij and .s[ij] access produce different values?
+			'real4x4s4',
+			'real4x4x4s4',
+			'real4s4x4s4',
+			'env_t',
+			'gPrim_t',
+			self.TPrim_t,
+		}
+		os.exit()
+	end
 
 	-- parameters:
 
@@ -1061,6 +1101,12 @@ texCLBuf[index] = (numerical - analytical).length() / analyticalMagn - 1.;
 	-- b = 8 π T_ab (and ignore the fact that it is based on x as well)
 	-- linearize: G x = b
 
+-- can I hack this in midway?
+local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+if clcpuPrivate then
+	clcpuPrivate.useCpp = false
+end
+
 	local CLConjResSolver = require 'solver.cl.conjres':subclass()
 
 	-- cache buffers
@@ -1233,7 +1279,14 @@ assert(type(name)=='string')
 	}
 
 	-- and for display. .. back to the future
-	self.code = includeHeader
+	self.code = ''
+
+-- can I hack this in midway?
+local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+if clcpuPrivate then
+	clcpuPrivate.useCpp = true
+end
+
 
 
 	self:resetState()
