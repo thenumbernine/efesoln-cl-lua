@@ -7,6 +7,8 @@
 #define constant
 #define global
 #define local
+
+#include <iostream>
 #endif
 
 //NOTICE this has to match in luajit
@@ -36,7 +38,11 @@ struct gPrim_t {
 	gPrim_t() {
 		alpha = 1;
 		betaU = real3(0,0,0);
-		gammaLL = real3s3(1,0,0,1,0,1);
+		gammaLL = real3s3(
+			1,
+			0,1,
+			0,0,1
+		);
 	}
 
 	gPrim_t(
@@ -48,7 +54,26 @@ struct gPrim_t {
 		betaU = betaU_;
 		gammaLL = gammaLL_;
 	}
+
+#if 0
+	using This = gPrim_t;
+	static constexpr auto fields = std::make_tuple(
+		std::make_pair("alpha", &This::alpha),
+		std::make_pair("betaU", &This::betaU),
+		std::make_pair("gammaLL", &This::gammaLL)
+	);
+#endif
 };
+
+static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
+
+inline std::ostream& operator<<(std::ostream & o, gPrim_t const & x) {
+	return o << "("
+		<< "alpha=" << x.alpha << ", " 
+		<< "betaU=" << x.betaU << ", " 
+		<< "gammaLL=" << real3x3(x.gammaLL)
+		<< ")";
+}
 
 //TODO I could give struct-lua an option for generating cpp classes instead of C typedef structs ...
 struct <?=TPrim_t?> {
@@ -71,8 +96,16 @@ struct <?=TPrim_t?> {
 <?	end ?>
 };
 
-static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
 static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
+
+inline std::ostream& operator<<(std::ostream & o, <?=TPrim_t?> const & x) {
+	return o << "("
+		<< "rho=" << x.rho << ", " 
+		<< "P=" << x.P << ", " 
+		<< "eInt=" << x.eInt
+		<< ")";
+}
+
 
 // putting the type header in one place for ffi as well
 // and the function / macro headers here:
@@ -94,37 +127,19 @@ extern constant real const d2coeffs[<?=#d2coeffs+1?>];
 real3 real4_to_real3(real4 const & a);
 real4 real3_to_real4(real3 const & a);
 
-#define real3s3_ident (real3s3(1,0,0,1,0,1))
+#define real3s3_ident (real3s3(\
+	1,\
+	0,1,\
+	0,0,1\
+))
 
 real3 real4s4_i0(real4s4 const & a);
 real3s3 real4s4_ij(real4s4 const & a);
-real real4s4_det(real4s4 const & m);
-real4s4 new_real4s4_Minkowski();
 extern constant real4s4 const real4s4_Minkowski;
-
-//a_ij = b_ik c_kj
-inline real4s4 real4x4_real4s4_to_real4s4_mul(
-	real4x4 const & a,
-	real4s4 const & b
-) {
-	real4s4 result = {};
-	for (int i = 0; i < 4; ++i) {
-		for (int j = i; j < 4; ++j) {
-			real sum = {};
-			for (int k = 0; k < 4; ++k) {
-				sum += a(i, k) * b(k, j);
-			}
-			result(i, j) = sum;
-		}
-	}
-	return result;
-}
-
 
 real3 real4x4s4_i00(real4x4s4 const & a);
 real4 real4x4s4_tr12(real4x4s4 const & a);
 real4 real4x4x4_tr23(real4x4x4 const & a);
-real4x4s4 real4s4_real4x4s4_mul(real4s4 const & a, real4x4s4 const & b);
 real4x4x4 real4x4s4_real4s4_mul21(real4x4s4 const & a, real4s4 const & b);
 
 real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(real4x4x4x4 const & a, real4s4 const & b);

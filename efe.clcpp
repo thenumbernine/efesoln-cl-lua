@@ -40,15 +40,6 @@ end
 ?>
 };
 
-//ε_ijk a_j b_k
-real3 real3_cross(real3 const & a, real3 const & b) {
-	return real3(
-		a.y * b.z - a.z * b.y,
-		a.z * b.x - a.x * b.z,
-		a.x * b.y - a.y * b.x
-	);
-}
-
 // ok weird convention ...
 // for spacetime vars, real3 is xyz, real4 is used such that .s0123 == txyz (time dimension first)
 // but for opencl vars (i, etc), real4 is named xyzw (time dimension last)
@@ -61,45 +52,6 @@ real4 real3_to_real4(real3 const & a) {
 	return real4(0, a.s0, a.s1, a.s2);
 }
 
-real real3s3_det(real3s3 const & m) {
-	return m.s00 * m.s11 * m.s22
-		+ m.s01 * m.s12 * m.s02
-		+ m.s02 * m.s01 * m.s12
-		- m.s02 * m.s11 * m.s02
-		- m.s01 * m.s01 * m.s22
-		- m.s00 * m.s12 * m.s12;
-}
-
-real3s3 real3s3_inv(real3s3 const & m, real const d) {
-	real const invd = real(1) / d;
-	return real3s3(
-		(m.s11 * m.s22 - m.s12 * m.s12) * invd,
-		(m.s02 * m.s12 - m.s01 * m.s22) * invd,
-		(m.s01 * m.s12 - m.s02 * m.s11) * invd,
-		(m.s00 * m.s22 - m.s02 * m.s02) * invd,
-		(m.s02 * m.s01 - m.s00 * m.s12) * invd,
-		(m.s00 * m.s11 - m.s01 * m.s01) * invd
-	);
-}
-
-real4s4 real4s4_outer(real4 const & v) {
-	return real4s4(
-		v.s0 * v.s0,
-		v.s0 * v.s1,
-		v.s0 * v.s2,
-		v.s0 * v.s3,
-
-		v.s1 * v.s1,
-		v.s1 * v.s2,
-		v.s1 * v.s3,
-
-		v.s2 * v.s2,
-		v.s2 * v.s3,
-
-		v.s3 * v.s3
-	);
-}
-
 real3 real4s4_i0(real4s4 const & a) {
 	return real3(a.s01, a.s02, a.s03);
 }
@@ -108,36 +60,18 @@ real3s3 real4s4_ij(real4s4 const & a) {
 	return real3s3(
 		a.s11,
 		a.s12,
-		a.s13,
-
 		a.s22,
+		a.s13,
 		a.s23,
-
 		a.s33
 	);
 }
 
-real real4s4_det(real4s4 const & m) {
-	return
-		m.s03 * m.s12 * m.s12 * m.s03 - m.s02 * m.s13 * m.s12 * m.s03 -
-		m.s03 * m.s11 * m.s22 * m.s03 + m.s01 * m.s13 * m.s22 * m.s03 +
-		m.s02 * m.s11 * m.s23 * m.s03 - m.s01 * m.s12 * m.s23 * m.s03 -
-		m.s03 * m.s12 * m.s02 * m.s13 + m.s02 * m.s13 * m.s02 * m.s13 +
-		m.s03 * m.s01 * m.s22 * m.s13 - m.s00 * m.s13 * m.s22 * m.s13 -
-		m.s02 * m.s01 * m.s23 * m.s13 + m.s00 * m.s12 * m.s23 * m.s13 +
-		m.s03 * m.s11 * m.s02 * m.s23 - m.s01 * m.s13 * m.s02 * m.s23 -
-		m.s03 * m.s01 * m.s12 * m.s23 + m.s00 * m.s13 * m.s12 * m.s23 +
-		m.s01 * m.s01 * m.s23 * m.s23 - m.s00 * m.s11 * m.s23 * m.s23 -
-		m.s02 * m.s11 * m.s02 * m.s33 + m.s01 * m.s12 * m.s02 * m.s33 +
-		m.s02 * m.s01 * m.s12 * m.s33 - m.s00 * m.s12 * m.s12 * m.s33 -
-		m.s01 * m.s01 * m.s22 * m.s33 + m.s00 * m.s11 * m.s22 * m.s33;
-}
-
 constant real4s4 const real4s4_Minkowski = real4s4(
-	-1, 0, 0, 0,
-		1, 0, 0,
-			1, 0,
-				1
+	-1,
+	0, 1,
+	0, 0, 1,
+	0, 0, 0, 1
 );
 
 
@@ -171,14 +105,6 @@ real4 real4x4x4_tr23(real4x4x4 const & a) {
 		real4x4_tr(a.s2),
 		real4x4_tr(a.s3)
 	);
-}
-
-//c^i_jk = a^il b_ljk
-real4x4s4 real4s4_real4x4s4_mul(
-	real4s4 const & a,
-	real4x4s4 const & b
-) {
-	return a * b;
 }
 
 //c^ij_k = a^i_mk b^mj
@@ -294,6 +220,54 @@ gPrim_t calc_gPrim_boundary(
 #endif
 }
 
+real4s4 calc_gLL_from_gPrim(
+	gPrim_t const & gPrim
+) {
+	real const alpha = gPrim.alpha;
+	real3 const & betaU = gPrim.betaU;
+	real3s3 const & gammaLL = gPrim.gammaLL;
+
+	real const alphaSq = alpha * alpha;
+	real3 const betaL = gammaLL * betaU;
+	real const betaSq = betaL.dot(betaU);
+
+	real4s4 gLL;
+	gLL.s00 = -alphaSq + betaSq;
+	for (int i = 0; i < sDim; ++i) {
+		gLL(0, i+1) = betaL(i);
+		for (int j = i; j < sDim; ++j) {
+			gLL(i+1, j+1) = gammaLL(i, j);
+		}
+	}
+	return gLL;
+}
+
+real4s4 calc_gUU_from_gPrim(
+	gPrim_t const & gPrim
+) {
+	real const alpha = gPrim.alpha;
+	real const invAlphaSq = 1. / (alpha * alpha);
+	real3 const & betaU = gPrim.betaU;
+
+	real3s3 const gammaLL = gPrim.gammaLL;
+	real const det_gammaLL = gammaLL.determinant();
+	real3s3 const gammaUU = gammaLL.inverse(det_gammaLL);
+
+	real4s4 gUU;
+	gUU.s00 = -invAlphaSq;
+	//{-1, 1, 2, 2, 3, 4, 3, 4, 5, 6} <- writing g(0,i+1) = i+1; g(i+1,j+1) = i+j+2
+	//{-1, 1, 0, 2, 0, 0, 3, 0, 0, 0} <- writing g(0,i+1) = i+1
+	// so the mapping is ...
+	//{00, 01, 11, 02, 12, 22, 03, 13, 23, 33}
+	for (int i = 0; i < sDim; ++i) {
+		gUU(0, i+1) = betaU(i) * invAlphaSq;
+		for (int j = i; j < sDim; ++j) {
+			gUU(i+1, j+1) = gammaUU(i, j) - betaU(i) * betaU(j) * invAlphaSq;
+		}
+	}
+	return gUU;
+}
+
 real4s4 gLL_from_gPrims_at(
 	constant env_t const * const env,
 	global gPrim_t const * const gPrims,
@@ -346,7 +320,7 @@ real4s4 calc_RicciLL(
 	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
 
 	//GammaLLL.a.bc := Γ_abc = g_ad Γ^d_bc
-	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
+	real4x4s4 const GammaLLL = gLL * GammaULL;
 
 	//Gamma23U.a := Γ^a = Γ^au_u
 	real4 const Gamma23U = real4x4x4_tr23(GammaUUL);
@@ -485,18 +459,15 @@ if solver.body.useEM then
 	*/
 
 	real4 const EU = real3_to_real4(TPrim.E);
-	real4 const EL = real4s4_real4_mul(gLL, EU);
+	real4 const EL = gLL * EU;
 	real const ESq = EL.dot(EU);
 
 	real4 const BU = real3_to_real4(TPrim.B);
-	real4 const BL = real4s4_real4_mul(gLL, BU);
+	real4 const BL = gLL * BU;
 	real const BSq = BL.dot(BU);
 
-	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
-	real3 const SL = real3_real_mul(
-		real3_cross(TPrim.E, TPrim.B),
-		sqrt_det_g
-	);
+	real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
+	real3 const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
 
 	_8piTLL(0, 0) += ESq + BSq;
 	for (int i = 0; i < sDim; ++i) {
@@ -513,11 +484,11 @@ if solver.body.useMatter then
 ?>	//if we're using velocity ...
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
 	real4 const vU = real3_to_real4(TPrim.v);
-	real4 const vL = real4s4_real4_mul(gLL, vU);
+	real4 const vL = gLL * vU;
 	real const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
 	real4 const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
-	real4 const uL = real4s4_real4_mul(gLL, uU);
+	real4 const uL = gLL * uU;
 	<? else ?>//otherwise uL = gLL.s0
 	real4 const uL = real4(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
 <?
@@ -526,14 +497,10 @@ if solver.body.useMatter then
 
 	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
 	//[1/m^2]
-	real4s4 const _8piT_matter_LL =
-		(
-			(
-				real4s4_outer(uL)
-				* (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
-			)
-			+ gLL * TPrim.P
-		) * (8. * M_PI);
+	real4s4 const _8piT_matter_LL = (8. * M_PI) * (
+		uL.outer(uL) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
+		+ gLL * TPrim.P
+	);
 	_8piTLL += _8piT_matter_LL;
 <? end ?>
 
@@ -730,50 +697,6 @@ end
 	return gPrim;
 }
 
-real4s4 calc_gLL_from_gPrim(
-	gPrim_t const & gPrim
-) {
-	real const alpha = gPrim.alpha;
-	real3 const & betaU = gPrim.betaU;
-	real3s3 const & gammaLL = gPrim.gammaLL;
-
-	real const alphaSq = alpha * alpha;
-	real3 const betaL = gammaLL * betaU;
-	real const betaSq = betaL.dot(betaU);
-
-	real4s4 gLL;
-	gLL.s00 = -alphaSq + betaSq;
-	for (int i = 0; i < sDim; ++i) {
-		gLL(0, i+1) = betaL(i);
-		for (int j = i; j < sDim; ++j) {
-			gLL(i+1, j+1) = gammaLL(i, j);
-		}
-	}
-	return gLL;
-}
-
-real4s4 calc_gUU_from_gPrim(
-	gPrim_t const & gPrim
-) {
-	real const alpha = gPrim.alpha;
-	real const invAlphaSq = 1. / (alpha * alpha);
-	real3 const & betaU = gPrim.betaU;
-
-	real3s3 const gammaLL = gPrim.gammaLL;
-	real const det_gammaLL = real3s3_det(gammaLL);
-	real3s3 const gammaUU = real3s3_inv(gammaLL, det_gammaLL);
-
-	real4s4 gUU;
-	gUU.s00 = -invAlphaSq;
-	for (int i = 0; i < sDim; ++i) {
-		gUU(0, i+1) = betaU(i) * invAlphaSq;
-		for (int j = i; j < sDim; ++j) {
-			gUU(i+1, j+1) = gammaUU(i, j) - betaU(i) * betaU(j) * invAlphaSq;
-		}
-	}
-	return gUU;
-}
-
 // gradient descent , but I'm moving everything into this file so the display shader can see it...
 
 real4s4x4s4 calc_partial_gLL_of_8piTLL(
@@ -792,8 +715,8 @@ if solver.body.useEM then ?>
 	real4 const BL = gLL * BU;
 	real const BSq = BL.dot(BU);
 
-	real const sqrt_det_g = sqrt(fabs(real4s4_det(gLL)));
-	real3 const SL = real3_cross(TPrim.E, TPrim.B) * sqrt_det_g;
+	real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
+	real3 const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
 
 	for (int e = 0; e < stDim; ++e) {
 		for (int f = e; f < stDim; ++f) {
@@ -946,7 +869,7 @@ real4s4 calc_partial_gLL_of_Phi(
 
 	//TODO or store this?
 	//GammaLLL.a.bc := Γ_abc = g_au Γ^u_bc
-	real4x4s4 const GammaLLL = real4s4_real4x4s4_mul(gLL, GammaULL);
+	real4x4s4 const GammaLLL = gLL * GammaULL;
 
 	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
@@ -1010,7 +933,7 @@ real4s4 calc_partial_gLL_of_Phi(
 	real4x4 const RicciUL = gUU * RicciLL;
 
 	//RicciUU.ab := R^ab = R^a_c g^cb
-	real4s4 const RicciUU = real4x4_real4s4_to_real4s4_mul(RicciUL, gUU);
+	real4s4 const RicciUU = RicciUL * gUU;
 
 	//Gaussian := R = R^a_a
 	real const Gaussian = real4x4_tr(RicciUL);

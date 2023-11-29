@@ -13,6 +13,7 @@
 
 using real3 = Tensor::vec<real, 3>;
 using real4 = Tensor::vec<real, 4>;
+using real3x3 = Tensor::mat<real, 3, 3>;
 using real3s3 = Tensor::sym<real, 3>;
 using real4s4 = Tensor::sym<real, 4>;
 using real4x4 = Tensor::mat<real, 4, 4>;
@@ -72,6 +73,7 @@ struct real3s3 {
 	//	struct { real xx, xy, xz, yy, yz, zz; };
 	};
 
+	//notice this is a different order than Tensor, which appends new dimensions to the end of the dense triangular matrix, not to the beginning like this
 	real3s3() {}
 
 	real3s3(
