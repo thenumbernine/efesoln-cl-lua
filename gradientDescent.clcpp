@@ -48,24 +48,17 @@ kernel void update_gPrims(
 	real const updateLambda
 ) {
 	initKernel();
-	global gPrim_t * const gPrim = gPrims + index;
-	gPrim_t const partial_gPrim_of_Phi = partial_gPrim_of_Phis[index];
+	auto & gPrim = gPrims[index];
+	auto const & partial_gPrim_of_Phi = partial_gPrim_of_Phis[index];
 
 <? if solver.convergeAlpha then
-?>	gPrim->alpha -= partial_gPrim_of_Phi.alpha * updateLambda;
+?>	gPrim.alpha -= partial_gPrim_of_Phi.alpha * updateLambda;
 <? end
 if solver.convergeBeta then
-?>	gPrim->betaU.x -= partial_gPrim_of_Phi.betaU.x * updateLambda;
-	gPrim->betaU.y -= partial_gPrim_of_Phi.betaU.y * updateLambda;
-	gPrim->betaU.z -= partial_gPrim_of_Phi.betaU.z * updateLambda;
+?>	gPrim.betaU -= partial_gPrim_of_Phi.betaU * updateLambda;
 <? end
 if solver.convergeGamma then
-?>	gPrim->gammaLL.xx -= partial_gPrim_of_Phi.gammaLL.xx * updateLambda;
-	gPrim->gammaLL.xy -= partial_gPrim_of_Phi.gammaLL.xy * updateLambda;
-	gPrim->gammaLL.xz -= partial_gPrim_of_Phi.gammaLL.xz * updateLambda;
-	gPrim->gammaLL.yy -= partial_gPrim_of_Phi.gammaLL.yy * updateLambda;
-	gPrim->gammaLL.yz -= partial_gPrim_of_Phi.gammaLL.yz * updateLambda;
-	gPrim->gammaLL.zz -= partial_gPrim_of_Phi.gammaLL.zz * updateLambda;
+?>	gPrim.gammaLL -= partial_gPrim_of_Phi.gammaLL * updateLambda;
 <? end
 ?>
 }

@@ -439,6 +439,16 @@ function App:updateGUI()
 		end
 	end
 
+	ig.igSeparator()
+	ig.igText'boundary conditions:'
+	for i,boundaryCond in ipairs(self.solver.boundaryConds) do
+		if ig.luatableRadioButton(boundaryCond.name, self.solver, 'boundaryCond', i) then
+			-- hmmmmmm
+			-- update something in the env I think ...
+			--self.solver:resetState()
+		end
+	end
+
 	if ig.igButton'Reset' then
 		print'resetting...'
 		self.solver:resetState()

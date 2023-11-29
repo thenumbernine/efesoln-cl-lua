@@ -511,6 +511,9 @@ EFESolver.initConds = table{
 	return {name=k, code=v}
 end)
 
+EFESolver.boundaryConds = table{
+}
+
 EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes', 'JFNK'}
 
 

@@ -65,7 +65,7 @@ struct gPrim_t {
 #endif
 };
 
-static_assert(sizeof(gPrim_t) == sizeof(real) * 10, "here");
+static_assert(sizeof(gPrim_t) == sizeof(real) * 10);
 
 inline std::ostream& operator<<(std::ostream & o, gPrim_t const & x) {
 	return o << "("
@@ -96,13 +96,27 @@ struct <?=TPrim_t?> {
 <?	end ?>
 };
 
-static_assert(sizeof(real4s4) == sizeof(real) * 10, "here");
+static_assert(sizeof(real4s4) == sizeof(real) * 10);
 
 inline std::ostream& operator<<(std::ostream & o, <?=TPrim_t?> const & x) {
 	return o << "("
+<?	if solver.body.useMatter then ?>
 		<< "rho=" << x.rho << ", " 
 		<< "P=" << x.P << ", " 
 		<< "eInt=" << x.eInt
+<?		if solver.body.useVel then ?>
+		<< "v=" << x.v
+<?		end ?>
+<?	end ?>
+<?	if solver.body.useEM then ?>
+<?		if self.useFourPotential then ?>
+		<< "JL=" << x.JL
+		<< "AL=" << x.AL
+<?		else ?>
+		<< "E=" << x.E
+		<< "B=" << x.B
+<?		end ?>
+<?	end ?>
 		<< ")";
 }
 

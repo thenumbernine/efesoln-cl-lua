@@ -429,16 +429,16 @@ real4s4 calc_EinsteinLL(
 	auto const & gPrim = gPrims[index];
 
 	//gLL.ab := g_ab
-	real4s4 gLL = calc_gLL_from_gPrim(gPrim);
+	auto gLL = calc_gLL_from_gPrim(gPrim);
 
 	//gUU.ab := g_ab
-	real4s4 gUU = calc_gUU_from_gPrim(gPrim);
+	auto gUU = calc_gUU_from_gPrim(gPrim);
 
 	//RicciLL.ab := R_ab
-	real4s4 const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
+	auto const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
 
 	//Gaussian := R = R_ab g^ab
-	real const Gaussian = RicciLL.dot(gUU);
+	auto const Gaussian = RicciLL.dot(gUU);
 
 	//G_uv = R_uv - 1/2 g_uv R
 	return RicciLL - (.5 * Gaussian) * gLL;
@@ -548,12 +548,9 @@ gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
 		? sqrt(1 - 2*mass/r)
 		: (1.5 * sqrt(1 - 2*mass/radius) - .5 * sqrt(1 - 2*mass*r*r/(radius*radius*radius)));
 
-	for (int i = 0; i < sDim; ++i) {
-		gPrim.betaU(i) = 0;
-		for (int j = i; j < sDim; ++j) {
-			gPrim.gammaLL(i, j) = (i == j ? 1. : 0.) + x(i)/r * x(j)/r * 2*m/(r - 2*m);
-		}
-	}
+	gPrim.betaU = {};
+	gPrim.gammaLL = real3i3(1) + x.outer(x) / (r * r) * 2 * m / (r - 2 * m);
+
 
 	/*
 	dr^2's coefficient
@@ -682,20 +679,14 @@ gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
 	//metricPrims.alpha = 1./sqrt(1. + 2*H);
 	gPrim.alpha = sqrt(1. - 2*H/(1+2*H) );
 
-	real3 const l = real3(
+	auto const l = real3(
 		(r*x.x + a*x.y)/(r*r + a*a),
 		(r*x.y - a*x.x)/(r*r + a*a),
 		x.z/r
 	);
-<?
-for i=0,sDim-1 do
-?>	gPrim.betaU.s<?=i?> = 2. * H * l.s<?=i?> / (1. + 2. * H);
-<?
-	for j=i,sDim-1 do
-?>	gPrim.gammaLL.s<?=i..j?> = <?if i==j then?>1. + <?end?>2. * H * l.s<?=i?> * l.s<?=j?>;
-<?	end
-end
-?>
+
+	gPrim.betaU = 2. * H * l / (1. + 2. * H);
+	gPrim.gammaLL = real3i3(1) + 2. * H * l.outer(l);
 	return gPrim;
 }
 
@@ -709,16 +700,16 @@ real4s4x4s4 calc_partial_gLL_of_8piTLL(
 	real4s4x4s4 partial_gLL_of_8piTLL;
 <?
 if solver.body.useEM then ?>
-	real4 const EU = real3_to_real4(TPrim.E);
-	real4 const EL = gLL * EU;
+	auto const EU = real3_to_real4(TPrim.E);
+	auto const EL = gLL * EU;
 	real const ESq = EL.dot(EU);
 
-	real4 const BU = real3_to_real4(TPrim.B);
-	real4 const BL = gLL * BU;
+	auto const BU = real3_to_real4(TPrim.B);
+	auto const BL = gLL * BU;
 	real const BSq = BL.dot(BU);
 
 	real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
-	real3 const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
+	auto const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
 
 	for (int e = 0; e < stDim; ++e) {
 		for (int f = e; f < stDim; ++f) {
@@ -754,16 +745,16 @@ if solver.body.useMatter then
 	if solver.body.useVel then -- if we're using velocity ...
 ?>
 	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
-	real4 const vU = real3_to_real4(TPrim.v);
-	real4 const vL = gLL * vU;
-	real const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
+	auto const vU = real3_to_real4(TPrim.v);
+	auto const vL = gLL * vU;
+	auto const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
-	real4 const uL = gLL * uU;
+	auto const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
+	auto const uL = gLL * uU;
 <?
 	else -- otherwise uL = gLL.s0
 ?>
-	real4 const uL = real4(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
+	auto const uL = real4([&](int a) { return gLL(0, a); });
 <?
 	end
 ?>
@@ -800,13 +791,13 @@ real4s4 EFE_LL_minus_half_trace_at(
 	}
 
 	int const index = indexForInt4(i);
-	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);	// g_ab
-	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);	// g^ab
-	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
+	auto const gLL = calc_gLL_from_gPrim(gPrims[index]);	// g_ab
+	auto const gUU = calc_gUU_from_gPrim(gPrims[index]);	// g^ab
+	auto const & EFE = EFEs[index];	// G_ab - 8 π T_ab
 
 	//lower times lower, but used for minimizing frobenius norm of EFE_ab
 	// Sum_ab (G_ab - 8 π T_ab) g_ab
-	real const EFE_LL_dot_gLL = EFE.dot(gLL);
+	auto const EFE_LL_dot_gLL = EFE.dot(gLL);
 
 	// common term in the gradient descent:
 	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
@@ -842,11 +833,10 @@ real4x4x4 GammaUUL_at(
 		return real4x4x4();
 	}
 	int const index = indexForInt4(i);
-
-	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
-
+	auto const gUU = calc_gUU_from_gPrim(gPrims[index]);
 	return real4x4s4_real4s4_mul21(GammaULLs[index], gUU);
 }
+
 real4s4 calc_partial_gLL_of_Phi(
 	constant env_t const * const env,
 	global <?=TPrim_t?> const * const TPrims,
@@ -857,9 +847,9 @@ real4s4 calc_partial_gLL_of_Phi(
 ) {
 	int const index = indexForInt4(i);
 
-	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);
-	real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
-	real4x4s4 const GammaULL = GammaULLs[index];
+	auto const gLL = calc_gLL_from_gPrim(gPrims[index]);
+	auto const gUU = calc_gUU_from_gPrim(gPrims[index]);
+	auto const & GammaULL = GammaULLs[index];
 
 	//partial_xU2_of_gLL.cd.ab := g_ab,cd
 <?=solver:finiteDifference2{
@@ -871,49 +861,34 @@ real4s4 calc_partial_gLL_of_Phi(
 
 	//TODO or store this?
 	//GammaLLL.a.bc := Γ_abc = g_au Γ^u_bc
-	real4x4s4 const GammaLLL = gLL * GammaULL;
+	auto const GammaLLL = gLL * GammaULL;
 
 	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
 	//both are T_abcd = -T_bacd = -T_abdc and T_abcd = T_cdab
-	real4x4x4x4 partial_xU2_of_gLL_asym;
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = 0; c < stDim; ++c) {
-				for (int d = 0; d < stDim; ++d) {
-					partial_xU2_of_gLL_asym(a, b, c, d) =
-						partial_xU2_of_gLL(a, d, b, c)
-						+ partial_xU2_of_gLL(b, c, a, d)
-						- partial_xU2_of_gLL(b, d, a, c)
-						- partial_xU2_of_gLL(a, c, b, d);
-				}
-			}
-		}
-	}
+	auto partial_xU2_of_gLL_asym = real4x4x4x4([&](int a, int b, int c, int d) {
+		return partial_xU2_of_gLL(a, d, b, c)
+			+ partial_xU2_of_gLL(b, c, a, d)
+			- partial_xU2_of_gLL(b, d, a, c)
+			- partial_xU2_of_gLL(a, c, b, d);
+	});
 
 	//GammaSq_asym_LLLL.a.b.c.d := Γ^e_ad Γ_ebc - Γ^e_ac Γ_ebd
 	// not the same as the popular 2 Γ^a_e[c Γ^e_d]b used for Riemann with 2 ∂/dx^[c Γ^a_d]b
 	// instead this is the one used with 2 g_[a[b,c]d]
 	// TODO antisymmetric storage
-	real4x4x4x4 GammaSq_asym_LLLL;
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = 0; b < stDim; ++b) {
-			for (int c = 0; c < stDim; ++c) {
-				for (int d = 0; d < stDim; ++d) {
-					real sum = 0.;
-					for (int e = 0; e < stDim; ++e) {
-						sum += GammaULL(e, a, d) * GammaLLL(e, b, c)
-							- GammaULL(e, a, c) * GammaLLL(e, b, d);
-					}
-					GammaSq_asym_LLLL(a, b, c, d) = sum;
-				}
-			}
+	auto GammaSq_asym_LLLL = real4x4x4x4([&](int a, int b, int c, int d) {
+		real sum = 0.;
+		for (int e = 0; e < stDim; ++e) {
+			sum += GammaULL(e, a, d) * GammaLLL(e, b, c)
+				- GammaULL(e, a, c) * GammaLLL(e, b, d);
 		}
-	}
+		return sum;
+	});
 
 	// linear transform, not necessarily tensoral (since neither is anyways)
-	real4x4x4x4 const gUU_times_partial_xU2_gLL_asym = real4x4x4x4_real4s4_mul_1_1(partial_xU2_of_gLL_asym, gUU);
-	real4x4x4x4 const GammaSq_asym_ULLL = real4x4x4x4_real4s4_mul_1_1(GammaSq_asym_LLLL, gUU);
+	auto const gUU_times_partial_xU2_gLL_asym = real4x4x4x4_real4s4_mul_1_1(partial_xU2_of_gLL_asym, gUU);
+	auto const GammaSq_asym_ULLL = real4x4x4x4_real4s4_mul_1_1(GammaSq_asym_LLLL, gUU);
 
 	//RiemannLLLL.a.b.c.d := R_abcd
 	//= 1/2 (g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
@@ -923,57 +898,50 @@ real4s4 calc_partial_gLL_of_Phi(
 
 	//RiemannULLL.a.b.c.d := R^a_bcd = 1/2 g^ae ((g_ed,cb - g_bd,ce - g_ec,bd + g_bc,de) + g^fg (Γ_fed Γ_gbc - Γ_fec Γ_gbd))
 	//TODO antisymmetric storage
-	real4x4x4x4 const RiemannULLL = GammaSq_asym_ULLL + .5 * gUU_times_partial_xU2_gLL_asym;
+	auto const RiemannULLL = GammaSq_asym_ULLL + .5 * gUU_times_partial_xU2_gLL_asym;
 
 	//RiemannULUL.a.b.c.d = R^a_b^c_d = R^a_bud g^uc
-	real4x4x4x4 const RiemannULUL = real4x4x4x4_real4s4_mul_3_1(RiemannULLL, gUU);
+	auto const RiemannULUL = real4x4x4x4_real4s4_mul_3_1(RiemannULLL, gUU);
 
 	//RicciLL.ab := R_ab = R^c_acb
-	real4s4 const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
+	auto const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
 
 	//RicciUL.a.b := R^a_b = g^ac R_cb
-	real4x4 const RicciUL = gUU * RicciLL;
+	auto const RicciUL = gUU * RicciLL;
 
 	//RicciUU.ab := R^ab = R^a_c g^cb
-	real4s4 const RicciUU = RicciUL * gUU;
+	auto const RicciUU = RicciUL * gUU;
 
 	//Gaussian := R = R^a_a
-	real const Gaussian = real4x4_tr(RicciUL);
+	auto const Gaussian = RicciUL.trace();
 
-	real4s4x4s4 const partial_gLL_of_8piTLL = calc_partial_gLL_of_8piTLL(TPrims[index], gLL, gUU);
+	auto const partial_gLL_of_8piTLL = calc_partial_gLL_of_8piTLL(TPrims[index], gLL, gUU);
 
-	real4s4 const EFE = EFEs[index];	// G_ab - 8 π T_ab
+	auto const & EFE = EFEs[index];	// G_ab - 8 π T_ab
 
 	//lower times lower, but used for minimizing frobenius norm of EFE_ab
 	// Sum_ab (G_ab - 8 π T_ab) g_ab
-	real const EFE_LL_dot_gLL = EFE.dot(gLL);
+	auto const EFE_LL_dot_gLL = EFE.dot(gLL);
 
 	// common term in the gradient descent:
 	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
-	real4s4 EFE_LL_minus_half_trace = EFE - (.5 * EFE_LL_dot_gLL) * gUU;
+	auto const EFE_LL_minus_half_trace = EFE - (.5 * EFE_LL_dot_gLL) * gUU;
 
 	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
-	real4x4x4 const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
+	auto const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
 
 	//Gamma23U.a := Γ^a = Γ^au_u
-	real4 const Gamma23U = real4x4x4_tr23(GammaUUL);
+	auto const Gamma23U = real4x4x4_tr23(GammaUUL);
 
 	// GammaSq_tr_2_2.pq.uv := Γ^pc_v Γ^q_cu - Γ^pc_c Γ^q_uv
 	// symmetries?
-	real4x4x4x4 GammaSq_tr_2_2;
-	for (int p = 0; p < stDim; ++p) {
-		for (int q = 0; q < stDim; ++q) {
-			for (int u = 0; u < stDim; ++u) {
-				for (int v = 0; v < stDim; ++v) {
-					real sum = - Gamma23U(p) * GammaULL(q, u, v);
-					for (int c = 0; c < stDim; ++c) {
-						sum += GammaUUL(p, c, v) * GammaULL(q, c, u);
-					}
-					GammaSq_tr_2_2(p, q, u, v) = sum;
-				}
-			}
+	auto const GammaSq_tr_2_2 = real4x4x4x4([&](int p, int q, int u, int v) {
+		real sum = - Gamma23U(p) * GammaULL(q, u, v);
+		for (int c = 0; c < stDim; ++c) {
+			sum += GammaUUL(p, c, v) * GammaULL(q, c, u);
 		}
-	}
+		return sum;
+	});
 
 	//partial_gLL_of_Phi.pq := ∂Φ/∂g_pq
 	real4s4 partial_gLL_of_Phi;
@@ -1009,7 +977,7 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
-#if 1
+#if 0
 			// next calculate first-derivatives of ∂/∂g_pq terms:
 			for (int dim = 0; dim < sDim; ++dim) {
 				for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
@@ -1058,7 +1026,7 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
-#if 1
+#if 0
 			// next calculate second-derivatives of ∂/∂g_pq terms:
 			for (int dim1 = 0; dim1 < sDim; ++dim1) {
 				for (int dim2 = 0; dim2 < sDim; ++dim2) {
@@ -1169,12 +1137,12 @@ gPrim_t calc_partial_gPrim_of_Phi(
 ) {
 	int const index = indexForInt4(i);
 
-	real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
+	auto const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
 
-	gPrim_t const gPrim = gPrims[index];
-	real3s3 const gammaLL = gPrim.gammaLL;
-	real3 const betaU = gPrim.betaU;
-	real3 const betaL = gammaLL * betaU;
+	auto const & gPrim = gPrims[index];
+	auto const & gammaLL = gPrim.gammaLL;
+	auto const & betaU = gPrim.betaU;
+	auto const betaL = gammaLL * betaU;
 
 	gPrim_t partial_gPrim_of_Phi;
 
