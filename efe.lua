@@ -49,12 +49,6 @@ function CLProgram:clangCompile(dst, src, buildOptions)
 end
 
 
-
--- helper for indexing symmetric matrices
-local function sym(i,j)
-	if i <= j then return i..j else return j..i end
-end
-
 -- constants
 
 local c = 299792458			-- m/s
@@ -1418,7 +1412,6 @@ end
 function EFESolver:template(code)
 	return template(code, {
 		clnumber = clnumber,
-		sym = sym,
 		sDim = self.base.sDim,
 		stDim = self.base.stDim,
 		size = self.base.size,
