@@ -1050,7 +1050,7 @@ texCLBuf[index] = (real4_to_real3(dPhi_dx) - getX(env, i)).length();
 texCLBuf[index] = real4x4s4_i00(GammaULLs[index]).length();
 ]]},
 		{['numerical gravity'] = [[
-// TODO dot it with the radial vector? ... like it was before?
+// TODO show radial component, like before?  or show magnitdue in any direction?
 texCLBuf[index] = real4x4s4_i00(GammaULLs[index]).length() * c * c;
 ]]},
 	}

@@ -4,7 +4,7 @@ return {
 	--size = 8,
 	
 	-- line trace amount
-	updateLambda = 1e+9,
+	updateLambda = 1e+30,	-- first step settles around 1e+24
 
 	--body = 'vacuum',
 	body = 'Earth',

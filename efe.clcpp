@@ -886,15 +886,17 @@ real4s4 calc_partial_gLL_of_Phi(
 	for (int p = 0; p < stDim; ++p) {
 		for (int q = p; q < stDim; ++q) {
 			real sum = 0;
+// this alone, converge line-search step size of 1e+30, will give a profile of the stress-energy density 
 #if 1
 			// -(G_pq - 8 π T_pq) R
 			sum -= EFE(p, q) * Gaussian;
 #endif
-#if 0
+// the rest of these ... meh, same shape, I see no difference really
+#if 1
 			// + Sum_ab EFE_ab 1/2 g_ab R^pq
 			sum += EFE_LL_dot_gLL * .5 * RicciUU(p, q);
 #endif
-#if 0
+#if 1
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
 					// - Sum_ab EFE_ab 8 π dT_ab/dg_pq
@@ -902,7 +904,7 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
-#if 0
+#if 1
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
 					sum -= EFE_LL_minus_half_trace(u, v) * (
@@ -914,6 +916,8 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
+// these, in theory, could improve relation of convergence between values and their neighbors ..
+// ... but it makes it go way too slow ...
 #if 0
 			// next calculate first-derivatives of ∂/∂g_pq terms:
 			for (int dim = 0; dim < sDim; ++dim) {
