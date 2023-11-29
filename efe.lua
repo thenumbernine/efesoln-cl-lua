@@ -760,9 +760,12 @@ end
 				{dim = 'int'},
 				{initCond = 'int'},
 				{boundaryCond = 'int'},
+				{convergeAlpha = 'bool'},
+				{convergeBeta = 'bool'},
+				{convergeGamma = 'bool'},
 			},
-			-- TODO packed=false
 			dontMakeExtraUnion = true,	-- TODO make this default behavior
+			dontPack = true,	-- TODO make this default behavior
 		}
 
 		local gPrim_mt, gPrim_code = struct{
@@ -1340,26 +1343,8 @@ end
 
 function EFESolver:initBuffers()
 	self.envPtr = ffi.new'env_t[1]'
-	self.envPtr[0].size.x = self.base.size.x
-	self.envPtr[0].size.y = self.base.size.y
-	self.envPtr[0].size.z = self.base.size.z
-	self.envPtr[0].stepsize.x = 1
-	self.envPtr[0].stepsize.y = self.base.size.x
-	self.envPtr[0].stepsize.z = self.base.size.x * self.base.size.y
-	self.envPtr[0].xmin.x = self.xmin.x
-	self.envPtr[0].xmin.y = self.xmin.y
-	self.envPtr[0].xmin.z = self.xmin.z
-	self.envPtr[0].xmax.x = self.xmax.x
-	self.envPtr[0].xmax.y = self.xmax.y
-	self.envPtr[0].xmax.z = self.xmax.z
-	self.envPtr[0].dx.x = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
-	self.envPtr[0].dx.y = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
-	self.envPtr[0].dx.z = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
-	self.envPtr[0].invdx.x = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
-	self.envPtr[0].invdx.y = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
-	self.envPtr[0].invdx.z = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
-	self.envPtr[0].dim = self.base.dim
-	self.envBuf = self:buffer{name='env', type='env_t', count=1, data=self.envPtr}
+	self.envBuf = self:buffer{name='env', type='env_t', count=1}
+	self:updateEnv()
 
 	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
@@ -1727,8 +1712,30 @@ end
 
 -- call this if anything that the envBuf / envPtr depends on is changed
 function EFESolver:updateEnv()
+	self.envPtr[0].size.x = self.base.size.x
+	self.envPtr[0].size.y = self.base.size.y
+	self.envPtr[0].size.z = self.base.size.z
+	self.envPtr[0].stepsize.x = 1
+	self.envPtr[0].stepsize.y = self.base.size.x
+	self.envPtr[0].stepsize.z = self.base.size.x * self.base.size.y
+	self.envPtr[0].xmin.x = self.xmin.x
+	self.envPtr[0].xmin.y = self.xmin.y
+	self.envPtr[0].xmin.z = self.xmin.z
+	self.envPtr[0].xmax.x = self.xmax.x
+	self.envPtr[0].xmax.y = self.xmax.y
+	self.envPtr[0].xmax.z = self.xmax.z
+	self.envPtr[0].dx.x = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
+	self.envPtr[0].dx.y = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
+	self.envPtr[0].dx.z = (self.xmax.x - self.xmin.x) / tonumber(self.base.size.x)
+	self.envPtr[0].invdx.x = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
+	self.envPtr[0].invdx.y = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
+	self.envPtr[0].invdx.z = tonumber(self.base.size.x) / (self.xmax.x - self.xmin.x)
+	self.envPtr[0].dim = self.base.dim
 	self.envPtr[0].initCond = self.initCond
 	self.envPtr[0].boundaryCond = self.boundaryCond
+	self.envPtr[0].convergeAlpha = self.convergeAlpha
+	self.envPtr[0].convergeBeta = self.convergeBeta
+	self.envPtr[0].convergeGamma = self.convergeGamma
 	self.envBuf:fromCPU(self.envPtr)
 end
 

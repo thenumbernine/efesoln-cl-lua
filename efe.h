@@ -24,6 +24,9 @@ struct env_t {
 	int dim = {};
 	int initCond = {};
 	int boundaryCond = {};
+	bool convergeAlpha = true;
+	bool convergeBeta = false;
+	bool convergeGamma = false;
 };
 
 struct gPrim_t {

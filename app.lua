@@ -188,12 +188,24 @@ function App:event(event, eventPtr)
 				self.updateMethod = nil
 			end
 		end
+	elseif event.type == sdl.SDL_WINDOWEVENT then
+		if event.window.event == sdl.SDL_WINDOWEVENT_FOCUS_GAINED then
+			print'unpausing...'
+			self.paused = false
+		elseif event.window.event == sdl.SDL_WINDOWEVENT_FOCUS_LOST then
+			print'pausing...'
+			self.paused = true
+		end
 	end
 end
 
 App.updateMethod = nil
 
+App.paused = false
+
 function App:update()
+	if self.paused then return end
+
 	if self.updateMethod then
 		if self.updateMethod == 'step' then
 			print('performing single step...')
@@ -403,15 +415,15 @@ function App:updateGUI()
 
 	if ig.luatableCheckbox('converge alpha', self.solver, 'convergeAlpha') then
 		print('alpha', self.solver.convergeAlpha)
-		self.solver:refreshKernels()
+		self.solver:updateEnv()
 	end
 	if ig.luatableCheckbox('converge beta', self.solver, 'convergeBeta') then
 		print('beta', self.solver.convergeBeta)
-		self.solver:refreshKernels()
+		self.solver:updateEnv()
 	end
 	if ig.luatableCheckbox('converge gamma', self.solver, 'convergeGamma') then
 		print('gamma', self.solver.convergeGamma)
-		self.solver:refreshKernels()
+		self.solver:updateEnv()
 	end
 
 	-- InputFloat doesn't allow formats

@@ -51,14 +51,13 @@ kernel void update_gPrims(
 	auto & gPrim = gPrims[index];
 	auto const & partial_gPrim_of_Phi = partial_gPrim_of_Phis[index];
 
-<? if solver.convergeAlpha then
-?>	gPrim.alpha -= partial_gPrim_of_Phi.alpha * updateLambda;
-<? end
-if solver.convergeBeta then
-?>	gPrim.betaU -= partial_gPrim_of_Phi.betaU * updateLambda;
-<? end
-if solver.convergeGamma then
-?>	gPrim.gammaLL -= partial_gPrim_of_Phi.gammaLL * updateLambda;
-<? end
-?>
+	if (env->convergeAlpha) {
+		gPrim.alpha -= partial_gPrim_of_Phi.alpha * updateLambda;
+	}
+	if (env->convergeBeta) {
+		gPrim.betaU -= partial_gPrim_of_Phi.betaU * updateLambda;
+	}
+	if (env->convergeGamma) {
+		gPrim.gammaLL -= partial_gPrim_of_Phi.gammaLL * updateLambda;
+	}
 }
