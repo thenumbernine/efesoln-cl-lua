@@ -1009,7 +1009,7 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
-#if 0
+#if 1
 			// next calculate first-derivatives of ∂/∂g_pq terms:
 			for (int dim = 0; dim < sDim; ++dim) {
 				for (int offset = -<?=solver.diffOrder/2?>; offset <= <?=solver.diffOrder/2?>; ++offset) {
@@ -1042,23 +1042,23 @@ real4s4 calc_partial_gLL_of_Phi(
 					*/
 					int const a = dim+1;
 					for (int b = 0; b < stDim; ++b) {
-						sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, b, b) * d1coeff_for_offset(offset) * env->invdx(dim);
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, q, b) * d1coeff_for_offset(offset) * env->invdx(dim);
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, p, b) * d1coeff_for_offset(offset) * env->invdx(dim);
+						sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, b, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, q, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, p, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						for (int c = 0; c < stDim; ++c) {
-							sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(a, b, c) * gUU_from_gPrims_at(env, gPrims, iofs)(p, q) * d1coeff_for_offset(offset) * env->invdx(dim);
+							sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(a, b, c) * gUU_from_gPrims_at(env, gPrims, iofs)(p, q) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						}
-						sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, b, b) * d1coeff_for_offset(offset) * env->invdx(dim);
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, q, b) * d1coeff_for_offset(offset) * env->invdx(dim);
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, a, b) * d1coeff_for_offset(offset) * env->invdx(dim);
+						sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, b, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, q, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, a, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						for (int c = 0; c < stDim; ++c) {
-							sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(p, c, b) * gUU_from_gPrims_at(env, gPrims, iofs)(a, q) * d1coeff_for_offset(offset) * env->invdx(dim);
+							sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(p, c, b) * gUU_from_gPrims_at(env, gPrims, iofs)(a, q) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						}
 					}
 				}
 			}
 #endif
-#if 0
+#if 1
 			// next calculate second-derivatives of ∂/∂g_pq terms:
 			for (int dim1 = 0; dim1 < sDim; ++dim1) {
 				for (int dim2 = 0; dim2 < sDim; ++dim2) {
@@ -1114,7 +1114,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_d = offset2;
 									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, q)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(p, d)
-										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_d) * env->invdx(dim1) * env->invdx(dim2));
+										* (d1coeff_for_offset(-offset_u) * d1coeff_for_offset(-offset_d) * env->invdx(dim1) * env->invdx(dim2));
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cv[g_ud] = δ^p_u δ^q_d D^2 d1coeff_c d1coeff_v)
 									// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d1coeff_c d1coeff_v) |x'=x + dx^v + dx^c
@@ -1124,7 +1124,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_c = offset2;
 									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, v)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(c, q)
-										* (d1coeff_for_offset(offset_v) * d1coeff_for_offset(offset_c) * env->invdx(dim1) * env->invdx(dim2));
+										* (d1coeff_for_offset(-offset_v) * d1coeff_for_offset(-offset_c) * env->invdx(dim1) * env->invdx(dim2));
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_cd[g_uv] = δ^p_u δ^q_v D^2 d1coeff_c d1coeff_d)
 									// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d1coeff_c d1coeff_d) |x'=x + dx^c + dx^d
@@ -1134,7 +1134,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_d = offset2;
 									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(c, d)
-										* (d1coeff_for_offset(offset_c) * d1coeff_for_offset(offset_d) * env->invdx(dim1) * env->invdx(dim2));
+										* (d1coeff_for_offset(-offset_c) * d1coeff_for_offset(-offset_d) * env->invdx(dim1) * env->invdx(dim2));
 								}{
 									// + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^cd (∂/∂g_pq(x') D^2_uv[g_cd] = δ^p_c δ^q_d D^2 d1coeff_u d1coeff_v)
 									// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d1coeff_u d1coeff_v) |x'=x + dx^u + dx^v
@@ -1144,7 +1144,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const offset_v = offset2;
 									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, v)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(p, q)
-										* (d1coeff_for_offset(offset_u) * d1coeff_for_offset(offset_v) * env->invdx(dim1) * env->invdx(dim2));
+										* (d1coeff_for_offset(-offset_u) * d1coeff_for_offset(-offset_v) * env->invdx(dim1) * env->invdx(dim2));
 								}
 							}
 						}
