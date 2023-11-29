@@ -893,16 +893,18 @@ real4s4 calc_partial_gLL_of_Phi(
 #endif
 // the rest of these ... meh, same shape, I see no difference really
 #if 1
-			// + Sum_ab EFE_ab 1/2 g_ab R^pq
-			sum += EFE_LL_dot_gLL * .5 * RicciUU(p, q);
-#endif
-#if 1
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
 					// - Sum_ab EFE_ab 8 π dT_ab/dg_pq
 					sum -= EFE(a, b) * partial_gLL_of_8piTLL(p, q, a, b);
 				}
 			}
+#endif
+#if 1
+			// + Sum_ab EFE_ab g_ab R^pq
+			// ... = Sum_ab EFE_ab g_ab g^uv R^p_u^q_v
+			// ... 1/2 coefficient? or not?
+			sum += EFE_LL_dot_gLL * RicciUU(p, q);
 #endif
 #if 1
 			for (int u = 0; u < stDim; ++u) {
