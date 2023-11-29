@@ -82,9 +82,9 @@ kernel void calc_GammaULLs(
 ) {
 	initKernel();
 
-std::cout << "i " << i << std::endl;
-std::cout << "index " << index << std::endl;
-std::cout << "gPrim " << gPrims[index] << std::endl;
+//std::cout << "i " << i << std::endl;
+//std::cout << "index " << index << std::endl;
+//std::cout << "gPrim " << gPrims[index] << std::endl;
 
 	//partial_xU_of_gLL.c.ab := ∂/∂x^c(g_ab) = g_ab,c
 <?=solver:finiteDifference{
@@ -94,7 +94,7 @@ std::cout << "gPrim " << gPrims[index] << std::endl;
 	getBoundary = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
 }?>
 
-std::cout << "partial_xU_of_gLL " << partial_xU_of_gLL << std::endl;
+//std::cout << "partial_xU_of_gLL " << partial_xU_of_gLL << std::endl;
 
 	//Γ_abc := GammaLLL.a.bc
 	//Γ_abc = 1/2 (g_ab,c + g_ac,b - g_bc,a)
@@ -111,14 +111,14 @@ std::cout << "partial_xU_of_gLL " << partial_xU_of_gLL << std::endl;
 		}
 	}
 
-std::cout << "GammaLLL " << GammaLLL << std::endl;
+//std::cout << "GammaLLL " << GammaLLL << std::endl;
 
 	//Γ^a_bc = GammaULL.a.bc
 	//Γ^a_bc = g^ad Γ_dbc
 	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
-std::cout << "gUU " << gUU << std::endl;
+//std::cout << "gUU " << gUU << std::endl;
 	GammaULLs[index] = gUU * GammaLLL;
-std::cout << "GammaULL " << GammaULLs[index] << std::endl;
+//std::cout << "GammaULL " << GammaULLs[index] << std::endl;
 }
 
 /*

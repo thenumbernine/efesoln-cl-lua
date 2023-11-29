@@ -1711,22 +1711,20 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
-print'init_gPrims'
+--print'init_gPrims'
 	local initCondIndex = ffi.new('int[1]')
 	initCondIndex[0] = self.initCond
-self.init_gPrims.obj:setArg(0, self.envBuf.obj)
-self.init_gPrims.obj:setArg(1, self.gPrims.obj)
 	self.init_gPrims.obj:setArg(2, initCondIndex)
 	self.init_gPrims()	-- initialize gPrims
-self:printbuf'gPrims'
+--self:printbuf'gPrims'
 
-print'init_TPrims'
+--print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims
-self:printbuf'TPrims'
+--self:printbuf'TPrims'
 
 	self:updateAux()	-- calc GammaLLs, EFEs
-self:printbuf'GammaULLs'
-self:printbuf'EFEs'
+--self:printbuf'GammaULLs'
+--self:printbuf'EFEs'
 
 	self:updateTex()
 print('residual', self:calcBufferNorm())
