@@ -722,8 +722,8 @@ end
 	int index = indexForInt4ForSize(i, sx, sy, sz);
 
 //macros for the base domain
-#define indexForInt4(i)	indexForInt4ForSize(i, env->size.x, env->size.y, env->size.z)
-#define initKernel()	initKernelForSize(env->size.x, env->size.y, env->size.z)
+#define indexForInt4(i)	indexForInt4ForSize(i, (int)env->size.x, (int)env->size.y, (int)env->size.z)
+#define initKernel()	initKernelForSize((int)env->size.x, (int)env->size.y, (int)env->size.z)
 ]],
 		vec3sz.typeCode,
 	}:concat'\n'
@@ -1165,7 +1165,7 @@ end
 		x = self.gPrims,
 		b = self._8piTLLs,
 		type = 'real',
-		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
+		count = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(residual, iter)
 			io.stderr:write('residual='..tostring(residual)..', iter='..tostring(iter)..'\n')
 			if not math.isfinite(residual) then
@@ -1213,7 +1213,7 @@ end
 		x = self.gPrims,
 		b = self._8piTLLs,
 		type = 'real',
-		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
+		count = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(residual, iter)
 			io.stderr:write('residual='..tostring(residual)..', iter='..tostring(iter)..'\n')
 			if not math.isfinite(residual) then
@@ -1258,7 +1258,7 @@ assert(type(name)=='string')
 		end,
 		x = self.gPrims,
 		type = 'real',
-		size = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
+		count = self.base.volume * ffi.sizeof'gPrim_t' / ffi.sizeof'real',
 		errorCallback = function(residual, iter)
 			--io.stderr:write('jfnk residual='..tostring(residual)..', iter='..tostring(iter)..'\n')
 			if not math.isfinite(residual) then

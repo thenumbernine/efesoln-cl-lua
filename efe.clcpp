@@ -890,11 +890,11 @@ real4s4 calc_partial_gLL_of_Phi(
 			// -(G_pq - 8 π T_pq) R
 			sum -= EFE(p, q) * Gaussian;
 #endif
-#if 1
+#if 0
 			// + Sum_ab EFE_ab 1/2 g_ab R^pq
 			sum += EFE_LL_dot_gLL * .5 * RicciUU(p, q);
 #endif
-#if 1
+#if 0
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
 					// - Sum_ab EFE_ab 8 π dT_ab/dg_pq
@@ -902,7 +902,7 @@ real4s4 calc_partial_gLL_of_Phi(
 				}
 			}
 #endif
-#if 1
+#if 0
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
 					sum -= EFE_LL_minus_half_trace(u, v) * (
