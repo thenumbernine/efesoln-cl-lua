@@ -443,9 +443,9 @@ function App:updateGUI()
 	ig.igText'boundary conditions:'
 	for i,boundaryCond in ipairs(self.solver.boundaryConds) do
 		if ig.luatableRadioButton(boundaryCond.name, self.solver, 'boundaryCond', i) then
-			-- hmmmmmm
-			-- update something in the env I think ...
-			--self.solver:resetState()
+print(self.solver.boundaryCond)
+			-- reset state?
+			self.solver:updateEnv()
 		end
 	end
 

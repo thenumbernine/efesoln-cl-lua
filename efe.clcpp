@@ -205,19 +205,18 @@ gPrim_t calc_gPrim_boundary(
 	global gPrim_t const * const gPrims,
 	int4 i
 ) {
-#if 1	// boundary condition : flat
-	return calc_gPrim_flat();
-#endif
-#if 0	// boundary condition : fixed (constant zero first-derivatives)
-	i.x = clamp(i.x, 0, (int)env->size.x-1);
-	i.y = clamp(i.y, 0, (int)env->size.y-1);
-	i.z = clamp(i.z, 0, (int)env->size.z-1);
-	int const index = indexForInt4(i);
-	return gPrims[index];
-#endif
-#if 0	// boundary condition : stellar schwarzschild
-	return calc_gPrim_stellar_Schwarzschild(getX(env, i));
-#endif
+	if (0) {
+<? for i,boundaryCond in ipairs(solver.boundaryConds) do
+?>	} else if (env->boundaryCond == <?=i?>) {
+<?=boundaryCond.code?>
+<? end
+?>	} else {
+		return gPrim_t(
+			-1,
+			{-2, -3, -4},
+			{-5, -6, -7, -8, -9, -10}
+		);
+	}
 }
 
 real4s4 calc_gLL_from_gPrim(

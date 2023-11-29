@@ -16,8 +16,7 @@
 
 kernel void init_gPrims(
 	constant env_t const * const env,
-	global gPrim_t * const gPrims,
-	int initCond
+	global gPrim_t * const gPrims
 ) {
 	initKernel();
 	real3 const x = getX(env, i);
@@ -26,8 +25,7 @@ kernel void init_gPrims(
 
 	if (0) {
 <? for i,initCond in ipairs(solver.initConds) do
-?>
-	} else if (initCond == <?=i?>) {
+?>	} else if (env->initCond == <?=i?>) {
 		*gPrim = <?=initCond.code?>;
 <? end
 ?>	} else {

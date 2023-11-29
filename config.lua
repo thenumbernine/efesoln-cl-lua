@@ -18,6 +18,10 @@ return {
 	initCond = 'flat',
 	--initCond = 'stellar Schwarzschild',
 	--initCond = 'stellar Kerr-Newman',
+
+	boundaryCond = 'g_ab = eta_ab',
+	--boundaryCond = 'g_ab,c = 0',
+	--boundaryCond = 'stellar Schwarzschild',
 	
 	outputFilename = 'out.txt',
 

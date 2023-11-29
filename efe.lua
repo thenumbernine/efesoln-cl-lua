@@ -511,8 +511,26 @@ EFESolver.initConds = table{
 	return {name=k, code=v}
 end)
 
+-- inserted into calc_gPrim_boundary in efe.clcpp
 EFESolver.boundaryConds = table{
-}
+	{['g_ab = eta_ab'] = [[
+	return calc_gPrim_flat();
+]]},
+	{["g_ab,c = 0"] = [[
+	int4 iclamped = i;
+	iclamped.x = clamp(iclamped.x, 0, (int)env->size.x-1);
+	iclamped.y = clamp(iclamped.y, 0, (int)env->size.y-1);
+	iclamped.z = clamp(iclamped.z, 0, (int)env->size.z-1);
+	int const index = indexForInt4(iclamped);
+	return gPrims[index];
+]]},
+	{['stellar Schwarzschild'] = [[
+	return calc_gPrim_stellar_Schwarzschild(getX(env, i));
+]]},
+}:map(function(kv)
+	local k,v = next(kv)
+	return {name=k, code=v}
+end)
 
 EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes', 'JFNK'}
 
@@ -746,6 +764,8 @@ end
 				{dx = 'real3'},
 				{invdx = 'real3'},
 				{dim = 'int'},
+				{initCond = 'int'},
+				{boundaryCond = 'int'},
 			},
 			-- TODO packed=false
 			dontMakeExtraUnion = true,	-- TODO make this default behavior
@@ -887,6 +907,10 @@ local oldHeader = autogenCode
 
 	self.initCond = self.initConds:find(nil, function(initCond)
 		return initCond.name == config.initCond
+	end) or 1
+
+	self.boundaryCond = self.boundaryConds:find(nil, function(boundaryCond)
+		return boundaryCond.name == config.boundaryCond
 	end) or 1
 
 	-- what do we want to converge
@@ -1585,7 +1609,6 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		setArgs = {
 			assert(self.envBuf),
 			self.gPrims,
-			{type='int'},
 		},
 	}
 
@@ -1713,11 +1736,17 @@ function EFESolver:refreshDisplayVar()
 	self:updateTex()
 end
 
+-- call this if anything that the envBuf / envPtr depends on is changed
+function EFESolver:updateEnv()
+	self.envPtr[0].initCond = self.initCond
+	self.envPtr[0].boundaryCond = self.boundaryCond
+	self.envBuf:fromCPU(self.envPtr)
+end
+
 function EFESolver:resetState()
 --print'init_gPrims'
-	local initCondIndex = ffi.new('int[1]')
-	initCondIndex[0] = self.initCond
-	self.init_gPrims.obj:setArg(2, initCondIndex)
+	self:updateEnv()
+
 	self.init_gPrims()	-- initialize gPrims
 --self:printbuf'gPrims'
 

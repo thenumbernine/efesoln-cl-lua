@@ -22,6 +22,8 @@ struct env_t {
 	real3 dx = {};
 	real3 invdx = {};
 	int dim = {};
+	int initCond = {};
+	int boundaryCond = {};
 };
 
 struct gPrim_t {
