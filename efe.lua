@@ -502,10 +502,10 @@ end
 EFESolver.useFourPotential = false
 
 EFESolver.initConds = table{
-	{flat = 'calc_gPrim_flat'},
-	{['stellar Schwarzschild'] = 'calc_gPrim_stellar_Schwarzschild'},
+	{flat = 'calc_gPrim_flat()'},
+	{['stellar Schwarzschild'] = 'calc_gPrim_stellar_Schwarzschild(x)'},
 	-- looks like an error
-	{['stellar Kerr-Newman'] = 'calc_gPrim_stellar_Kerr_Newman'},
+	{['stellar Kerr-Newman'] = 'calc_gPrim_stellar_Kerr_Newman(x)'},
 }:map(function(kv)
 	local k,v = next(kv)
 	return {name=k, code=v}
@@ -1711,20 +1711,20 @@ function EFESolver:refreshDisplayVar()
 end
 
 function EFESolver:resetState()
---print'init_gPrims'
+print'init_gPrims'
 	local initCondIndex = ffi.new('int[1]')
 	initCondIndex[0] = self.initCond
 	self.init_gPrims.obj:setArg(2, initCondIndex)
 	self.init_gPrims()	-- initialize gPrims
---self:printbuf'gPrims'
+self:printbuf'gPrims'
 
---print'init_TPrims'
+print'init_TPrims'
 	self.init_TPrims()	-- initialize TPrims
---self:printbuf'TPrims'
+self:printbuf'TPrims'
 
 	self:updateAux()	-- calc GammaLLs, EFEs
---self:printbuf'GammaULLs'
---self:printbuf'EFEs'
+self:printbuf'GammaULLs'
+self:printbuf'EFEs'
 
 	self:updateTex()
 print('residual', self:calcBufferNorm())
@@ -1944,9 +1944,9 @@ function EFESolver:updateAux()
 		end
 	end
 
---print'calc_EFEs'
+print'calc_EFEs'
 	self.calc_EFEs()
---self:printbuf'EFEs'
+self:printbuf'EFEs'
 end
 
 function EFESolver:updateTex()

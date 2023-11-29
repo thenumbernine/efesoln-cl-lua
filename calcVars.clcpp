@@ -28,7 +28,7 @@ kernel void init_gPrims(
 <? for i,initCond in ipairs(solver.initConds) do
 ?>
 	} else if (initCond == <?=i?>) {
-		*gPrim = <?=initCond.code?>(x);
+		*gPrim = <?=initCond.code?>;
 <? end
 ?>	} else {
 		*gPrim = gPrim_t(
@@ -280,21 +280,5 @@ kernel void calc_EFEs(
 	real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
 	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
-//debugging
-	//EFEs[index] = real4s4();	//no nans
-	//EFEs[index] = _8piTLL;	//no nans
-	//EFEs[index] = EinsteinLL;	//no nans
-	EFEs[index] -= _8piTLL;
-	/* no nans
-	for (int a = 0; a < stDim; ++a) {
-		for (int b = a; b < stDim; ++b) {
-			EFEs[index](a, b) = EinsteinLL(a, b) - _8piTLL(a, b);
-		}
-	}
-	*/
-	/* another try ... works
-	for (int ab = 0; ab < 10; ++ab) {
-		EFEs[index](a, b) = EinsteinLL(a, b) - _8piTLL(a, b);
-	}
-	*/
+	EFEs[index] = EinsteinLL - _8piTLL;
 }

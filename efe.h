@@ -127,12 +127,6 @@ extern constant real const d2coeffs[<?=#d2coeffs+1?>];
 real3 real4_to_real3(real4 const & a);
 real4 real3_to_real4(real3 const & a);
 
-#define real3s3_ident (real3s3(\
-	1,\
-	0,1,\
-	0,0,1\
-))
-
 real3 real4s4_i0(real4s4 const & a);
 real3s3 real4s4_ij(real4s4 const & a);
 extern constant real4s4 const real4s4_Minkowski;
@@ -190,7 +184,7 @@ real4s4 calc_8piTLL(
 
 //need to be here o calcVars.clcpp can see them
 // it calls them based on populated code from efe.initConds
-gPrim_t calc_gPrim_flat(real3 const x);
+gPrim_t calc_gPrim_flat();
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x);
 gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x);
 

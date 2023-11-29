@@ -205,10 +205,10 @@ gPrim_t calc_gPrim_boundary(
 	global gPrim_t const * const gPrims,
 	int4 i
 ) {
-#if 0	// boundary condition : flat
-	return gPrim_flat;
+#if 1	// boundary condition : flat
+	return calc_gPrim_flat();
 #endif
-#if 1	// boundary condition : fixed (constant zero first-derivatives)
+#if 0	// boundary condition : fixed (constant zero first-derivatives)
 	i.x = clamp(i.x, 0, (int)env->size.x-1);
 	i.y = clamp(i.y, 0, (int)env->size.y-1);
 	i.z = clamp(i.z, 0, (int)env->size.z-1);
@@ -426,11 +426,13 @@ real4s4 calc_EinsteinLL(
 ) {
 	int const index = indexForInt4(i);
 
+	auto const & gPrim = gPrims[index];
+
 	//gLL.ab := g_ab
-	real4s4 gLL = calc_gLL_from_gPrim(gPrims[index]);
+	real4s4 gLL = calc_gLL_from_gPrim(gPrim);
 
 	//gUU.ab := g_ab
-	real4s4 gUU = calc_gUU_from_gPrim(gPrims[index]);
+	real4s4 gUU = calc_gUU_from_gPrim(gPrim);
 
 	//RicciLL.ab := R_ab
 	real4s4 const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
@@ -510,16 +512,16 @@ if solver.body.useMatter then
 // different initial conditions / boundary conditions of gPrims
 // this is the only code that uses solver.body
 
-gPrim_t calc_gPrim_flat(real3 const x) {
-	return gPrim_t{
+gPrim_t calc_gPrim_flat() {
+	return gPrim_t(
 		1,
 		real3(),
-		real3s3_ident,
-	};
+		real3i3(1)
+	);
 }
 
 gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
-	gPrim_t gPrim = calc_gPrim_flat(x);
+	gPrim_t gPrim = calc_gPrim_flat();
 
 	real const r = x.length();
 	real const radius = <?=solver.body.radius?>;
@@ -640,7 +642,7 @@ gPrim_t calc_gPrim_stellar_Schwarzschild(real3 const x) {
 }
 
 gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
-	gPrim_t gPrim = calc_gPrim_flat(x);
+	gPrim_t gPrim = calc_gPrim_flat();
 
 	real const radius = <?=solver.body.radius?>;
 	real const mass = <?=solver.body.mass?>;
