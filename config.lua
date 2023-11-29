@@ -19,8 +19,8 @@ return {
 	--initCond = 'stellar Schwarzschild',
 	--initCond = 'stellar Kerr-Newman',
 
-	boundaryCond = 'g_ab = eta_ab',
-	--boundaryCond = 'g_ab,c = 0',
+	--boundaryCond = 'g_ab = eta_ab',	-- has bad discontinuities in the gravity calc at the edge
+	boundaryCond = 'g_ab,c = 0',		-- looks just as nice as providing the exact stellar-Schwarzschild, however ... Newton gradient descent might run away ...
 	--boundaryCond = 'stellar Schwarzschild',
 	
 	outputFilename = 'out.txt',
