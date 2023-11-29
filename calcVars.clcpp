@@ -228,10 +228,10 @@ kernel void solveAL(
 		skewSum += (TPrim_prev.JU + TPrim_next.JU) * (env->invdx(i) * env->invdx(i));
 	}
 
-	real const diag = -2. * (0.
-		+ 1. / (dx.s0 * dx.s0)
-		+ 1. / (dx.s1 * dx.s1)
-		+ 1. / (dx.s2 * dx.s2)
+	real const diag = -2. * (
+		  env->invdx(0) * env->invdx(0)
+		+ env->invdx(1) * env->invdx(1)
+		+ env->invdx(2) * env->invdx(2)
 	);
 
 	<?=TPrim_t?> & TPrim = TPrims[index];
