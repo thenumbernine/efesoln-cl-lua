@@ -1970,7 +1970,7 @@ function EFESolver:updateTex()
 	end
 	self.app.minValue = min
 	self.app.maxValue = max
-	for i=1,self.base.volume-1 do
+	for i=0,self.base.volume-1 do
 		self.texCPUBuf[i] = (self.texCPUBuf[i] - min) / (max - min)
 	end
 
