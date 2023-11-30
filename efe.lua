@@ -965,7 +965,7 @@ local oldHeader = autogenCode
 		{['|beta|'] = 'texCLBuf[index] = gPrims[index].betaU.length();'},
 		{['det|gamma|-1'] = 'texCLBuf[index] = gPrims[index].gammaLL.determinant() - 1.;'},
 		{['norm|EFE_ab|'] = 'texCLBuf[index] = EFEs[index].norm();'},
-		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index].s00 / (8. * M_PI) * c * c / G;'},
+		{['EFE_tt (kg/m^3)'] = 'texCLBuf[index] = EFEs[index](0, 0) / (8. * M_PI) * c * c / G;'},
 		{['|EFE_ti|*c'] = [[texCLBuf[index] = real4s4_i0(EFEs[index]).length() * c;]]},
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real4s4_ij(EFEs[index]).determinant() / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real4s4_ij(EFEs[index]).norm() / (8. * M_PI) * c * c * c * c / G;]]},
@@ -975,7 +975,7 @@ texCLBuf[index] = EinsteinLL.norm();
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
-texCLBuf[index] = EinsteinLL.s00 / (8. * M_PI) * c * c / G;
+texCLBuf[index] = EinsteinLL(0, 0) / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
 real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
@@ -1621,6 +1621,13 @@ kernel void display(
 	global real4s4 const * const EFEs
 ) {
 	initKernel();
+
+	// I want to do this for laziness' sake of display kernels
+	// but I also don't want to collide with variable names
+	// so I'll pick some naming standard ...
+	// TODO would be nice to have sub-tensor indexes ...
+	Tensor::Index<'a'> a;
+	Tensor::Index<'b'> b;
 
 	if (displayVarIndex == 0) {
 <?=solver:template(solver.displayCode)?>

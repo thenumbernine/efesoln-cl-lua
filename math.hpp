@@ -17,6 +17,7 @@ using real3x3 = Tensor::mat<real, 3, 3>;
 using real3s3 = Tensor::sym<real, 3>;
 using real3i3 = Tensor::ident<real, 3>;
 using real4s4 = Tensor::sym<real, 4>;
+using real4i4 = Tensor::ident<real, 4>;
 using real4x4 = Tensor::mat<real, 4, 4>;
 using real4x4s4 = Tensor::tensorx<real, 4, -'s', 4>;
 using real4x4x4 = Tensor::tensorr<real, 4, 3>;

@@ -45,15 +45,15 @@ end
 // but for opencl vars (i, etc), real4 is named xyzw (time dimension last)
 // this is going to assume the former (spacetime vars)
 real3 real4_to_real3(real4 const & a) {
-	return real3(a.s1, a.s2, a.s3);
+	return real3(a(1), a(2), a(3));
 }
 
 real4 real3_to_real4(real3 const & a) {
-	return real4(0, a.s0, a.s1, a.s2);
+	return real4(0, a(0), a(1), a(2));
 }
 
 real3 real4s4_i0(real4s4 const & a) {
-	return real3(a.s01, a.s02, a.s03);
+	return real3(a(0, 1), a(0, 2), a(0, 3));
 }
 
 real3s3 real4s4_ij(real4s4 const & a) {
@@ -176,7 +176,7 @@ real4s4 calc_gLL_from_gPrim(
 	real const betaSq = betaL.dot(betaU);
 
 	real4s4 gLL;
-	gLL.s00 = -alphaSq + betaSq;
+	gLL(0, 0) = -alphaSq + betaSq;
 	for (int i = 0; i < sDim; ++i) {
 		gLL(0, i+1) = betaL(i);
 		for (int j = i; j < sDim; ++j) {
@@ -198,7 +198,7 @@ real4s4 calc_gUU_from_gPrim(
 	real3s3 const gammaUU = gammaLL.inverse(det_gammaLL);
 
 	real4s4 gUU;
-	gUU.s00 = -invAlphaSq;
+	gUU(0, 0) = -invAlphaSq;
 	//{-1, 1, 2, 2, 3, 4, 3, 4, 5, 6} <- writing g(0,i+1) = i+1; g(i+1,j+1) = i+j+2
 	//{-1, 1, 0, 2, 0, 0, 3, 0, 0, 0} <- writing g(0,i+1) = i+1
 	// so the mapping is ...
@@ -411,10 +411,10 @@ if solver.body.useMatter then
 	real4 const vL = gLL * vU;
 	real const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
+	real4 const uU = real4(W, W * vU(1), W * vU(2), W * vU(3));
 	real4 const uL = gLL * uU;
-	<? else ?>//otherwise uL = gLL.s0
-	real4 const uL = real4(gLL.s00, gLL.s01, gLL.s02, gLL.s03);
+	<? else ?>//otherwise uL = gLL(0)
+	real4 const uL = gLL(0);
 <?
 	end
 ?>
@@ -671,29 +671,27 @@ if solver.body.useMatter then
 	auto const vL = gLL * vU;
 	auto const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
 	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	auto const uU = real4(W, W * vU.s1, W * vU.s2, W * vU.s3);
+	auto const uU = real4(W, W * vU(1), W * vU(2), W * vU(3));
 	auto const uL = gLL * uU;
 <?
-	else -- otherwise uL = gLL.s0
+	else -- otherwise uL = gLL(0)
 ?>
-	auto const uL = real4([&](int a) { return gLL(0, a); });
+	real4 const uL = gLL(0);
 <?
 	end
 ?>
-	for (int e = 0; e < stDim; ++e) {
-		for (int f = e; f < stDim; ++f) {
-			for (int a = 0; a < stDim; ++a) {
-				for (int b = a; b < stDim; ++b) {
-					real sum = 0;
-					if (e == a) sum += uL(b);
-					if (e == b) sum += uL(a);
-					sum *= uL(f) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P);
-					if (e == a && f == b) sum += TPrim.P;
-					partial_gLL_of_8piTLL(e, f, a, b) += sum;
-				}
-			}
-		}
-	}
+
+	Tensor::Index<'e'> e;
+	Tensor::Index<'f'> f;
+	Tensor::Index<'a'> a;
+	Tensor::Index<'b'> b;
+	real4i4 const delta(1);
+	partial_gLL_of_8piTLL += (
+		(
+			delta(e, a) * uL(b) + delta(e, b) * uL(a)
+		) * uL(f) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
+		+ delta(e, a) * delta(f, b) * TPrim.P
+	).assignR<real4s4x4s4>(e, f, a, b);
 <?
 end
 ?>
@@ -1089,9 +1087,9 @@ gPrim_t calc_partial_gPrim_of_Phi(
 
 	gPrim_t partial_gPrim_of_Phi;
 
-	partial_gPrim_of_Phi.alpha = -2. * gPrim.alpha * partial_gLL_of_Phi.s00;
+	partial_gPrim_of_Phi.alpha = -2. * gPrim.alpha * partial_gLL_of_Phi(0, 0);
 	for (int m = 0; m < sDim; ++m) {
-		partial_gPrim_of_Phi.betaU(m) = 2. * partial_gLL_of_Phi.s00 * betaL(m);
+		partial_gPrim_of_Phi.betaU(m) = 2. * partial_gLL_of_Phi(0, 0) * betaL(m);
 		for (int n = 0; n < sDim; ++n) {
 			partial_gPrim_of_Phi.betaU(m) += partial_gLL_of_Phi(0, n+1) * gammaLL(n, m);
 		}

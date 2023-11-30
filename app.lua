@@ -398,7 +398,16 @@ function App:updateGUI()
 
 	ig.igText'transparency:'
 	ig.luatableSliderFloat('alpha', _G, 'alpha', 0, 1)--, '%.3e', 10)
-	ig.luatableSliderFloat('gamma', _G, 'alphaGamma', 0, 1000)--, '%.3e', 10)
+	--[[ why isn't logarithmic logarithmic?
+	ig.luatableSliderFloat('gamma', _G, 'alphaGamma', 1e-3, 1e+3, '%.3e', ig.ImGuiSliderFlags_Logarithmic)
+	--]]
+	-- [[ until then
+	self.tmp = math.log(_G.alphaGamma) / math.log(10)
+	if ig.luatableSliderFloat('gamma', self, 'tmp', -3, 3, '%.3e') then
+		_G.alphaGamma = 10 ^ self.tmp
+	end
+	self.tmp = nil
+	--]]
 	ig.luatableRadioButton("rotate camera", _G, 'rotateClip', 0)
 	for i,clipInfo in ipairs(clipInfos) do
 		ig.igPushID_Str('clip '..i)
