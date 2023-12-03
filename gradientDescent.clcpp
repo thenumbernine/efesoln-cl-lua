@@ -10,13 +10,35 @@
 #define local
 #endif
 
+kernel void calc_EFE_LL_minus_half_traces(
+	constant env_t const * const env,
+	global real4s4 * const EFE_LL_minus_half_traces,
+	global gPrim_t * const gPrims,
+	global real4s4 * const EFEs
+) {
+	initKernel();
+	auto const & gPrim = gPrims[index];
+	auto const & EFE = EFEs[index];
+	auto const gLL = calc_gLL_from_gPrim(gPrim);
+	auto const gUU = calc_gUU_from_gPrim(gPrim);
+
+	//lower times lower, but used for minimizing frobenius norm of EFE_ab
+	// Sum_ab (G_ab - 8 π T_ab) g_ab
+	auto const EFE_LL_dot_gLL = EFE.dot(gLL);
+
+	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
+	auto & EFE_LL_minus_half_trace = EFE_LL_minus_half_traces[index];
+	EFE_LL_minus_half_trace = EFE - (.5 * EFE_LL_dot_gLL) * gUU;
+}
+
 kernel void calc_partial_gPrim_of_Phis_kernel(
 	constant env_t const * const env,
 	global gPrim_t * const partial_gPrim_of_Phis,
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
-	global real4s4 const * const EFEs
+	global real4s4 const * const EFEs,
+	global real4s4 const * const EFE_LL_minus_half_traces
 ) {
 	initKernel();
 
@@ -26,6 +48,7 @@ kernel void calc_partial_gPrim_of_Phis_kernel(
 		gPrims,
 		GammaULLs,
 		EFEs,
+		EFE_LL_minus_half_traces,
 		i
 	);
 

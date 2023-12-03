@@ -216,6 +216,7 @@ real4s4 calc_partial_gLL_of_Phi(
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
+	global real4s4 const * const EFE_LL_minus_half_traces,
 	int4 const i
 );
 
@@ -225,6 +226,7 @@ gPrim_t calc_partial_gPrim_of_Phi(
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
+	global real4s4 const * const EFE_LL_minus_half_traces,
 	int4 const i
 );
 

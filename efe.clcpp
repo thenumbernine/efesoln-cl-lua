@@ -632,7 +632,7 @@ if solver.body.useEM then ?>
 
 	real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
 	auto const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
-	
+
 	// TODO sub-tensor indexes ...
 	for (int e = 0; e < stDim; ++e) {
 		for (int f = e; f < stDim; ++f) {
@@ -764,6 +764,7 @@ real4s4 calc_partial_gLL_of_Phi(
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
+	global real4s4 const * const EFE_LL_minus_half_traces,
 	int4 const i
 ) {
 	int const index = indexForInt4(i);
@@ -885,22 +886,23 @@ real4s4 calc_partial_gLL_of_Phi(
 	for (int p = 0; p < stDim; ++p) {
 		for (int q = p; q < stDim; ++q) {
 			real sum = 0;
-// this alone, converge line-search step size of 1e+30, will give a profile of the stress-energy density 
+// this alone, converge line-search step size of 1e+30, will give a profile of the stress-energy density
 #if 1
 			// -1/2 (G_pq - 8 π T_pq) R
 			sum -= .5 * EFE(p, q) * Gaussian;
 #endif
 // the rest of these ... meh, same shape, I see no difference really
 #if 1
-			// + 1/2 Sum_ab EFE_ab g_ab R^pq
-			// ... = 1/2 Sum_ab EFE_ab g_ab g^uv R^p_u^q_v
-			sum += .5 * EFE_LL_dot_gLL * RicciUU(p, q);
-#endif
-#if 1
-			// - Sum_ab EFE_ab 8 π ∂T_ab/∂g_pq
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
-					sum -= EFE(a, b) * partial_gLL_of_8piTLL(p, q, a, b);
+					sum += EFE(a,b) * (
+						// + Sum_ab EFE_ab g_ab R^pq
+						gLL(a, b) * RicciUU(p, q)
+						// - Sum_ab EFE_ab 8 π ∂T_ab/∂g_pq
+						- partial_gLL_of_8piTLL(p, q, a, b)
+						// - EFE_ab R^p_a^q_b
+						- RiemannULUL(p, a, q, b)
+					);
 				}
 			}
 #endif
@@ -908,8 +910,6 @@ real4s4 calc_partial_gLL_of_Phi(
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
 					sum -= EFE_LL_minus_half_trace(u, v) * (
-					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) R^p_u^q_v
-						RiemannULUL(p, u, q, v)
 					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) (Γ^pc_v Γ^q_cu - Γ^pc_c Γ^q_uv)
 						+ GammaSq_tr_2_2(p, q, u, v)
 					);
@@ -1074,11 +1074,20 @@ gPrim_t calc_partial_gPrim_of_Phi(
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
+	global real4s4 const * const EFE_LL_minus_half_traces,
 	int4 const i
 ) {
 	int const index = indexForInt4(i);
 
-	auto const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
+	auto const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(
+		env,
+		TPrims,
+		gPrims,
+		GammaULLs,
+		EFEs,
+		EFE_LL_minus_half_traces,
+		i
+	);
 
 	auto const & gPrim = gPrims[index];
 	auto const & gammaLL = gPrim.gammaLL;

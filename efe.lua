@@ -991,19 +991,19 @@ real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 texCLBuf[index] = RicciLL.dot(gUU);
 ]]},
 		{['partial_gLL_of_Phi'] = [[
-real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
+real4s4 const partial_gLL_of_Phi = calc_partial_gLL_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, EFE_LL_minus_half_traces, i);
 texCLBuf[index] = partial_gLL_of_Phi.normSq();
 ]]},
 		{['partial_gPrim_of_Phi.alpha'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, EFE_LL_minus_half_traces, i);
 texCLBuf[index] = partial_gPrim_of_Phi.alpha;
 ]]},
 		{['norm|partial_gPrim_of_Phi.beta|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, EFE_LL_minus_half_traces, i);
 texCLBuf[index] = partial_gPrim_of_Phi.betaU.norm();
 ]]},
 		{['norm|partial_gPrim_of_Phi.gamma|'] = [[
-gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, i);
+gPrim_t const partial_gPrim_of_Phi = calc_partial_gPrim_of_Phi(env, TPrims, gPrims, GammaULLs, EFEs, EFE_LL_minus_half_traces, i);
 texCLBuf[index] = partial_gPrim_of_Phi.gammaLL.norm();
 ]]},
 --[=[
@@ -1352,6 +1352,7 @@ function EFESolver:initBuffers()
 
 	-- used by updateNewton:
 	self.EFEs = self:buffer{name='EFEs', type='real4s4'}	-- 10 reals per size
+	self.EFE_LL_minus_half_traces = self:buffer{name='EFE_LL_minus_half_traces', type='real4s4'}
 	self.partial_gPrim_of_Phis = self:buffer{name='partial_gPrim_of_Phis', type='gPrim_t'}
 
 	-- used by updateNewton's line trace
@@ -1534,6 +1535,17 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 		},
 	}
 
+	-- used by updateNewton
+	self.calc_EFE_LL_minus_half_traces = efeProgram:kernel{
+		name = 'calc_EFE_LL_minus_half_traces',
+		setArgs = {
+			self.envBuf,
+			self.EFE_LL_minus_half_traces,
+			self.gPrims,
+			self.EFEs,
+		},
+	}
+
 	-- used by updateNewton:
 	self.calc_partial_gPrim_of_Phis_kernel = efeProgram:kernel{
 		name = 'calc_partial_gPrim_of_Phis_kernel',
@@ -1544,6 +1556,7 @@ print(require 'ext.tolua'(efeProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 			self.gPrims,
 			self.GammaULLs,
 			self.EFEs,
+			self.EFE_LL_minus_half_traces,
 		},
 	}
 
@@ -1618,7 +1631,9 @@ kernel void display(
 	global <?=TPrim_t?> const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
-	global real4s4 const * const EFEs
+	global real4s4 const * const EFEs,
+	// used by updateNewton only
+	global real4s4 const * const EFE_LL_minus_half_traces
 ) {
 	initKernel();
 
@@ -1686,10 +1701,11 @@ print(require 'ext.tolua'(displayProgram.obj:getInfo'CL_PROGRAM_KERNEL_NAMES'))
 					self.envBuf,
 					self.texCLBuf,
 					{type='int', name='displayVarIndex'},
-					assert(self.TPrims),
-					assert(self.gPrims),
-					assert(self.GammaULLs),
-					assert(self.EFEs),
+					self.TPrims,
+					self.gPrims,
+					self.GammaULLs,
+					self.EFEs,
+					self.EFE_LL_minus_half_traces,
 				},
 			}
 
@@ -1859,6 +1875,8 @@ function EFESolver:updateNewton()
 	2) do this for g_ab as a whole, which would mean x4^2 symmetric = x10 allocation, but would take less kernel passes
 	I'll try for 2 and hope I have enough memory
 	--]]
+
+	self.calc_EFE_LL_minus_half_traces()
 
 	-- here's the newton update method
 print'calc_partial_gPrim_of_Phis_kernel'
