@@ -701,28 +701,17 @@ end
 
 real4s4 EFE_LL_minus_half_trace_at(
 	constant env_t const * const env,
-	global gPrim_t const * const gPrims,
-	global real4s4 const * const EFEs,
+	global real4s4 const * const EFE_LL_minus_half_traces,
 	int4 const i
 ) {
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
 		return real4s4();	//TODO ... consider boundary conditions
+		// and at this point the computations might be heavy enough that I should also consider just using ghost cells ...
 	}
-
 	int const index = indexForInt4(i);
-	auto const gLL = calc_gLL_from_gPrim(gPrims[index]);	// g_ab
-	auto const gUU = calc_gUU_from_gPrim(gPrims[index]);	// g^ab
-	auto const & EFE = EFEs[index];	// G_ab - 8 π T_ab
-
-	//lower times lower, but used for minimizing frobenius norm of EFE_ab
-	// Sum_ab (G_ab - 8 π T_ab) g_ab
-	auto const EFE_LL_dot_gLL = EFE.dot(gLL);
-
-	// common term in the gradient descent:
-	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
-	return EFE - (.5 * EFE_LL_dot_gLL) * gUU;
+	return EFE_LL_minus_half_traces[index];
 }
 
 //GammaULL.a.b.c := Γ^a_bc
@@ -772,6 +761,10 @@ real4s4 calc_partial_gLL_of_Phi(
 	auto const gLL = calc_gLL_from_gPrim(gPrims[index]);
 	auto const gUU = calc_gUU_from_gPrim(gPrims[index]);
 	auto const & GammaULL = GammaULLs[index];
+
+	// common term in the gradient descent:
+	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
+	auto const & EFE_LL_minus_half_trace = EFE_LL_minus_half_traces[index];
 
 	//partial_xU2_of_gLL.cd.ab := g_ab,cd
 <?=solver:finiteDifference2{
@@ -860,10 +853,6 @@ real4s4 calc_partial_gLL_of_Phi(
 	// Sum_ab (G_ab - 8 π T_ab) g_ab
 	auto const EFE_LL_dot_gLL = EFE.dot(gLL);
 
-	// common term in the gradient descent:
-	// (G_uv - 8 π T_uv) - 1/2 (G_ab - 8 π T_ab) g_ab g^uv
-	auto const EFE_LL_minus_half_trace = EFE - (.5 * EFE_LL_dot_gLL) * gUU;
-
 	//GammaUUL.a.b.c := Γ^ab_c = Γ^a_dc g^db
 	auto const GammaUUL = real4x4s4_real4s4_mul21(GammaULL, gUU);
 
@@ -951,17 +940,17 @@ real4s4 calc_partial_gLL_of_Phi(
 					*/
 					int const a = dim+1;
 					for (int b = 0; b < stDim; ++b) {
-						sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, b, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, q, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
-						sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, p, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum += .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(p, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, b, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(p, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, q, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum -= .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(a, p, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						for (int c = 0; c < stDim; ++c) {
-							sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(a, b, c) * gUU_from_gPrims_at(env, gPrims, iofs)(p, q) * d1coeff_for_offset(-offset) * env->invdx(dim);
+							sum += .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(a, b, c) * gUU_from_gPrims_at(env, gPrims, iofs)(p, q) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						}
-						sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, b, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(a, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, q, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
-						sum += EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, a, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum -= EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(a, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, b, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum += EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(a, b) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, q, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
+						sum += EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(b, q) * GammaUUL_at(env, iofs, gPrims, GammaULLs)(p, a, b) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						for (int c = 0; c < stDim; ++c) {
-							sum -= EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(p, c, b) * gUU_from_gPrims_at(env, gPrims, iofs)(a, q) * d1coeff_for_offset(-offset) * env->invdx(dim);
+							sum -= EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(b, c) * GammaULL_at(env, iofs, GammaULLs)(p, c, b) * gUU_from_gPrims_at(env, gPrims, iofs)(a, q) * d1coeff_for_offset(-offset) * env->invdx(dim);
 						}
 					}
 				}
@@ -979,7 +968,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								// = + (EFE_uq - 1/2 EFE_ab g_ab g^uq) 1/2 g^pd (d2coeff_ud) |x'=x + dx^u=dx^d
 								int const u = dim1+1;
 								int const d = u;
-								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, q)
+								sum += .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(u, q)
 									* gUU_from_gPrims_at(env, gPrims, iofs)(p, d)
 									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}{
@@ -987,7 +976,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								// = + (EFE_pv - 1/2 EFE_ab g_ab g^pv) 1/2 g^cq (d2coeff_cv) |x'=x + dx^v=dx^c
 								int const v = dim1+1;
 								int const c = v;
-								sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, v)
+								sum += .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(p, v)
 									* gUU_from_gPrims_at(env, gPrims, iofs)(c, q)
 									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}{
@@ -995,7 +984,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								// = + (EFE_pq - 1/2 EFE_ab g_ab g^pq) 1/2 g^cd (d2coeff_cd) |x'=x + dx^c=dx^d
 								int const c = dim1+1;
 								int const d = c;
-								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q)
+								sum -= .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(p, q)
 									* gUU_from_gPrims_at(env, gPrims, iofs)(c, d)
 									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}{
@@ -1003,7 +992,7 @@ real4s4 calc_partial_gLL_of_Phi(
 								// = + (EFE_uv - 1/2 EFE_ab g_ab g^uv) 1/2 g^pq (d2coeff_uv) |x'=x + dx^u=dx^v
 								int const u = dim1+1;
 								int const v = u;
-								sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, v)
+								sum -= .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(u, v)
 									* gUU_from_gPrims_at(env, gPrims, iofs)(p, q)
 									* (d2coeffs[abs(offset)] * env->invdx(dim1));
 							}
@@ -1021,7 +1010,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const d = dim2+1;
 									int const offset_u = offset1;
 									int const offset_d = offset2;
-									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, q)
+									sum += .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(u, q)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(p, d)
 										* (d1coeff_for_offset(-offset_u) * d1coeff_for_offset(-offset_d) * env->invdx(dim1) * env->invdx(dim2));
 								}{
@@ -1031,7 +1020,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const c = dim2+1;
 									int const offset_v = offset1;
 									int const offset_c = offset2;
-									sum += .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, v)
+									sum += .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(p, v)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(c, q)
 										* (d1coeff_for_offset(-offset_v) * d1coeff_for_offset(-offset_c) * env->invdx(dim1) * env->invdx(dim2));
 								}{
@@ -1041,7 +1030,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const d = dim2+1;
 									int const offset_c = offset1;
 									int const offset_d = offset2;
-									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(p, q)
+									sum -= .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(p, q)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(c, d)
 										* (d1coeff_for_offset(-offset_c) * d1coeff_for_offset(-offset_d) * env->invdx(dim1) * env->invdx(dim2));
 								}{
@@ -1051,7 +1040,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const v = dim2+1;
 									int const offset_u = offset1;
 									int const offset_v = offset2;
-									sum -= .5 * EFE_LL_minus_half_trace_at(env, gPrims, EFEs, iofs)(u, v)
+									sum -= .5 * EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs)(u, v)
 										* gUU_from_gPrims_at(env, gPrims, iofs)(p, q)
 										* (d1coeff_for_offset(-offset_u) * d1coeff_for_offset(-offset_v) * env->invdx(dim1) * env->invdx(dim2));
 								}
