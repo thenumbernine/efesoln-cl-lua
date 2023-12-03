@@ -107,7 +107,7 @@ function EMRing:init(args)
 	real const polar_r = sqrt(polar_rSq);		//r in polar coordinates
 	real const dr = polar_r - radius;			//difference from polar radius to torus big radius
 	real const r = sqrt(x.z*x.z + dr*dr);		//r in torus radial coordinates
-	real const theta = atan2(x.z, dr);		//angle around the small radius
+	real const theta = atan2(x.z, dr);			//angle around the small radius
 	real const phi = atan2(x.x, x.y);			//angle around the big radius
 
 	//F^uv_;v = -4 π J^u
@@ -901,7 +901,8 @@ local oldHeader = autogenCode
 	self.xmax = vec3d(1,1,1) * self.body.radius * config.bodyRadii
 
 	self.updateLambda = config.updateLambda
-
+	self.lineSearchMaxIter = config.lineSearchMaxIter
+	
 	self.initCond = self.initConds:find(nil, function(initCond)
 		return initCond.name == config.initCond
 	end) or 1
@@ -1891,7 +1892,6 @@ print('partial_gPrim_of_Phis norm '..self:calcBufferNorm(self.partial_gPrim_of_P
 		-- store a backup.  TODO env:copy, and have ConjGrad:copy reference it.
 		self.conjResSolver.args.copy(self.gPrimsCopy, self.gPrims)
 
-		local lineSearchMaxIter = 100
 		local lambdaPtr = ffi.new'real[1]'
 		local function residualAtLambda(lambda)
 			self.conjResSolver.args.copy(self.gPrims, self.gPrimsCopy)
@@ -1906,7 +1906,7 @@ print(('lambda=%.16e residual=%.16e'):format(lambda, residual))
 		local function bisect(lambdaL, lambdaR)
 			local residualL = residualAtLambda(lambdaL)
 			local residualR = residualAtLambda(lambdaR)
-			for i=0,lineSearchMaxIter do
+			for i=0,self.lineSearchMaxIter do
 				local lambdaMid = .5 * (lambdaL + lambdaR)
 				local residualMid = residualAtLambda(lambdaMid)
 				if residualMid > residualL and residualMid > residualR then break end

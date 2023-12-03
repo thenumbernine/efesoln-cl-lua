@@ -439,6 +439,7 @@ function App:updateGUI()
 	-- SliderFloat allows formats but doesn't allow text-editing
 	-- hmm...
 	ig.luatableInputFloatAsText('step scale', self.solver, 'updateLambda')
+	ig.luatableInputInt('num steps', self.solver, 'lineSearchMaxIter')
 
 	ig.luatableCheckbox('line search', self.solver, 'useLineSearch')
 

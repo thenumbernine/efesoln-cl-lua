@@ -5,6 +5,7 @@ return {
 	
 	-- line trace amount
 	updateLambda = 1e+30,	-- first step settles around 1e+24
+	lineSearchMaxIter = 100,
 
 	--body = 'vacuum',
 	body = 'Earth',
