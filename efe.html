@@ -879,99 +879,181 @@ $<br>
 $G_{ab} = 8 \pi T_{ab}$<br>
 <br>
 
+<b>Einstein Field Equation constraint tensor:</b><br>
+$EFE_{ab} = G_{ab} - 8 \pi T_{ab}$<br>
+<br>
+
+Derivatives:<br>
+$\frac{\partial EFE_{ab}}{\partial g_{pq}}$<br>
+$ = \frac{\partial G_{ab}}{\partial g_{pq}} - 8 \pi \frac{\partial T_{ab}}{\partial g_{pq}}$<br>
+<br>
+
+Discretized:<br>
+
 <b>Constraint function:</b><br>
+$\Phi = \frac{1}{2} \underset{ab}\Sigma (EFE_{ab})^2$<br>
 $\Phi = \frac{1}{2} \underset{ab}\Sigma (G_{ab} - 8 \pi T_{ab})^2$<br>
 <br>
 
 Derivatives:<br>
-$\frac{\partial \Phi}{\partial G_{ab}} = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot \frac{\partial G_{cd}}{\partial G_{ab}}$<br>
-$ = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot \delta^a_c \delta^b_d$<br>
-$ = G_{ab} - 8 \pi T_{ab}$<br>
-<br>
-
-$\frac{\partial \Phi}{\partial T_{ab}} = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot -8 \pi \frac{\partial T_{cd}}{\partial T_{ab}}$<br>
-$ = \frac{1}{2} \underset{cd}\Sigma \left[ 2 (G_{cd} - 8 \pi T_{cd}) \right] \cdot -8 \pi \delta^a_c \delta^b_d$<br>
-$ = -8 \pi (G_{ab} - 8 \pi T_{ab})$<br>
-<br>
-
-$\frac{\partial \Phi}{\partial g_{pq}} =
-	\frac{\partial \Phi}{\partial G_{ab}}
-	\frac{\partial G_{ab}}{\partial g_{pq}}
-	+ \frac{\partial \Phi}{\partial T_{ab}}
-	\frac{\partial T_{ab}}{\partial g_{pq}}$<br>
-$ = (G_{ab} - 8 \pi T_{ab}) \left(
-	\frac{\partial G_{ab}}{\partial g_{pq}}
-		-8 \pi \frac{\partial T_{ab}}{\partial g_{pq}}
-	\right)$<br>
+$\frac{\partial \Phi}{\partial g_{pq}} = \frac{1}{2} \underset{ab}\Sigma \left[ 2 EFE_{ab} \right] \cdot \frac{\partial EFE_{ab}}{\partial g_{pq}}$<br>
+$ = \underset{ab}\Sigma \left[ EFE_{ab} \right] \cdot (\frac{\partial G_{ab}}{\partial g_{pq}} - 8 \pi \frac{\partial T_{ab}}{\partial g_{pq}})$<br>
 <br>
 
 Discretized:<br>
-$\Phi = \frac{1}{2} \underset{a,b,x}\Sigma (G_{ab}(x) - 8 \pi T_{ab}(x))^2$<br>
+$\Phi = \frac{1}{2} \underset{a,b,x}\Sigma (EFE_{ab}(x))^2$<br>
 <br>
 
 Discrete derivatives of $\Phi$:<br>
 $\frac{\partial \Phi}{\partial g_{pq}(x')}
-= \frac{\partial}{\partial g_{pq}(x')} \frac{1}{2} \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x))^2$<br>
-$= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) 
-	( 
-		  \frac{\partial}{\partial g_{pq}(x')} G_{ab} (x) 
-		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x)
-	)
+	= \frac{\partial}{\partial g_{pq}(x')} \frac{1}{2} \underset{a,b,x}\Sigma EFE_{ab}(x)^2
 $<br>
-$= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) 
-	( 
-		\frac{1}{2} \delta(x' - x) ( 
-			  g_{ab}(x) R^{pq}(x)
-			- \delta^p_a \delta^q_b R(x)
-		)
-		+ (
-			  \delta^u_a \delta^v_b
-			- \frac{1}{2} g_{ab}(x) g^{uv}(x)
-		) \frac{\partial}{\partial g_{pq}(x')} R_{uv}(x)
-
-		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x)
-	)
+...substitute $\partial EFE_{ab}(x)$...<br>
+$= \underset{a,b,x}\Sigma EFE_{ab}(x) 
+	\left( 
+		  \frac{\partial}{\partial g_{pq}(x')} G_{ab}(x) 
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x)
+	\right)
 $<br>
-$= \underset{a,b,x}\Sigma (G_{ab} (x) - 8 \pi T_{ab}(x)) 
-	(
-		  \delta(x' - x) (
-			- {{{R^p}_a}^q}_b(x)
-			+ R^{pq}(x)
-			- \frac{1}{2} \delta^p_a \delta^q_b R(x)
-		)
-		
-		+ g^{uv}(x) (
-			  \delta^c_a \delta^d_b 
-			- \frac{1}{2} g^{cd}(x) g_{ab}(x)
-		)
-		\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
-			
-		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x)
-	)
+...substitute $G_{ab}(x)$...<br>
+$= \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		\frac{\partial}{\partial g_{pq}(x')}
+		\left(
+		  	R_{ab}(x) - \frac{1}{2} g_{ab}(x) g^{uv}(x) R_{uv}(x)
+		\right)
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x)
+	\right)
 $<br>
-...assuming $T_{ab}(x)$ is not a function of spatial derivatives / neighboring cells...<br>
-$= 
-	\underset{a,b}\Sigma
-	(
-		G_{ab}(x') 
-		- 8 \pi T_{ab}(x')
-	)(
-		- {{{R^p}_a}^q}_b(x')
-		+ R^{pq}(x')
-		- \frac{1}{2} \delta^p_a \delta^q_b R(x')
-		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab} (x')
-	) \\
-	+ \underset{x \in nbhd(x'); a,b}\Sigma
-	(
-		G_{ab} (x) 
-		- 8 \pi T_{ab}(x)
-	)
-	g^{uv}(x)
-	(
-		  \delta^c_a \delta^d_b 
-		- \frac{1}{2} g^{cd}(x) g_{ab}(x)
-	)
-	\frac{\partial}{\partial g_{pq}(x')} R_{ucvd}(x)
+...distribute $\frac{\partial}{\partial g_{pq}}$...<br>
+$= \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		\frac{\partial}{\partial g_{pq}(x')} R_{ab}(x) 
+		- \frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} g_{ab}(x) g^{uv}(x) R_{uv}(x)
+		- \frac{1}{2} g_{ab}(x) \frac{\partial}{\partial g_{pq}(x')} g^{uv}(x) R_{uv}(x)
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) \frac{\partial}{\partial g_{pq}(x')} R_{uv}(x)
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x)
+	\right)
+$<br>
+...substitute $\frac{\partial g^{uv}}{\partial g_{pq}}$, assume $\frac{\partial T_{ab}}{\partial g_{pq}}$ is only a function of x'...<br>
+$= \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \frac{\partial}{\partial g_{pq}(x')} R_{ab}(x) 
+		- \frac{1}{2} \delta^p_a \delta^q_b g^{uv}(x) R_{uv}(x) \delta(x' - x)
+		+ \frac{1}{2} g_{ab}(x) g^{pu}(x) g^{qv}(x) R_{uv}(x) \delta(x' - x)
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) \frac{\partial}{\partial g_{pq}(x')} R_{uv}(x)
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x) \delta(x' - x)
+	\right)
+$<br>
+...separate $\delta(x' - x)$'s and $\delta^p_a \delta^q_b$'s...<br>
+$=  
+	- \frac{1}{2} EFE_{pq}(x') \cdot g^{uv}(x') R_{uv}(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') g^{pu}(x') g^{qv}(x') R_{uv}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \frac{\partial}{\partial g_{pq}(x')} R_{ab}(x) 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) \frac{\partial}{\partial g_{pq}(x')} R_{uv}(x)
+	\right)
+$<br>
+...simplify and separate $\frac{\partial R_{uv}(x)}{\partial g_{pq}}$'s...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right) \frac{\partial}{\partial g_{pq}(x')} R_{uv}(x)
+$<br>
+...substitute $R_{cudv}(x)$...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right) \frac{\partial}{\partial g_{pq}(x')} \left(
+		g^{cd}(x) R_{cudv}(x)
+	\right)
+$<br>
+...distribute...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right) \left(
+		\frac{\partial}{\partial g_{pq}(x')} g^{cd}(x) R_{cudv}(x)
+		+ g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cudv}(x)
+	\right)
+$<br>
+...substitute ...
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right) \left(
+		-g^{pc}(x) g^{qd}(x) \delta(x - x') R_{cudv}(x)
+		+ g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cudv}(x)
+	\right)
+$<br>
+...distribute deltas...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	
+		- \left(
+			  \delta^u_a \delta^v_b 
+			- \frac{1}{2} g_{ab}(x') g^{uv}(x') 
+		\right) {{{R^p}_u}^q}_v(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right)
+	g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cudv}(x)
 $<br>
 <br>
 

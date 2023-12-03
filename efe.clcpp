@@ -887,23 +887,22 @@ real4s4 calc_partial_gLL_of_Phi(
 			real sum = 0;
 // this alone, converge line-search step size of 1e+30, will give a profile of the stress-energy density 
 #if 1
-			// -(G_pq - 8 π T_pq) R
-			sum -= EFE(p, q) * Gaussian;
+			// -1/2 (G_pq - 8 π T_pq) R
+			sum -= .5 * EFE(p, q) * Gaussian;
 #endif
 // the rest of these ... meh, same shape, I see no difference really
 #if 1
+			// + 1/2 Sum_ab EFE_ab g_ab R^pq
+			// ... = 1/2 Sum_ab EFE_ab g_ab g^uv R^p_u^q_v
+			sum += .5 * EFE_LL_dot_gLL * RicciUU(p, q);
+#endif
+#if 1
+			// - Sum_ab EFE_ab 8 π ∂T_ab/∂g_pq
 			for (int a = 0; a < stDim; ++a) {
 				for (int b = 0; b < stDim; ++b) {
-					// - Sum_ab EFE_ab 8 π dT_ab/dg_pq
 					sum -= EFE(a, b) * partial_gLL_of_8piTLL(p, q, a, b);
 				}
 			}
-#endif
-#if 1
-			// + Sum_ab EFE_ab g_ab R^pq
-			// ... = Sum_ab EFE_ab g_ab g^uv R^p_u^q_v
-			// ... 1/2 coefficient? or not?
-			sum += EFE_LL_dot_gLL * RicciUU(p, q);
 #endif
 #if 1
 			for (int u = 0; u < stDim; ++u) {
