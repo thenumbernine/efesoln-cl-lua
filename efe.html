@@ -1014,7 +1014,7 @@ $=
 		+ g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cudv}(x)
 	\right)
 $<br>
-...substitute ...
+...simplify $\frac{\partial g^{cd}(x)}{\partial g_{pq}(x')}$...
 $=  
 	-\frac{1}{2} EFE_{pq}(x') R(x')
 \\
@@ -1054,6 +1054,150 @@ $=
 		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
 	\right)
 	g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} R_{cudv}(x)
+$<br>
+...substitute finite-difference definition of $R_{cudv}(x)$...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	
+		- \left(
+			  \delta^u_a \delta^v_b 
+			- \frac{1}{2} g_{ab}(x') g^{uv}(x') 
+		\right) {{{R^p}_u}^q}_v(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right)
+	g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} \left(
+		\frac{1}{2} \left(
+			  D^2_{ud}[g_{cv}(x)]
+			+ D^2_{cv}[g_{ud}(x)]
+			- D^2_{cd}[g_{uv}(x)]
+			- D^2_{uv}[g_{cd}(x)]
+		\right)
+		+ g^{ef}(x) \left(
+			  \Gamma_{ecv}(x) \Gamma_{fud}(x)
+			- \Gamma_{ecd}(x) \Gamma_{fuv}(x)
+		\right)
+	\right)
+$<br>
+...distribute partial...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	
+		- \left(
+			  \delta^u_a \delta^v_b 
+			- \frac{1}{2} g_{ab}(x') g^{uv}(x') 
+		\right) {{{R^p}_u}^q}_v(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right)
+	g^{cd}(x) \left(
+		\frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} \left(
+			  D^2_{ud}[g_{cv}(x)]
+			+ D^2_{cv}[g_{ud}(x)]
+			- D^2_{cd}[g_{uv}(x)]
+			- D^2_{uv}[g_{cd}(x)]
+		\right)
+		+ \frac{\partial}{\partial g_{pq}(x')} g^{ef}(x) \left(
+			  \Gamma_{ecv}(x) \Gamma_{fud}(x)
+			- \Gamma_{ecd}(x) \Gamma_{fuv}(x)
+		\right)
+		+ g^{ef}(x) \frac{\partial}{\partial g_{pq}(x')} \left(
+			  \Gamma_{ecv}(x) \Gamma_{fud}(x)
+			- \Gamma_{ecd}(x) \Gamma_{fuv}(x)
+		\right)
+	\right)
+$<br>
+...simplify $\frac{\partial g^{ef}(x)}{\partial g_{pq}(x')}$...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	
+		- \left(
+			  \delta^u_a \delta^v_b 
+			- \frac{1}{2} g_{ab}(x') g^{uv}(x') 
+		\right) {{{R^p}_u}^q}_v(x')
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right)
+	g^{cd}(x) \left(
+		\frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} \left(
+			  D^2_{ud}[g_{cv}(x)]
+			+ D^2_{cv}[g_{ud}(x)]
+			- D^2_{cd}[g_{uv}(x)]
+			- D^2_{uv}[g_{cd}(x)]
+		\right)
+		- g^{pe}(x) g^{qf}(x) \delta(x' - x) \left(
+			  \Gamma_{ecv}(x) \Gamma_{fud}(x)
+			- \Gamma_{ecd}(x) \Gamma_{fuv}(x)
+		\right)
+		+ g^{ef}(x) \frac{\partial}{\partial g_{pq}(x')} \left(
+			  \Gamma_{ecv}(x) \Gamma_{fud}(x)
+			- \Gamma_{ecd}(x) \Gamma_{fuv}(x)
+		\right)
+	\right)
+$<br>
+...simplify deltas...<br>
+$=  
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 \frac{1}{2} g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+	
+		+ \left(
+			  \delta^u_a \delta^v_b 
+			- \frac{1}{2} g_{ab}(x') g^{uv}(x') 
+		\right) \left(
+			- {{{R^p}_u}^q}_v(x')
+			- {\Gamma^{pc}}_v(x') {\Gamma^q}_{cu}(x')
+			+ {\Gamma^{pc}}_c(x') {\Gamma^q}_{uv}(x')
+		\right)
+	\right)
+\\
+	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b 
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x) 
+	\right)
+	g^{cd}(x) \left(
+		\frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} \left(
+			  D^2_{ud}[g_{cv}(x)]
+			+ D^2_{cv}[g_{ud}(x)]
+			- D^2_{cd}[g_{uv}(x)]
+			- D^2_{uv}[g_{cd}(x)]
+		\right)
+		+ g^{ef}(x) \frac{\partial}{\partial g_{pq}(x')} \left(
+			  \Gamma_{ecv}(x) \Gamma_{fud}(x)
+			- \Gamma_{ecd}(x) \Gamma_{fuv}(x)
+		\right)
+	\right)
 $<br>
 <br>
 
