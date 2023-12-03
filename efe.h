@@ -182,18 +182,18 @@ real4s4 gUU_from_gPrims_at(
 	int4 const i
 );
 
-real4s4 calc_RicciLL(
+real4s4 RicciLL_at(
 	constant env_t const * const env,
-	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4x4s4 const * const GammaULLs
+	global real4x4s4 const * const GammaULLs,
+	int4 const i
 );
 
-real4s4 calc_EinsteinLL(
+real4s4 EinsteinLL_at(
 	constant env_t const * const env,
-	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4x4s4 const * const GammaULLs
+	global real4x4s4 const * const GammaULLs,
+	int4 const i
 );
 
 real4s4 calc_8piTLL(

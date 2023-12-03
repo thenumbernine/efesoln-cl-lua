@@ -971,23 +971,23 @@ local oldHeader = autogenCode
 		{['det|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real4s4_ij(EFEs[index]).determinant() / (8. * M_PI) * c * c * c * c / G;]]},
 		{['norm|EFE_ij| (kg/m s^2))'] = [[texCLBuf[index] = real4s4_ij(EFEs[index]).norm() / (8. * M_PI) * c * c * c * c / G;]]},
 		{['|Einstein_ab|'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = EinsteinLL_at(env, gPrims, GammaULLs, i);
 texCLBuf[index] = EinsteinLL.norm();
 ]]},
 		{['Einstein_tt (kg/m^3)'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = EinsteinLL_at(env, gPrims, GammaULLs, i);
 texCLBuf[index] = EinsteinLL(0, 0) / (8. * M_PI) * c * c / G;
 ]]},
 		{['|Einstein_ti|*c'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = EinsteinLL_at(env, gPrims, GammaULLs, i);
 texCLBuf[index] = real4s4_i0(EinsteinLL).length() * c;
 ]]},
 		{['det|Einstein_ij| (kg/(m s^2))'] = [[
-real4s4 const EinsteinLL = calc_EinsteinLL(env, i, gPrims, GammaULLs);
+real4s4 const EinsteinLL = EinsteinLL_at(env, gPrims, GammaULLs, i);
 texCLBuf[index] = real4s4_ij(EinsteinLL).determinant() / (8. * M_PI) * c * c * c * c / G;
 ]]},
 		{['Gaussian'] = [[
-real4s4 const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
+real4s4 const RicciLL = RicciLL_at(env, gPrims, GammaULLs, i);
 real4s4 const gUU = calc_gUU_from_gPrim(gPrims[index]);
 texCLBuf[index] = RicciLL.dot(gUU);
 ]]},

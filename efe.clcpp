@@ -240,11 +240,11 @@ real4s4 gUU_from_gPrims_at(
 	}
 }
 
-real4s4 calc_RicciLL(
+real4s4 RicciLL_at(
 	constant env_t const * const env,
-	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4x4s4 const * const GammaULLs
+	global real4x4s4 const * const GammaULLs,
+	int4 const i
 ) {
 	int const index = indexForInt4(i);
 
@@ -340,11 +340,11 @@ real4s4 calc_RicciLL(
 }
 
 //[1/m^2]
-real4s4 calc_EinsteinLL(
+real4s4 EinsteinLL_at(
 	constant env_t const * const env,
-	int4 const i,
 	global gPrim_t const * const gPrims,
-	global real4x4s4 const * const GammaULLs
+	global real4x4s4 const * const GammaULLs,
+	int4 const i
 ) {
 	int const index = indexForInt4(i);
 
@@ -357,7 +357,7 @@ real4s4 calc_EinsteinLL(
 	auto gUU = calc_gUU_from_gPrim(gPrim);
 
 	//RicciLL.ab := R_ab
-	auto const RicciLL = calc_RicciLL(env, i, gPrims, GammaULLs);
+	auto const RicciLL = RicciLL_at(env, gPrims, GammaULLs, i);
 
 	//Gaussian := R = R_ab g^ab
 	auto const Gaussian = RicciLL.dot(gUU);
@@ -886,6 +886,8 @@ real4s4 calc_partial_gLL_of_Phi(
 #endif
 // these, in theory, could improve relation of convergence between values and their neighbors ..
 // ... but it makes it go way too slow ...
+// ... but it also makes the boundaries converge bad ...
+// ... so I might need ghost cells to fix that ...
 #if 1
 			// cycle through entire finite-difference neighborhood ...
 			for (int dim1 = 0; dim1 < sDim; ++dim1) {
@@ -947,7 +949,10 @@ real4s4 calc_partial_gLL_of_Phi(
 
 #endif // first-derivatives of ∂/∂g_pq terms:
 
-#if 1 // second-derivatives of ∂/∂g_pq terms for when the dimensions match (2nd-deriv coefficients):
+// TODO second derivatives get numerical errors at boundaries.
+// time to introduce ghost cells?
+
+#if 0 // second-derivatives of ∂/∂g_pq terms for when the dimensions match (2nd-deriv coefficients):
 							{
 								auto const coeff_times_invdx = d2coeffs[abs(offset)] * env->invdx(dim1);
 								{
@@ -983,7 +988,7 @@ real4s4 calc_partial_gLL_of_Phi(
 							if (offset1 == 0) continue;
 							for (int offset2 = -<?=solver.diffOrder/2?>; offset2 <= <?=solver.diffOrder/2?>; ++offset2) {
 								if (offset2 == 0) continue;
-#if 1 // second-derivatives of ∂/∂g_pq terms for when the dimensions don't match two (1st-deriv coefficients):
+#if 0 // second-derivatives of ∂/∂g_pq terms for when the dimensions don't match two (1st-deriv coefficients):
 								
 								int4 const iofs = i + int4_dir(dim1, offset1) + int4_dir(dim2, offset2);
 								auto EFE_LL_minus_half_trace_at_iofs = EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs);
