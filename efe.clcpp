@@ -240,6 +240,7 @@ real4s4 gUU_from_gPrims_at(
 	}
 }
 
+// TODO unlike other _at functions, this can't handle oob requests
 real4s4 RicciLL_at(
 	constant env_t const * const env,
 	global gPrim_t const * const gPrims,
@@ -340,6 +341,7 @@ real4s4 RicciLL_at(
 }
 
 //[1/m^2]
+// TODO unlike other _at functions, this can't handle oob requests
 real4s4 EinsteinLL_at(
 	constant env_t const * const env,
 	global gPrim_t const * const gPrims,
@@ -707,8 +709,18 @@ real4s4 EFE_LL_minus_half_trace_at(
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
-		return real4s4();	//TODO ... consider boundary conditions
+		if (env->boundaryCond == 2) {	// TODO enum <-> lua .boundaryCond table
+			int4 iclamped = i;
+			iclamped.x = clamp(iclamped.x, 0, (int)env->size.x-1);
+			iclamped.y = clamp(iclamped.y, 0, (int)env->size.y-1);
+			iclamped.z = clamp(iclamped.z, 0, (int)env->size.z-1);
+			int const index = indexForInt4(iclamped);
+			return EFE_LL_minus_half_traces[index];
+		} else {
+			return real4s4();	//TODO ... consider boundary conditions
+		}
 		// and at this point the computations might be heavy enough that I should also consider just using ghost cells ...
+		// but ghost cells still wouldn't help the gradient descent calculations of dependency on grid variables
 	}
 	int const index = indexForInt4(i);
 	return EFE_LL_minus_half_traces[index];
@@ -723,7 +735,16 @@ real4x4s4 GammaULL_at(
 	if (i.x < 0 || i.y < 0 || i.z < 0 ||
 		i.x >= (int)env->size.x || i.y >= (int)env->size.y || i.z >= (int)env->size.z
 	) {
-		return real4x4s4();
+		if (env->boundaryCond == 2) {
+			int4 iclamped = i;
+			iclamped.x = clamp(iclamped.x, 0, (int)env->size.x-1);
+			iclamped.y = clamp(iclamped.y, 0, (int)env->size.y-1);
+			iclamped.z = clamp(iclamped.z, 0, (int)env->size.z-1);
+			int const index = indexForInt4(iclamped);
+			return GammaULLs[index];
+		} else {
+			return real4x4s4();
+		}
 	}
 
 	int const index = indexForInt4(i);
@@ -877,10 +898,8 @@ real4s4 calc_partial_gLL_of_Phi(
 #if 1
 			for (int u = 0; u < stDim; ++u) {
 				for (int v = 0; v < stDim; ++v) {
-					sum -= EFE_LL_minus_half_trace(u, v) * (
 					// - (EFE_uv - 1/2 EFE_ab g_ab g^uv) (Γ^pc_v Γ^q_cu - Γ^pc_c Γ^q_uv)
-						+ GammaSq_tr_2_2(p, q, u, v)
-					);
+					sum -= EFE_LL_minus_half_trace(u, v) * GammaSq_tr_2_2(p, q, u, v);
 				}
 			}
 #endif
@@ -929,6 +948,11 @@ real4s4 calc_partial_gLL_of_Phi(
 									+ 2 * φ_a * H^ab * Γ^pq_b
 									+ 2 * φ_a * H^bq * Γ^pa_b
 									- 2 * φ_a * H^bc * Γ^p_cb * g^aq
+
+								ok note about the coefficients ...
+								1) if the boundary cond is `g_ab = η_ab` then the samples over the boundary should be zero
+								2) if the boundary cond is `g_ab,c = 0` then the samples over the boundary should be the samples at the boundary
+								3) if the boundary cond is stellar-Schwarzschild then the samples over the boundary ... hmm technically don't have anything to do with the grid metric variables but that will probably screw up the gradient descent ...
 								*/
 								int const a = dim1+1;
 								for (int b = 0; b < stDim; ++b) {
@@ -951,8 +975,10 @@ real4s4 calc_partial_gLL_of_Phi(
 
 // TODO second derivatives get numerical errors at boundaries.
 // time to introduce ghost cells?
+// or, separately, and more complex,
+// time to consider ghost/boundary cells' influence from the metric, and factor those into the Newton gradients?
 
-#if 0 // second-derivatives of ∂/∂g_pq terms for when the dimensions match (2nd-deriv coefficients):
+#if 1 // second-derivatives of ∂/∂g_pq terms for when the dimensions match (2nd-deriv coefficients):
 							{
 								auto const coeff_times_invdx = d2coeffs[abs(offset)] * env->invdx(dim1);
 								{
@@ -988,8 +1014,8 @@ real4s4 calc_partial_gLL_of_Phi(
 							if (offset1 == 0) continue;
 							for (int offset2 = -<?=solver.diffOrder/2?>; offset2 <= <?=solver.diffOrder/2?>; ++offset2) {
 								if (offset2 == 0) continue;
-#if 0 // second-derivatives of ∂/∂g_pq terms for when the dimensions don't match two (1st-deriv coefficients):
-								
+#if 1 // second-derivatives of ∂/∂g_pq terms for when the dimensions don't match two (1st-deriv coefficients):
+
 								int4 const iofs = i + int4_dir(dim1, offset1) + int4_dir(dim2, offset2);
 								auto EFE_LL_minus_half_trace_at_iofs = EFE_LL_minus_half_trace_at(env, EFE_LL_minus_half_traces, iofs);
 								auto gUU_at_iofs = gUU_from_gPrims_at(env, gPrims, iofs);
@@ -1019,7 +1045,7 @@ real4s4 calc_partial_gLL_of_Phi(
 									int const v = dim2+1;
 									sum -= (.5 * coeff_times_invdx) * EFE_LL_minus_half_trace_at_iofs(u, v) * gUU_at_iofs(p, q);
 								}
-#endif // second-derivatives of ∂/∂g_pq terms for when the dimensions don't match two (1st-deriv coefficients):	
+#endif // second-derivatives of ∂/∂g_pq terms for when the dimensions don't match two (1st-deriv coefficients):
 							}
 						}
 					}

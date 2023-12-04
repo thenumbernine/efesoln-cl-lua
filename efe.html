@@ -1237,6 +1237,131 @@ $=
 		\right)
 	\right)
 $<br>
+...substitute $\Gamma_{abc}(x)$ definition...<br>
+$=
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+\quad	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+
+		- {{{R^p}_a}^q}_b(x')
+		+ \left(
+			  \delta^u_a \delta^v_b
+			- \frac{1}{2} g_{ab}(x') g^{uv}(x')
+		\right)
+		\left(
+			- {\Gamma^{pc}}_v(x') {\Gamma^q}_{cu}(x')
+			+ {\Gamma^{pc}}_c(x') {\Gamma^q}_{uv}(x')
+		\right)
+	\right)
+\\
+\quad	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x)
+	\right)
+	g^{cd}(x) \left(
+\\
+\quad\quad		\frac{1}{2} \frac{\partial}{\partial g_{pq}(x')} \left(
+			  D^2_{ud}[g_{cv}(x)]
+			+ D^2_{cv}[g_{ud}(x)]
+			- D^2_{cd}[g_{uv}(x)]
+			- D^2_{uv}[g_{cd}(x)]
+		\right)
+\\
+\quad\quad		+ g^{ef}(x) \frac{\partial}{\partial g_{pq}(x')} \left(
+\\
+\quad\quad\quad	\frac{1}{4}
+			  \left(
+			  	  D_v[g_{ec}(x)]
+				+ D_c[g_{ev}(x)]
+				- D_e[g_{cv}(x)]
+			  \right)
+			  \left(
+			 	  D_d[g_{fu}(x)]
+				+ D_u[g_{fd}(x)]
+				- D_f[g_{ud}(x)]
+			  \right)
+\\
+\quad\quad\quad
+			  - \frac{1}{4}
+			  \left(
+			  	  D_d[g_{ec}(x)]
+				+ D_c[g_{ed}(x)]
+				- D_e[g_{cd}(x)]
+			  \right)
+			  \left(
+			  	  D_v[g_{fu}(x)]
+				+ D_u[g_{fv}(x)]
+				- D_f[g_{uv}(x)]
+			  \right)
+\\
+\quad\quad
+		\right)
+\\
+\quad
+	\right)
+$<br>
+...distribute multiplication, distribute $g^{cd}$, symmetrize cd, ef, uv, sometimes swap cd and ef...<br>
+$=
+	-\frac{1}{2} EFE_{pq}(x') R(x')
+\\
+\quad	+ \underset{a,b}\Sigma EFE_{ab}(x') \cdot
+	\left(
+		 g_{ab}(x') R^{pq}(x')
+		- 8 \pi \frac{\partial}{\partial g_{pq}(x')} T_{ab}(x')
+
+		- {{{R^p}_a}^q}_b(x')
+		+ \left(
+			  \delta^u_a \delta^v_b
+			- \frac{1}{2} g_{ab}(x') g^{uv}(x')
+		\right)
+		\left(
+			- {\Gamma^{pc}}_v(x') {\Gamma^q}_{cu}(x')
+			+ {\Gamma^{pc}}_c(x') {\Gamma^q}_{uv}(x')
+		\right)
+	\right)
+\\
+\quad	+ \underset{a,b,x}\Sigma EFE_{ab}(x) \cdot
+	\left(
+		  \delta^u_a \delta^v_b
+		- \frac{1}{2} g_{ab}(x) g^{uv}(x)
+	\right)
+	\left(
+\\ \quad\quad
+		\frac{1}{2} g^{cd}(x) \frac{\partial}{\partial g_{pq}(x')} \left(
+			  2 D^2_{cu}[g_{dv}(x)]
+			- D^2_{cd}[g_{uv}(x)]
+			- D^2_{uv}[g_{cd}(x)]
+		\right)
+\\ \quad\quad
+		+ \frac{1}{4} g^{cd}(x) g^{ef}(x) \frac{\partial}{\partial g_{pq}(x')} \left(
+\\ \quad\quad\quad
+			  D_u[g_{ce}(x)] D_v[g_{df}(x)]
+
+\\ \quad\quad\quad
+			+ 2 D_c[g_{eu}(x)] D_d[g_{fv}(x)]
+\\ \quad\quad\quad
+			- D_c[g_{ef}(x)] D_d[g_{uv}(x)]
+
+\\ \quad\quad\quad
+			- 2 D_c[g_{eu}(x)] D_f[g_{dv}(x)]
+\\ \quad\quad\quad
+			+ 2 D_c[g_{de}(x)] D_f[g_{uv}(x)]
+
+\\ \quad\quad\quad
+			+ 2 D_c[g_{ef}(x)] D_u[g_{dv}(x)]
+\\ \quad\quad\quad
+			- 4 D_c[g_{de}(x)] D_u[g_{fv}(x)]
+
+\\ \quad\quad
+		\right)
+\\
+\quad
+	\right)
+$<br>
 <br>
 
 Derivatives of continuous $\Phi$ wrt $\alpha, \beta^i, \gamma_{ij}$:<br>
