@@ -532,7 +532,6 @@ EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes', 'JFNK'}
 -- similar to hydro-cl/hydro/solver/solverbase.lua
 -- but not exact, since hydro-cl has its own struct
 function EFESolver:checkStructSizes(typenames)
-	local struct = require 'struct'
 
 -- can I hack this in midway?
 local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
@@ -765,7 +764,6 @@ end
 				{convergeGamma = 'bool'},
 			},
 			dontMakeExtraUnion = true,	-- TODO make this default behavior
-			dontPack = true,	-- TODO make this default behavior
 		}
 
 		local gPrim_mt, gPrim_code = struct{
@@ -778,6 +776,7 @@ end
 			-- real s[] as union access
 			unionType = 'real',
 			unionField = 's',
+			packed = true,
 		}
 
 		local TPrim_fields = table()
@@ -830,6 +829,7 @@ end
 			-- real s[] as union access
 			unionType = 'real',
 			unionField = 's',
+			packed = true,
 		}
 	end
 	--]]
