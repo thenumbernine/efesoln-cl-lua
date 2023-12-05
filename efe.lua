@@ -546,7 +546,9 @@ end
 		varcount = varcount + 1
 		if struct:isa(typename) then
 			local ctype = ffi.typeof(typename)
-			varcount = varcount + #ctype.fields
+			for _ in ctype:fielditer() do
+				varcount = varcount + 1
+			end
 		end
 	end
 	local cmd = self.cmds
@@ -584,8 +586,7 @@ for i,typename in ipairs(typenames) do
 ?>	result[<?=index?>] = sizeof(<?=ctype.name?>);
 <?
 		index = index + 1
-		for _,field in ipairs(ctype.fields) do
-			local fieldname, fieldtype = next(field)
+		for fieldname, fieldtype, field in ctype:fielditer() do
 ?>	result[<?=index?>] = offsetof(<?=typename?>, <?=fieldname?>);
 <?
 			index = index + 1
@@ -642,8 +643,7 @@ end
 			local ffisize = tostring(ffi.sizeof(ctype.name))
 			print('sizeof('..ctype.name..'): OpenCL='..clsize..', ffi='..ffisize..(clsize == ffisize and '' or ' -- !!!DANGER!!!'))
 
-			for _,field in ipairs(ctype.fields) do
-				local fieldname, fieldtype = next(field)
+			for fieldname, fieldtype, field in ctype:fielditer() do
 				local cloffset = tostring(resultPtr[index]):match'^(%d+)ULL$'
 				index = index + 1
 				local ffioffset = tostring(ffi.offsetof(ctype.name, fieldname))
@@ -750,63 +750,66 @@ end
 		local env_mt, env_code = struct{
 			name = 'env_t',
 			fields = {
-				{size = 'vec3sz_t'},
-				{stepsize = 'vec3sz_t'},
-				{xmin = 'real3'},
-				{xmax = 'real3'},
-				{dx = 'real3'},
-				{invdx = 'real3'},
-				{dim = 'int'},
-				{initCond = 'int'},
-				{boundaryCond = 'int'},
-				{convergeAlpha = 'bool'},
-				{convergeBeta = 'bool'},
-				{convergeGamma = 'bool'},
+				{name='size', type='vec3sz_t'},
+				{name='stepsize', type='vec3sz_t'},
+				{name='xmin', type='real3'},
+				{name='xmax', type='real3'},
+				{name='dx', type='real3'},
+				{name='invdx', type='real3'},
+				{name='dim', type='int'},
+				{name='initCond', type='int'},
+				{name='boundaryCond', type='int'},
+				{name='convergeAlpha', type='bool'},
+				{name='convergeBeta', type='bool'},
+				{name='convergeGamma', type='bool'},
 			},
-			dontMakeExtraUnion = true,	-- TODO make this default behavior
 		}
 
 		local gPrim_mt, gPrim_code = struct{
 			name = 'gPrim_t',
+			union = true,
 			fields = {
-				{alpha = 'real'},
-				{betaU = 'real3'},
-				{gammaLL = 'real3s3'},
+				{name='s', type='real[10]', no_iter=true},
+				{type=struct{
+					anonymous = true,
+					packed = true,
+					fields = {
+						{name='alpha', type='real'},
+						{name='betaU', type='real3'},
+						{name='gammaLL', type='real3s3'},
+					},
+				}},
 			},
-			-- real s[] as union access
-			unionType = 'real',
-			unionField = 's',
-			packed = true,
 		}
 
 		local TPrim_fields = table()
 		--source terms:
 		if self.body.useMatter then
 			TPrim_fields:append{
-				{rho = 'real'},		-- [1/m^2] matter density
-				{P = 'real'},		-- [1/m^2] pressure ... due to matter.  TODO what about magnetic pressure?
-				{eInt = 'real'},	-- [1] specific internal energy
+				{name='rho', type='real'},		-- [1/m^2] matter density
+				{name='P', type='real'},		-- [1/m^2] pressure ... due to matter.  TODO what about magnetic pressure?
+				{name='eInt', type='real'},	-- [1] specific internal energy
 			}
 			if self.body.useVel then
-				TPrim_fields:insert{v = 'real3'}	-- [1] 3-vel (upper, spatial)
+				TPrim_fields:insert{name='v', type='real3'}	-- [1] 3-vel (upper, spatial)
 			end
 		end
 		if self.body.useEM then
 			if self.useFourPotential then
 				TPrim_fields:append{
-					{JL = 'real4'},	--4-current: rho, j  use to solve ...
-					{AL = 'real4'},	--4-potential: phi, A
+					{name='JL', type='real4'},	--4-current: rho, j  use to solve ...
+					{name='AL', type='real4'},	--4-potential: phi, A
 				}
 			else
 				--this needs to be lienar solved for ... but it's an easy problem (at least when geometry is flat)
 				--TPrim_fields:append{
-				--	{chargeDensity = 'real'},
-				--	{currentDensity = 'TensorUsub'},	//TODO how does this relate to matter density?
+				--	{name='chargeDensity', type='real'},
+				--	{name='currentDensity', type='TensorUsub'},	//TODO how does this relate to matter density?
 				--}
 				--in the mean time ...
 				TPrim_fields:append{
-					{E = 'real3'},
-					{B = 'real3'},	--upper, spatial
+					{name='E', type='real3'},
+					{name='B', type='real3'},	--upper, spatial
 				}
 			end
 		end
@@ -823,13 +826,17 @@ end
 		self.TPrim_t = 'TPrim_t'
 		--]]
 
-		self.TPrim_mt, self.TPrim_code = struct{
+		local TPrim_mt, TPrim_code = struct{
 			name = self.TPrim_t,
-			fields = TPrim_fields,
-			-- real s[] as union access
-			unionType = 'real',
-			unionField = 's',
-			packed = true,
+			union = true,
+			fields = {
+				{name='s', type='real[1]', no_iter=true},
+				{type=struct{
+					anonymous = true,
+					packed = true,
+					fields = TPrim_fields,
+				}},
+			},
 		}
 	end
 	--]]
