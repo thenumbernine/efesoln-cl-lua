@@ -724,7 +724,7 @@ end
 #define indexForInt4(i)	indexForInt4ForSize(i, (int)env->size.x, (int)env->size.y, (int)env->size.z)
 #define initKernel()	initKernelForSize((int)env->size.x, (int)env->size.y, (int)env->size.z)
 ]],
-		vec3sz.typeCode,
+		vec3sz.code,
 	}:concat'\n'
 
 	-- [[ I would put this in the type code, but it requires the type code to already be cdef'd
