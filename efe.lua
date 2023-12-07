@@ -1888,9 +1888,9 @@ function EFESolver:calcBufferNorm(srcbuf)
 	assert(m == 10)	-- real4s4
 	local volume = tonumber(self.base.size:volume())
 	for i=0,volume-1 do
-		local fptr = ffi.cast('real*', cpu[i].s)
+		local fptr = ffi.cast('real*', cpu + i)
 		for j=0,m-1 do
---print(i,j, cpu[i].s[j])
+--print(i,j, fptr[j])
 --			sum = sum + (fptr[j] / G)^2
 			sum = sum + (fptr[j])^2
 		end
@@ -2082,7 +2082,7 @@ function EFESolver:printbuf(name)
 		z = tonumber((z - y) / self.base.size.y)
 		io.write(name..'('..x..', '..y..', '..z..') = '..tostring(cpu[i]))
 		io.write(' ... reals:')
-		local fptr = ffi.cast('real*', cpu[i].s)
+		local fptr = ffi.cast('real*', cpu + i)
 		for j=0,m-1 do
 			io.write(' ', fptr[j])
 			if not math.isfinite(fptr[j]) then
