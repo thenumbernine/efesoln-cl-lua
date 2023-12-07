@@ -11,87 +11,27 @@
 #include <iostream>
 #endif
 
-<?=solver.env_cpp_code?>
-
-struct gPrim_t {
-// this works in Tensor/Vector.h, but why not here?
-//	union {
-//		struct {
-			real alpha;
-			real3 betaU;
-			real3s3 gammaLL;
-//		};
-//		std::array<real, 10> s = {};
-//	};
-
-	gPrim_t() {
-		alpha = 1;
-		betaU = real3(0,0,0);
-		gammaLL = real3s3(
-			1,
-			0,1,
-			0,0,1
-		);
-	}
-
-	gPrim_t(
-		real const alpha_,
-		real3 const & betaU_,
-		real3s3 const & gammaLL_
-	) {
-		alpha = alpha_;
-		betaU = betaU_;
-		gammaLL = gammaLL_;
-	}
-
-#if 0
-	using This = gPrim_t;
-	static constexpr auto fields = std::make_tuple(
-		std::make_pair("alpha", &This::alpha),
-		std::make_pair("betaU", &This::betaU),
-		std::make_pair("gammaLL", &This::gammaLL)
-	);
-#endif
-};
-
+<?=solver.env_mt.cppcode?>
+<?=solver.gPrim_mt.cppcode?>
 static_assert(sizeof(gPrim_t) == sizeof(real) * 10);
 
 inline std::ostream& operator<<(std::ostream & o, gPrim_t const & x) {
 	return o << "("
-		<< "alpha=" << x.alpha << ", " 
-		<< "betaU=" << x.betaU << ", " 
+		<< "alpha=" << x.alpha << ", "
+		<< "betaU=" << x.betaU << ", "
 		<< "gammaLL=" << real3x3(x.gammaLL)
 		<< ")";
 }
 
-//TODO I could give struct-lua an option for generating cpp classes instead of C typedef structs ...
-struct <?=TPrim_t?> {
-<?	if solver.body.useMatter then ?>
-	real rho;
-	real P;
-	real eInt;
-<?		if solver.body.useVel then ?>
-	real3 v;
-<?		end ?>
-<?	end ?>
-<?	if solver.body.useEM then ?>
-<?		if self.useFourPotential then ?>
-	real4 JL;
-	real4 AL;
-<?		else ?>
-	real3 E;
-	real3 B;
-<?		end ?>
-<?	end ?>
-};
+<?=solver.TPrim_mt.cppcode?>
 
 static_assert(sizeof(real4s4) == sizeof(real) * 10);
 
 inline std::ostream& operator<<(std::ostream & o, <?=TPrim_t?> const & x) {
 	return o << "("
 <?	if solver.body.useMatter then ?>
-		<< "rho=" << x.rho << ", " 
-		<< "P=" << x.P << ", " 
+		<< "rho=" << x.rho << ", "
+		<< "P=" << x.P << ", "
 		<< "eInt=" << x.eInt
 <?		if solver.body.useVel then ?>
 		<< "v=" << x.v

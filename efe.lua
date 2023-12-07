@@ -568,7 +568,10 @@ end
 #endif
 
 
+#ifndef offsetof
+// for opencl:
 #define offsetof __builtin_offsetof
+#endif
 
 kernel void checkStructSizes(
 	global size_t * const result
@@ -765,24 +768,46 @@ end
 			},
 		}
 		-- define C struct for luajit and C++ struct for opencl-cpp
-		local env_mt, env_code = struct(env_t_args)
-		self.env_cpp_code = env_mt.cppcode
+		self.env_mt = struct(env_t_args)
 
-		local gPrim_mt, gPrim_code = struct{
+		self.gPrim_mt = struct{
 			name = 'gPrim_t',
-			union = true,
 			fields = {
-				{name='s', type='real[10]', no_iter=true},
-				{type=struct{
-					anonymous = true,
-					packed = true,
-					fields = {
-						{name='alpha', type='real'},
-						{name='betaU', type='real3'},
-						{name='gammaLL', type='real3s3'},
-					},
-				}},
+				{name='alpha', type='real'},
+				{name='betaU', type='real3'},
+				{name='gammaLL', type='real3s3'},
 			},
+			-- cpp code goes here:
+			body = [[
+	gPrim_t() {
+		alpha = 1;
+		betaU = real3(0,0,0);
+		gammaLL = real3s3(
+			1,
+			0,1,
+			0,0,1
+		);
+	}
+
+	gPrim_t(
+		real const alpha_,
+		real3 const & betaU_,
+		real3s3 const & gammaLL_
+	) {
+		alpha = alpha_;
+		betaU = betaU_;
+		gammaLL = gammaLL_;
+	}
+
+#if 0
+	using This = gPrim_t;
+	static constexpr auto fields = std::make_tuple(
+		std::make_pair("alpha", &This::alpha),
+		std::make_pair("betaU", &This::betaU),
+		std::make_pair("gammaLL", &This::gammaLL)
+	);
+#endif
+]]
 		}
 
 		local TPrim_fields = table()
@@ -829,7 +854,7 @@ end
 		self.TPrim_t = 'TPrim_t'
 		--]]
 
-		local TPrim_mt, TPrim_code = struct{
+		self.TPrim_mt = struct{
 			name = self.TPrim_t,
 			union = true,
 			fields = {
@@ -912,7 +937,7 @@ local oldHeader = autogenCode
 
 	self.updateLambda = config.updateLambda
 	self.lineSearchMaxIter = config.lineSearchMaxIter
-	
+
 	self.initCond = self.initConds:find(nil, function(initCond)
 		return initCond.name == config.initCond
 	end) or 1
