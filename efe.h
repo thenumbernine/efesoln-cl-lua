@@ -11,23 +11,7 @@
 #include <iostream>
 #endif
 
-//NOTICE this has to match in luajit
-// maybe I should autogen it?
-// but POD vs class...
-struct env_t {
-	vec3sz_t size = {};
-	vec3sz_t stepsize = {};
-	real3 xmin = {};
-	real3 xmax = {};
-	real3 dx = {};
-	real3 invdx = {};
-	int dim = {};
-	int initCond = {};
-	int boundaryCond = {};
-	bool convergeAlpha = true;
-	bool convergeBeta = false;
-	bool convergeGamma = false;
-};
+<?=solver.env_cpp_code?>
 
 struct gPrim_t {
 // this works in Tensor/Vector.h, but why not here?

@@ -747,23 +747,28 @@ end
 
 		-- don't add env_t and gPrim_t to the opencl header
 		-- instead use this for luajit ffi access, and just assert its size and fields all match
-		local env_mt, env_code = struct{
+		local env_t_args = {
 			name = 'env_t',
 			fields = {
-				{name='size', type='vec3sz_t'},
-				{name='stepsize', type='vec3sz_t'},
-				{name='xmin', type='real3'},
-				{name='xmax', type='real3'},
-				{name='dx', type='real3'},
-				{name='invdx', type='real3'},
-				{name='dim', type='int'},
-				{name='initCond', type='int'},
-				{name='boundaryCond', type='int'},
-				{name='convergeAlpha', type='bool'},
-				{name='convergeBeta', type='bool'},
-				{name='convergeGamma', type='bool'},
+				{name='size', type='vec3sz_t', value='{}'},
+				{name='stepsize', type='vec3sz_t', value='{}'},
+				{name='xmin', type='real3', value='{}'},
+				{name='xmax', type='real3', value='{}'},
+				{name='dx', type='real3', value='{}'},
+				{name='invdx', type='real3', value='{}'},
+				{name='dim', type='int', value='{}'},
+				{name='initCond', type='int', value='{}'},
+				{name='boundaryCond', type='int', value='{}'},
+				{name='convergeAlpha', type='bool', value='true'},
+				{name='convergeBeta', type='bool', value='false'},
+				{name='convergeGamma', type='bool', value='false'},
 			},
 		}
+		-- define C struct for luajit
+		local env_mt, env_code = struct(env_t_args)
+		-- define C++ struct for opencl-cpp
+		local env_mt_cpp, env_cpp_code = struct(table(env_t_args, {cpp=true, cdef=false}):setmetatable(nil))
+		self.env_cpp_code = env_cpp_code
 
 		local gPrim_mt, gPrim_code = struct{
 			name = 'gPrim_t',
