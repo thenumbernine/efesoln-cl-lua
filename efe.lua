@@ -764,11 +764,9 @@ end
 				{name='convergeGamma', type='bool', value='false'},
 			},
 		}
-		-- define C struct for luajit
+		-- define C struct for luajit and C++ struct for opencl-cpp
 		local env_mt, env_code = struct(env_t_args)
-		-- define C++ struct for opencl-cpp
-		local env_mt_cpp, env_cpp_code = struct(table(env_t_args, {cpp=true, cdef=false}):setmetatable(nil))
-		self.env_cpp_code = env_cpp_code
+		self.env_cpp_code = env_mt.cppcode
 
 		local gPrim_mt, gPrim_code = struct{
 			name = 'gPrim_t',
