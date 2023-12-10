@@ -762,9 +762,15 @@ end
 				{name='dim', type='int', value='{}'},
 				{name='initCond', type='int', value='{}'},
 				{name='boundaryCond', type='int', value='{}'},
+				-- Newton descent, which variables to converge
 				{name='convergeAlpha', type='bool', value='true'},
 				{name='convergeBeta', type='bool', value='false'},
 				{name='convergeGamma', type='bool', value='false'},
+				-- T_uv calculation, what goes into it
+				{name='useMatter', type='bool', value='{}'},
+				{name='useVel', type='bool', value='{}'},
+				{name='useEM', type='bool', value='{}'},
+				{name='useFourPotential', type='bool', value='{}'},
 			},
 		}
 		-- define C struct for luajit and C++ struct for opencl-cpp
@@ -810,61 +816,40 @@ end
 ]]
 		}
 
-		local TPrim_fields = table()
-		--source terms:
-		if self.body.useMatter then
-			TPrim_fields:append{
-				{name='rho', type='real'},		-- [1/m^2] matter density
-				{name='P', type='real'},		-- [1/m^2] pressure ... due to matter.  TODO what about magnetic pressure?
-				{name='eInt', type='real'},	-- [1] specific internal energy
-			}
-			if self.body.useVel then
-				TPrim_fields:insert{name='v', type='real3'}	-- [1] 3-vel (upper, spatial)
-			end
-		end
-		if self.body.useEM then
-			if self.useFourPotential then
-				TPrim_fields:append{
-					{name='JL', type='real4'},	--4-current: rho, j  use to solve ...
-					{name='AL', type='real4'},	--4-potential: phi, A
-				}
-			else
-				--this needs to be lienar solved for ... but it's an easy problem (at least when geometry is flat)
-				--TPrim_fields:append{
-				--	{name='chargeDensity', type='real'},
-				--	{name='currentDensity', type='TensorUsub'},	//TODO how does this relate to matter density?
-				--}
-				--in the mean time ...
-				TPrim_fields:append{
-					{name='E', type='real3'},
-					{name='B', type='real3'},	--upper, spatial
-				}
-			end
-		end
-
-		-- same, for now this is separately in efe.h
-		--[[ if I was going to recompile this upon changing body then I'd name this accordingly...
-		self.TPrim_t = 'TPrim_'..tostring(self.body.useMatter)
-			..'_'..tostring(self.body.useVel)
-			..'_'..tostring(self.body.useEM)
-			..'_'..tostring(self.useFourPotential)
-			..'_t'
-		--]]
-		-- [[ in the mean time ...
-		self.TPrim_t = 'TPrim_t'
-		--]]
-
+		-- hmm in my effort to get rid of all autogen code 
 		self.TPrim_mt = struct{
-			name = self.TPrim_t,
+			name = 'TPrim_t',
+--[[ error: member ‘real3 TPrim_t::<unnamed struct>::v’ with constructor not allowed in anonymous aggregate
 			union = true,
 			fields = {
 				{name='s', type='real[1]', no_iter=true},
 				{type=struct{
 					anonymous = true,
 					packed = true,
-					fields = TPrim_fields,
+--]]						
+					fields = {
+						-- useMatter 
+						{name='rho', type='real'},		-- [1/m^2] matter density
+						{name='P', type='real'},		-- [1/m^2] pressure ... due to matter.  TODO what about magnetic pressure?
+						{name='eInt', type='real'},	-- [1] specific internal energy
+							-- useVel
+						{name='v', type='real3'},	-- [1] 3-vel (upper, spatial)
+						-- useEM
+							-- useFourPotential
+						{name='JU', type='real4'},	--4-current: rho, j  use to solve ...
+						{name='AL', type='real4'},	--4-potential: phi, A
+							-- !useFourPotential
+						--this needs to be lienar solved for ... but it's an easy problem (at least when geometry is flat)
+						--{name='chargeDensity', type='real'},
+						--{name='currentDensity', type='TensorUsub'},	//TODO how does this relate to matter density?
+						--in the mean time ...
+						{name='E', type='real3'},
+						{name='B', type='real3'},	--upper, spatial
+					},
+--[[					
 				}},
 			},
+--]]		
 		}
 	end
 	--]]
@@ -925,7 +910,7 @@ local oldHeader = autogenCode
 			'real4s4x4s4',
 			'env_t',
 			'gPrim_t',
-			self.TPrim_t,
+			'TPrim_t',
 		}
 		os.exit()
 	end
@@ -957,7 +942,7 @@ local oldHeader = autogenCode
 		return template([[
 	real div = 0.;
 	<? for i=0,sDim-1 do ?>{
-		<?=TPrim_t?> TPrim_prev;
+		TPrim_t TPrim_prev;
 		if (i.s<?=i?> > 0) {
 			int4 iL = i;
 			--iL.s<?=i?>;
@@ -968,7 +953,7 @@ local oldHeader = autogenCode
 			TPrim_prev = TPrims[index];
 		}
 
-		<?=TPrim_t?> TPrim_next;
+		TPrim_t TPrim_next;
 		if (i.s<?=i?> < size.s<?=i?> - 1) {
 			int4 iR = i;
 			++iR.s<?=i?>;
@@ -986,7 +971,6 @@ local oldHeader = autogenCode
 ]], {
 	field = field,
 	sDim = self.sDim,
-	TPrim_t = self.TPrim_t,
 })
 	end
 
@@ -1382,7 +1366,7 @@ function EFESolver:initBuffers()
 	self.envBuf = self:buffer{name='env', type='env_t', count=1}
 	self:updateEnv()
 
-	self.TPrims = self:buffer{name='TPrims', type=self.TPrim_t}
+	self.TPrims = self:buffer{name='TPrims', type='TPrim_t'}
 	self.gPrims = self:buffer{name='gPrims', type='gPrim_t'}
 	self.GammaULLs = self:buffer{name='GammaULLs', type='real4x4s4'}
 
@@ -1441,7 +1425,6 @@ function EFESolver:template(code)
 		derivCoeffs = derivCoeffs,
 		c = c,
 		G = G,
-		TPrim_t = self.TPrim_t,
 	})
 end
 
@@ -1664,7 +1647,7 @@ kernel void display(
 	constant env_t const * const env,
 	global float * const texCLBuf,
 	int const displayVarIndex,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
@@ -1795,6 +1778,10 @@ function EFESolver:updateEnv()
 	self.envPtr[0].convergeAlpha = self.convergeAlpha
 	self.envPtr[0].convergeBeta = self.convergeBeta
 	self.envPtr[0].convergeGamma = self.convergeGamma
+	self.envPtr[0].useMatter = self.body.useMatter
+	self.envPtr[0].useVel = self.body.useVel
+	self.envPtr[0].useEM = self.body.useEM
+	self.envPtr[0].useFourPotential = self.useFourPotential
 	self.envBuf:fromCPU(self.envPtr)
 end
 

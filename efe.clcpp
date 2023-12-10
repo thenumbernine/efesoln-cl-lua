@@ -277,8 +277,8 @@ real4s4 RicciLL_at(
 	getBoundary = function(args) return "gLL_from_gPrims_at(env, gPrims, "..args.i..")" end,
 }?>
 
-<? if false then -- testing to make sure contraction of Riemann == Ricci
--- ... looks the same as the simplified version below ?>
+#if 0 // testing to make sure contraction of Riemann == Ricci
+// ... looks the same as the simplified version below ?>
 
 	//partial_xU2_of_gLL_asym.a.b.c.d := g_ad,bc - g_bd,ac - g_ac,bd + g_bc,ad
 	// TODO antisymmetric storage
@@ -311,7 +311,7 @@ real4s4 RicciLL_at(
 	//RicciLL.ab := R_ab = R^c_acb
 	auto const RicciLL = real4x4x4x4_tr13_to_real4s4(RiemannULLL);
 
-<? else  -- testing to make sure contraction of Riemann == Ricci ?>
+#else  // testing to make sure contraction of Riemann == Ricci ?>
 
 	/*
 	R_abcd = 1/2 (g_ad,cb - g_bd,ca - g_ac,bd + g_bc,da) + g^fg (Γ_fad Γ_gbc - Γ_fac Γ_gbd)
@@ -335,7 +335,7 @@ real4s4 RicciLL_at(
 		return sum;
 	});
 
-<? end  -- testing to make sure contraction of Riemann == Ricci ?>
+#endif  // testing to make sure contraction of Riemann == Ricci ?>
 
 	return RicciLL;
 }
@@ -370,65 +370,63 @@ real4s4 EinsteinLL_at(
 
 //[1/m^2]
 real4s4 calc_8piTLL(
+	constant env_t const * const env,
 	real4s4 const gLL,
-	<?=TPrim_t?> const TPrim
+	TPrim_t const TPrim
 ) {
 	real4s4 _8piTLL;
 
-<?
-if solver.body.useEM then
-?>
+	if (env->useEM) {
 
-	/*
-	assume the E and B fields are upper 3-vectors
-	T_ab = F_au F_b^u - 1/4 g_ab F_uv F^uv
-	*/
+		/*
+		assume the E and B fields are upper 3-vectors
+		T_ab = F_au F_b^u - 1/4 g_ab F_uv F^uv
+		*/
 
-	real4 const EU = real3_to_real4(TPrim.E);
-	real4 const EL = gLL * EU;
-	real const ESq = EL.dot(EU);
+		real4 const EU = real3_to_real4(TPrim.E);
+		real4 const EL = gLL * EU;
+		real const ESq = EL.dot(EU);
 
-	real4 const BU = real3_to_real4(TPrim.B);
-	real4 const BL = gLL * BU;
-	real const BSq = BL.dot(BU);
+		real4 const BU = real3_to_real4(TPrim.B);
+		real4 const BL = gLL * BU;
+		real const BSq = BL.dot(BU);
 
-	real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
-	real3 const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
+		real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
+		real3 const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
 
-	_8piTLL(0, 0) += ESq + BSq;
-	for (int i = 0; i < sDim; ++i) {
-		_8piTLL(0, i+1) += -2. * SL(i);
-		for (int j = i; j < sDim; ++j) {
-			_8piTLL(i+1, j+1) += gLL(i+1, j+1) * (ESq + BSq)
-				- 2. * (EL(i+1) * EL(j+1) + BL(i+1) * BL(j+1));
+		_8piTLL(0, 0) += ESq + BSq;
+		for (int i = 0; i < sDim; ++i) {
+			_8piTLL(0, i+1) += -2. * SL(i);
+			for (int j = i; j < sDim; ++j) {
+				_8piTLL(i+1, j+1) += gLL(i+1, j+1) * (ESq + BSq)
+					- 2. * (EL(i+1) * EL(j+1) + BL(i+1) * BL(j+1));
+			}
 		}
 	}
-<?
-end
-if solver.body.useMatter then
-	if solver.body.useVel then
-?>	//if we're using velocity ...
-	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
-	real4 const vU = real3_to_real4(TPrim.v);
-	real4 const vL = gLL * vU;
-	real const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
-	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	real4 const uU = real4(W, W * vU(1), W * vU(2), W * vU(3));
-	real4 const uL = gLL * uU;
-	<? else ?>//otherwise uL = gLL(0)
-	real4 const uL = gLL(0);
-<?
-	end
-?>
+	if (env->useMatter) {
+		auto const uL = [&]() -> real4 {
+			if (env->useVel) {
+				//if we're using velocity ...
+				//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
+				auto const vU = real3_to_real4(TPrim.v);
+				auto const vL = gLL * vU;
+				auto const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
+				auto const W = 1. / sqrt(1. - sqrt(vLenSq));
+				auto const uU = real4(W, W * vU(1), W * vU(2), W * vU(3));
+				return gLL * uU;
+			} else {//otherwise uL = gLL(0)
+				return gLL(0);
+			}
+		}();
 
-	//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
-	//[1/m^2]
-	real4s4 const _8piT_matter_LL = (8. * M_PI) * (
-		uL.outer(uL) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
-		+ gLL * TPrim.P
-	);
-	_8piTLL += _8piT_matter_LL;
-<? end ?>
+		//8 π T_matter_ab = 8 π (u_a u_b (ρ (1 + eInt) + P) + g_ab P)
+		//[1/m^2]
+		real4s4 const _8piT_matter_LL = (8. * M_PI) * (
+			uL.outer(uL) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
+			+ gLL * TPrim.P
+		);
+		_8piTLL += _8piT_matter_LL;
+	}
 
 	return _8piTLL;
 }
@@ -617,87 +615,82 @@ gPrim_t calc_gPrim_stellar_Kerr_Newman(real3 const x) {
 // gradient descent , but I'm moving everything into this file so the display shader can see it...
 
 real4s4x4s4 calc_partial_gLL_of_8piTLL(
-	<?=TPrim_t?> const & TPrim,
+	constant env_t const * const env,
+	TPrim_t const & TPrim,
 	real4s4 const & gLL,
 	real4s4 const & gUU
 ) {
 	real4s4x4s4 partial_gLL_of_8piTLL;
-<?
-if solver.body.useEM then ?>
-	auto const EU = real3_to_real4(TPrim.E);
-	auto const EL = gLL * EU;
-	real const ESq = EL.dot(EU);
+	
+	if (env->useEM) {
+	
+		auto const EU = real3_to_real4(TPrim.E);
+		auto const EL = gLL * EU;
+		real const ESq = EL.dot(EU);
 
-	auto const BU = real3_to_real4(TPrim.B);
-	auto const BL = gLL * BU;
-	real const BSq = BL.dot(BU);
+		auto const BU = real3_to_real4(TPrim.B);
+		auto const BL = gLL * BU;
+		real const BSq = BL.dot(BU);
 
-	real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
-	auto const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
+		real const sqrt_det_g = sqrt(fabs(gLL.determinant()));
+		auto const SL = TPrim.E.cross(TPrim.B) * sqrt_det_g;
 
-	// TODO sub-tensor indexes ...
-	for (int e = 0; e < stDim; ++e) {
-		for (int f = e; f < stDim; ++f) {
-			if (e > 0 && f > 0) {
-				partial_gLL_of_8piTLL(e, f, 0, 0) += TPrim.E(e-1) * TPrim.E(f-1) + TPrim.B(e-1) * TPrim.B(f-1);
-			}
-			for (int i = 0; i < sDim; ++i) {
-				partial_gLL_of_8piTLL(e, f, 0, i+1) -= SL(i) * gUU(e, f);
-				for (int j = i; j < sDim; ++j) {
+		// TODO sub-tensor indexes ...
+		for (int e = 0; e < stDim; ++e) {
+			for (int f = e; f < stDim; ++f) {
+				if (e > 0 && f > 0) {
+					partial_gLL_of_8piTLL(e, f, 0, 0) += TPrim.E(e-1) * TPrim.E(f-1) + TPrim.B(e-1) * TPrim.B(f-1);
+				}
+				for (int i = 0; i < sDim; ++i) {
+					partial_gLL_of_8piTLL(e, f, 0, i+1) -= SL(i) * gUU(e, f);
+					for (int j = i; j < sDim; ++j) {
 
-					real sum = 0;
-					if (e == i+1 && f == j+1) sum += ESq + BSq;
+						real sum = 0;
+						if (e == i+1 && f == j+1) sum += ESq + BSq;
 
-					if (e > 0 && f > 0) {
-						sum += gLL(i+1, j+1) * (TPrim.E(e-1) * TPrim.E(f-1) + TPrim.B(e-1) * TPrim.B(f-1));
+						if (e > 0 && f > 0) {
+							sum += gLL(i+1, j+1) * (TPrim.E(e-1) * TPrim.E(f-1) + TPrim.B(e-1) * TPrim.B(f-1));
+						}
+						if (e == i+1) {
+							sum -= 2. * (EU(f) * EL(j+1) + BU(f) * BL(j+1));
+						}
+						if (e == j+1) {
+							sum -= 2. * (EU(f) * EL(i+1) + BU(f) * BL(i+1));
+						}
+
+						partial_gLL_of_8piTLL(e, f, i+1, j+1) += sum;
 					}
-					if (e == i+1) {
-						sum -= 2. * (EU(f) * EL(j+1) + BU(f) * BL(j+1));
-					}
-					if (e == j+1) {
-						sum -= 2. * (EU(f) * EL(i+1) + BU(f) * BL(i+1));
-					}
-
-					partial_gLL_of_8piTLL(e, f, i+1, j+1) += sum;
 				}
 			}
 		}
 	}
-<?
-end
+	if (env->useMatter) {
+		auto const uL = [&]() -> real4 {
+			if (env->useVel) {
+				//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
+				auto const vU = real3_to_real4(TPrim.v);
+				auto const vL = gLL * vU;
+				auto const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
+				auto const W = 1. / sqrt(1. - sqrt(vLenSq));
+				auto const uU = real4(W, W * vU(1), W * vU(2), W * vU(3));
+				return gLL * uU;
+			} else {
+				return gLL(0);
+			}
+		}();
 
-if solver.body.useMatter then
-	if solver.body.useVel then -- if we're using velocity ...
-?>
-	//set vU.t = 0 so we only lower by the spatial component of the metric.  right?
-	auto const vU = real3_to_real4(TPrim.v);
-	auto const vL = gLL * vU;
-	auto const vLenSq = vL.dot(vU);	//vU.t = 0 so we'll neglect the vL.t component
-	real const W = 1. / sqrt(1. - sqrt(vLenSq));
-	auto const uU = real4(W, W * vU(1), W * vU(2), W * vU(3));
-	auto const uL = gLL * uU;
-<?
-	else -- otherwise uL = gLL(0)
-?>
-	real4 const uL = gLL(0);
-<?
-	end
-?>
-
-	Tensor::Index<'e'> e;
-	Tensor::Index<'f'> f;
-	Tensor::Index<'a'> a;
-	Tensor::Index<'b'> b;
-	real4i4 const delta(1);
-	partial_gLL_of_8piTLL += (
-		(
-			delta(e, a) * uL(b) + delta(e, b) * uL(a)
-		) * uL(f) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
-		+ delta(e, a) * delta(f, b) * TPrim.P
-	).assignR<real4s4x4s4>(e, f, a, b);
-<?
-end
-?>
+		Tensor::Index<'e'> e;
+		Tensor::Index<'f'> f;
+		Tensor::Index<'a'> a;
+		Tensor::Index<'b'> b;
+		real4i4 const delta(1);
+		partial_gLL_of_8piTLL += (
+			(
+				delta(e, a) * uL(b) + delta(e, b) * uL(a)
+			) * uL(f) * (TPrim.rho * (1. + TPrim.eInt) + TPrim.P)
+			+ delta(e, a) * delta(f, b) * TPrim.P
+		).assignR<real4s4x4s4>(e, f, a, b);
+	}
 	return (8. * M_PI) * partial_gLL_of_8piTLL;
 }
 
@@ -753,7 +746,7 @@ real4x4s4 GammaULL_at(
 
 real4s4 calc_partial_gLL_of_Phi(
 	constant env_t const * const env,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
@@ -849,7 +842,7 @@ real4s4 calc_partial_gLL_of_Phi(
 	//Gaussian := R = R^a_a
 	auto const Gaussian = RicciUL.trace();
 
-	auto const partial_gLL_of_8piTLL = calc_partial_gLL_of_8piTLL(TPrims[index], gLL, gUU);
+	auto const partial_gLL_of_8piTLL = calc_partial_gLL_of_8piTLL(env, TPrims[index], gLL, gUU);
 
 	auto const & EFE = EFEs[index];	// G_ab - 8 π T_ab
 
@@ -1062,7 +1055,7 @@ real4s4 calc_partial_gLL_of_Phi(
 
 gPrim_t calc_partial_gPrim_of_Phi(
 	constant env_t const * const env,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,

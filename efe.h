@@ -27,25 +27,19 @@ inline std::ostream& operator<<(std::ostream & o, gPrim_t const & x) {
 
 static_assert(sizeof(real4s4) == sizeof(real) * 10);
 
-inline std::ostream& operator<<(std::ostream & o, <?=TPrim_t?> const & x) {
+inline std::ostream& operator<<(std::ostream & o, TPrim_t const & x) {
 	return o << "("
-<?	if solver.body.useMatter then ?>
-		<< "rho=" << x.rho << ", "
-		<< "P=" << x.P << ", "
-		<< "eInt=" << x.eInt
-<?		if solver.body.useVel then ?>
-		<< "v=" << x.v
-<?		end ?>
-<?	end ?>
-<?	if solver.body.useEM then ?>
-<?		if self.useFourPotential then ?>
-		<< "JL=" << x.JL
-		<< "AL=" << x.AL
-<?		else ?>
-		<< "E=" << x.E
-		<< "B=" << x.B
-<?		end ?>
-<?	end ?>
+<?
+local first = true
+for name,ctype,field in solver.TPrim_mt:fielditer() do
+	if first then
+?> << ", " <?
+	end
+	first = false
+?>	<< "<?=name?>=" << x.<?=name?>
+<?
+end
+?>
 		<< ")";
 }
 
@@ -83,7 +77,6 @@ real4x4x4x4 real4x4x4x4_real4s4_mul_1_1(real4x4x4x4 const & a, real4s4 const & b
 real4x4x4x4 real4x4x4x4_real4s4_mul_3_1(real4x4x4x4 const & a, real4s4 const & b);
 real4s4 real4x4x4x4_tr13_to_real4s4(real4x4x4x4 const & a);
 
-//I don't trust constant int const ...
 #define stDim		<?=stDim?>
 #define sDim		<?=sDim?>
 
@@ -121,8 +114,9 @@ real4s4 EinsteinLL_at(
 );
 
 real4s4 calc_8piTLL(
+	constant env_t const * const env,
 	real4s4 const gLL,
-	<?=TPrim_t?> const TPrim
+	TPrim_t const TPrim
 );
 
 //need to be here o calcVars.clcpp can see them
@@ -136,7 +130,7 @@ real4s4 calc_gUU_from_gPrim(gPrim_t const & gPrim);
 
 real4s4 calc_partial_gLL_of_Phi(
 	constant env_t const * const env,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
@@ -146,7 +140,7 @@ real4s4 calc_partial_gLL_of_Phi(
 
 gPrim_t calc_partial_gPrim_of_Phi(
 	constant env_t const * const env,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,

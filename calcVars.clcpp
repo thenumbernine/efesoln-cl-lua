@@ -43,30 +43,22 @@ kernel void init_gPrims(
 
 kernel void init_TPrims(
 	constant env_t const * const env,
-	global <?=TPrim_t?> * const TPrims
+	global TPrim_t * const TPrims
 ) {
 	initKernel();
 
-	<?=TPrim_t?> & TPrim = TPrims[index];
+	TPrim_t & TPrim = TPrims[index];
 
-<? if solver.body.useMatter then ?>
 	TPrim.rho = 0;
 	TPrim.eInt = 0;
 	TPrim.P = 0;
-<? 	if solver.body.useVel then ?>
 	TPrim.v = real3();
-<? 	end
-end
-if solver.body.useEM then ?>
 	TPrim.E = real3();
 	TPrim.B = real3();
-<? end ?>
 
 <?=solver.body.init and solver.body.init or ''?>
 
-<? if solver.useFourPotential then ?>
 	TPrim.AL = -TPrim.JU;
-<? end ?>
 }
 
 // compute buffers to compute EFE
@@ -165,10 +157,9 @@ we also constrain A^u_;u = 0, which means divergence-free,
 which means subtract out the potential (in curved space)
 ... how?
 */
-<? if solver.useFourPotential then ?>
 kernel void solveAL(
 	constant env_t const * const env,
-	global <?=TPrim_t?> * const TPrims
+	global TPrim_t * const TPrims
 ) {
 	initKernel();
 
@@ -183,12 +174,12 @@ kernel void solveAL(
 ?>
 
 	real4 skewSum;
-	for (int i = 0; i < sDim; ++i) {
+	for (int j = 0; j < sDim; ++j) {
 
-		<?=TPrim_t?> TPrim_prev;
-		if (i(i) > 0) {
+		TPrim_t TPrim_prev;
+		if (i.s[j] > 0) {
 			int4 iL = i;
-			--iL(i);
+			--iL.s[j];
 			int const indexL = indexForInt4(iL);
 			TPrim_prev = TPrims[indexL];
 		} else {
@@ -196,10 +187,10 @@ kernel void solveAL(
 			TPrim_prev = TPrims[index];
 		}
 
-		<?=TPrim_t?> TPrim_next;
-		if (i(i) < size(i) - 1) {
+		TPrim_t TPrim_next;
+		if (i.s[j] < env->size.s[j] - 1) {
 			int4 iR = i;
-			++iR(i);
+			++iR.s[j];
 			int indexR = indexForInt4(iR);
 			TPrim_next = TPrims[indexR];
 		} else {
@@ -207,7 +198,7 @@ kernel void solveAL(
 			TPrim_next = TPrims[index];
 		}
 
-		skewSum += (TPrim_prev.JU + TPrim_next.JU) * (env->invdx(i) * env->invdx(i));
+		skewSum += (TPrim_prev.JU + TPrim_next.JU) * (env->invdx(j) * env->invdx(j));
 	}
 
 	real const diag = -2. * (
@@ -216,11 +207,10 @@ kernel void solveAL(
 		+ env->invdx(2) * env->invdx(2)
 	);
 
-	<?=TPrim_t?> & TPrim = TPrims[index];
+	TPrim_t & TPrim = TPrims[index];
 
 	TPrim.AL = (TPrim.AL - skewSum) / diag;
 }
-<? end ?>
 
 //used by linearized solvers of G x = 8 pi T
 // where G is the (non)linear function G_ab
@@ -239,11 +229,12 @@ kernel void calc_EinsteinLLs(
 kernel void calc_8piTLLs(
 	constant env_t const * const env,
 	global real4s4 * const _8piTLLs,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims
 ) {
 	initKernel();
 	_8piTLLs[index] = calc_8piTLL(
+		env,
 		calc_gLL_from_gPrim(gPrims[index]),
 		TPrims[index]
 	);
@@ -252,15 +243,15 @@ kernel void calc_8piTLLs(
 kernel void calc_EFEs(
 	constant env_t const * const env,
 	global real4s4 * const EFEs,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs
 ) {
 	initKernel();
-	<?=TPrim_t?> const & TPrim = TPrims[index];
+	TPrim_t const & TPrim = TPrims[index];
 	real4s4 const gLL = calc_gLL_from_gPrim(gPrims[index]);
 	real4s4 const EinsteinLL = EinsteinLL_at(env, gPrims, GammaULLs, i);
-	real4s4 const _8piTLL = calc_8piTLL(gLL, TPrim);
+	real4s4 const _8piTLL = calc_8piTLL(env, gLL, TPrim);
 	// EFEs(x) = G_ab(x) - 8 π T_ab(x)
 	EFEs[index] = EinsteinLL - _8piTLL;
 }

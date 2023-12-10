@@ -34,7 +34,7 @@ kernel void calc_EFE_LL_minus_half_traces(
 kernel void calc_partial_gPrim_of_Phis_kernel(
 	constant env_t const * const env,
 	global gPrim_t * const partial_gPrim_of_Phis,
-	global <?=TPrim_t?> const * const TPrims,
+	global TPrim_t const * const TPrims,
 	global gPrim_t const * const gPrims,
 	global real4x4s4 const * const GammaULLs,
 	global real4s4 const * const EFEs,
