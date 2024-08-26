@@ -48,7 +48,7 @@ showCurlTrace = false
 
 
 local App = ImGuiApp:subclass()
-
+App.viewUseGLMatrixMode = true
 App.title = 'Einstein Field Equation Solver'
 
 function App:initGL()

@@ -6,6 +6,7 @@ local timer = require 'ext.timer'
 local math = require 'ext.math'
 local table = require 'ext.table'
 local path = require 'ext.path'
+local op = require 'ext.op'
 local template = require 'template'
 local struct = require 'struct'
 local vec3sz = require 'vec-ffi.vec3sz'
@@ -671,7 +672,7 @@ function EFESolver:init(args)
 	self.body = bodies[config.body]
 
 -- can I hack this in midway?
-local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+local clcpuPrivate = op.safeindex(require 'ffi.req' 'OpenCL', 'private')
 if clcpuPrivate then
 	clcpuPrivate.useCpp = true
 end
