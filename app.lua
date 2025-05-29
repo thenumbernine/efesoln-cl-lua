@@ -7,9 +7,9 @@ local ffi = require 'ffi'
 local table = require 'ext.table'
 local range = require 'ext.range'
 local gl = require 'gl'
-local sdl = require 'ffi.req' 'sdl'
+local sdl = require 'sdl'
 local ig = require 'imgui'
-local ImGuiApp = require 'imguiapp'
+local ImGuiApp = require 'imgui.app'
 local Mouse = require 'glapp.mouse'
 local quat = require 'vec.quat'
 local vec3 = require 'vec.vec3'
@@ -160,42 +160,42 @@ function App:event(event)
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
 	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
 
-	if event[0].type == sdl.SDL_MOUSEBUTTONDOWN then
-		if event[0].button.button == sdl.SDL_BUTTON_WHEELUP then
+	if event[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
+		if event[0].button.button == sdl.SDL_EVENT_BUTTON_WHEEL_UP then
 			orbitTargetDistance = orbitTargetDistance * orbitZoomFactor
-		elseif event[0].button.button == sdl.SDL_BUTTON_WHEELDOWN then
+		elseif event[0].button.button == sdl.SDL_EVENT_BUTTON_WHEEL_DOWN then
 			orbitTargetDistance = orbitTargetDistance / orbitZoomFactor
 		end
-	elseif event[0].type == sdl.SDL_KEYDOWN or event[0].type == sdl.SDL_KEYUP then
-		if event[0].key.keysym.sym == sdl.SDLK_LSHIFT then
-			leftShiftDown = event[0].type == sdl.SDL_KEYDOWN
-		elseif event[0].key.keysym.sym == sdl.SDLK_RSHIFT then
-			rightShiftDown = event[0].type == sdl.SDL_KEYDOWN
-		elseif canHandleKeyboard and event[0].type == sdl.SDL_KEYDOWN then
-			if event[0].key.keysym.sym == sdl.SDLK_UP then
+	elseif event[0].type == sdl.SDL_EVENT_KEY_DOWN
+	or event[0].type == sdl.SDL_EVENT_KEY_UP
+	then
+		if event[0].key.key == sdl.SDLK_LSHIFT then
+			leftShiftDown = event[0].type == sdl.SDL_EVENT_KEY_DOWN
+		elseif event[0].key.key == sdl.SDLK_RSHIFT then
+			rightShiftDown = event[0].type == sdl.SDL_EVENT_KEY_DOWN
+		elseif canHandleKeyboard and event[0].type == sdl.SDL_EVENT_KEY_DOWN then
+			if event[0].key.key == sdl.SDLK_UP then
 				self.solver.displayVarIndex = math.max(1, self.solver.displayVarIndex - 1)
 				self.solver:refreshDisplayVar()
-			elseif event[0].key.keysym.sym == sdl.SDLK_DOWN then
+			elseif event[0].key.key == sdl.SDLK_DOWN then
 				self.solver.displayVarIndex = math.min(#self.solver.displayVars, self.solver.displayVarIndex + 1)
 				self.solver:refreshDisplayVar()
-			elseif event[0].key.keysym.sym == sdl.SDLK_SPACE then
+			elseif event[0].key.key == sdl.SDLK_SPACE then
 				self.updateMethod = not self.updateMethod
-			elseif event[0].key.keysym.sym == ('u'):byte() then
+			elseif event[0].key.key == ('u'):byte() then
 				self.updateMethod = 'step'
-			elseif event[0].key.keysym.sym == ('r'):byte() then
+			elseif event[0].key.key == ('r'):byte() then
 				print'resetting...'
 				self.solver:resetState()
 				self.updateMethod = nil
 			end
 		end
-	elseif event[0].type == sdl.SDL_WINDOWEVENT then
-		if event[0].window.event[0] == sdl.SDL_WINDOWEVENT_FOCUS_GAINED then
-			print'unpausing...'
-			self.paused = false
-		elseif event[0].window.event[0] == sdl.SDL_WINDOWEVENT_FOCUS_LOST then
-			print'pausing...'
-			self.paused = true
-		end
+	elseif event[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_GAINED then
+		print'unpausing...'
+		self.paused = false
+	elseif event[0].type == sdl.SDL_EVENT_WINDOW_FOCUS_LOST then
+		print'pausing...'
+		self.paused = true
 	end
 end
 
