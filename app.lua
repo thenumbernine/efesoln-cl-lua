@@ -380,7 +380,7 @@ function App:updateGUI()
 
 	local gradImageSize = ig.ImVec2(128, 32)
 	ig.igImage(
-		ffi.cast('void*',ffi.cast('intptr_t',hsvTex.id)),
+		ffi.cast('ImTextureID',hsvTex.id),
 		gradImageSize)
 
 	local gradScreenPos = ig.igGetCursorScreenPos()
