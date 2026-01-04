@@ -534,7 +534,7 @@ EFESolver.updateMethods = {'Newton', 'ConjRes', 'GMRes', 'JFNK'}
 function EFESolver:checkStructSizes(typenames)
 
 -- can I hack this in midway?
-local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+local clcpuPrivate = require 'cl.ffi.OpenCL'.private
 if clcpuPrivate then
 	-- needs to be 'true' because efe.h has our structs, and that includes math.hpp, which points to cstddef (and all the Tensor stuff)
 	clcpuPrivate.useCpp = true
@@ -672,7 +672,7 @@ function EFESolver:init(args)
 	self.body = bodies[config.body]
 
 -- can I hack this in midway?
-local clcpuPrivate = op.safeindex(require 'ffi.req' 'OpenCL', 'private')
+local clcpuPrivate = op.safeindex(require 'cl.ffi.OpenCL', 'private')
 if clcpuPrivate then
 	clcpuPrivate.useCpp = true
 end
@@ -1146,7 +1146,7 @@ texCLBuf[index] = (numerical - analytical).length() / analyticalMagn - 1.;
 	-- linearize: G x = b
 
 -- can I hack this in midway?
-local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+local clcpuPrivate = require 'cl.ffi.OpenCL'.private
 if clcpuPrivate then
 	clcpuPrivate.useCpp = false
 end
@@ -1326,7 +1326,7 @@ assert(type(name)=='string')
 	self.code = ''
 
 -- can I hack this in midway?
-local clcpuPrivate = require 'ffi.req' 'OpenCL'.private
+local clcpuPrivate = require 'cl.ffi.OpenCL'.private
 if clcpuPrivate then
 	clcpuPrivate.useCpp = true
 end
