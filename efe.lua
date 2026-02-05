@@ -753,8 +753,8 @@ end
 		local env_t_args = {
 			name = 'env_t',
 			fields = {
-				{name='size', type='vec3sz_t', value='{}'},
-				{name='stepsize', type='vec3sz_t', value='{}'},
+				{name='size', type='vec3sz', value='{}'},
+				{name='stepsize', type='vec3sz', value='{}'},
 				{name='xmin', type='real3', value='{}'},
 				{name='xmax', type='real3', value='{}'},
 				{name='dx', type='real3', value='{}'},
