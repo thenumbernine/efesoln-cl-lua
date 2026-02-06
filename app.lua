@@ -15,7 +15,6 @@ local quat = require 'vec.quat'
 local vec3 = require 'vec.vec3'
 local vec4 = require 'vec.vec4'
 local vec4d = require 'vec-ffi.vec4d'
-local glreport = require 'gl.report'
 local glcall = require 'gl.call'
 local GradientTex = require 'gl.gradienttex'
 local Tex2D = require 'gl.tex2d'
@@ -147,8 +146,6 @@ void main() {
 		},
 	}
 	:useNone()
-
-	glreport'here'
 
 	gl.glEnable(gl.GL_DEPTH_TEST)
 end
@@ -349,8 +346,6 @@ function App:update()
 --	for i,clipInfo in ipairs(clipInfos) do
 --		gl.glDisable(gl.GL_CLIP_PLANE0+i-1)
 --	end
-
-	glreport'here'
 
 	App.super.update(self)
 end
