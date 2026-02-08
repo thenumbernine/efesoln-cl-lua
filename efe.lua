@@ -686,7 +686,7 @@ end
 	EFESolver.super.init(self, {
 		-- TODO rename to 'gridSize' ?
 		size = {config.size, config.size, config.size},
-		verbose = true,
+useGLSharing = false,
 	})
 
 	local math_luajit_h = self:template(assert(path'math.luajit.h':read()))
@@ -726,6 +726,8 @@ end
 //macros for the base domain
 #define indexForInt4(i)	indexForInt4ForSize(i, (int)env->size.x, (int)env->size.y, (int)env->size.z)
 #define initKernel()	initKernelForSize((int)env->size.x, (int)env->size.y, (int)env->size.z)
+
+typedef ulong uint64_t;
 ]],
 		vec3sz.code,
 	}:concat'\n'
@@ -753,8 +755,10 @@ end
 		local env_t_args = {
 			name = 'env_t',
 			fields = {
-				{name='size', type='vec3sz', value='{}'},
-				{name='stepsize', type='vec3sz', value='{}'},
+				-- don't use string 'vec3sz' because its type is duplicated and cached as whatever size_t is
+				-- (in x64 case, ul)
+				{name='size', type=vec3sz, value='{}'},
+				{name='stepsize', type=vec3sz, value='{}'},
 				{name='xmin', type='real3', value='{}'},
 				{name='xmax', type='real3', value='{}'},
 				{name='dx', type='real3', value='{}'},
