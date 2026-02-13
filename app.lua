@@ -10,7 +10,6 @@ local gl = require 'gl'
 local sdl = require 'sdl'
 local ig = require 'imgui'
 local ImGuiApp = require 'imgui.app'
-local Mouse = require 'glapp.mouse'
 local quat = require 'vec.quat'
 local vec3 = require 'vec.vec3'
 local vec4 = require 'vec.vec4'
@@ -22,7 +21,6 @@ local Tex3D = require 'gl.tex3d'
 local GLProgram = require 'gl.program'
 local EFESolver = require 'efe'
 
-local mouse = Mouse()
 local viewAngle = quat()
 local viewDist = 2
 
@@ -46,7 +44,7 @@ showGradTrace = false
 showCurlTrace = false
 
 
-local App = ImGuiApp:subclass()
+local App = require 'sdl.mouse'.apply(ImGuiApp):subclass()
 App.viewUseGLMatrixMode = true
 App.title = 'Einstein Field Equation Solver'
 
@@ -153,9 +151,10 @@ end
 local leftShiftDown
 local rightShiftDown
 function App:event(event)
-	App.super.event(self, event)
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
 	local canHandleKeyboard = not ig.igGetIO()[0].WantCaptureKeyboard
+	self.mouse.cantHandleEvent = not canHandleMoue
+	App.super.event(self, event)
 
 	if event[0].type == sdl.SDL_EVENT_MOUSE_BUTTON_DOWN then
 		if event[0].button.button == sdl.SDL_EVENT_BUTTON_WHEEL_UP then
@@ -213,9 +212,7 @@ function App:update()
 	end
 
 	local canHandleMouse = not ig.igGetIO()[0].WantCaptureMouse
-	if canHandleMouse then
-		mouse:update()
-	end
+	local mouse = self.mouse
 	if mouse.leftDragging then
 		if leftShiftDown or rightShiftDown then
 			if rotateClip == 0 then
